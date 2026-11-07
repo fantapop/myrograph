@@ -8,7 +8,15 @@ Deluxe set (from the user's photo `IMG_7377`): rings 144/96 and 150/105, rack 15
 7,866 combos enumerated, 7,836 physically valid. Filter chips show piece pictures; ink and paper
 colors are adjustable. Verified by headless Chrome screenshots; the math core is tested under node.
 
+Compose feature: header "Compose (n)" button slides a panel in from the right. While open, grid
+tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
+three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
+rotation slider and remove; "True size" keeps real relative sizes (tooth units), "Fit each"
+normalises every layer. Selection is in-memory only (lost on reload).
+
 Next steps / not done:
+- Compose: no save/load of compositions, no PNG/SVG export, no layer reordering, no per-layer
+  offset (all share one centre), no per-layer line width.
 - Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
   overlapping combos"). In the photo the Bar has teeth only on its short ends; modelled with teeth
   all round, so Bar-in-ring is probably more permissive on the real toy.
@@ -24,6 +32,15 @@ builds in ~250 ms).
 
 ## Log
 
+
+### 2026-11-07 — Overlay composer
+
+Plan/outcome: right-hand drawer with its own WebGL renderer (the grid keeps using the offscreen
+one). Raw (unnormalised) curves are cached per pattern (`traceRaw`) so colour/rotation/scale
+changes only re-render; geometry is shared, each layer gets its own Line2 with a uniform
+scale (line width stays in screen pixels). Opening the drawer narrows the grid and re-flows it
+while keeping the first visible row in place (`relayout`). Pattern identity is `p.key` = index in
+ALL, stable as long as PARTS is unchanged.
 
 ### 2026-11-07 — Parts re-measured from the user's photo; Cross made to work
 

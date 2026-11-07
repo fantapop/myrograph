@@ -13,7 +13,9 @@
   Usage: open index.html in a browser (needs network for the three.js CDN import map), or run
   `python3 -m http.server` in this directory and visit http://localhost:8000.
   Controls: filter chips with piece pictures (none selected = no filter), ink and paper colors,
-  Shuffle / Reset order. Combos whose pieces would physically collide while rolling (found by
+  Shuffle / Reset order. "Compose" opens a panel on the right and turns the grid into a picker:
+  click patterns to add them as layers of one overlay (shared centre) with per-layer color,
+  visibility and rotation, and a True-size / Fit-each scale switch. Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -51,8 +53,31 @@
   .swatch.on { border-color: #fff; }
   input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid #44444e; background: none; cursor: pointer; }
   #count { margin-left: auto; color: var(--dim); }
+  :root { --panel-w: min(440px, 92vw); }
+  #compose-btn { position: absolute; right: 16px; top: 6px; }
   #grid { position: relative; margin: 16px; }
-  .tile { position: absolute; background: var(--panel); border-radius: 6px; overflow: hidden; }
+  body.compose-open header { margin-right: var(--panel-w); }
+  body.compose-open #grid { margin-right: calc(16px + var(--panel-w)); }
+  body.compose-open .tile { cursor: pointer; }
+  .tile { position: absolute; background: var(--panel); border-radius: 6px; overflow: hidden; --lc: var(--accent); }
+  body.compose-open .tile:hover { outline: 2px solid #55555f; }
+  .tile.sel { outline: 3px solid var(--lc) !important; }
+  .tile.sel::after { content: "✓"; position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--lc); color: #fff; text-align: center; line-height: 22px; font-weight: 700; text-shadow: 0 0 2px #000; }
+  #compose { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-w); z-index: 4; background: var(--panel);
+    border-left: 1px solid #000; display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s; }
+  body.compose-open #compose { transform: none; }
+  #compose .ch { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #000; }
+  #compose .ch .sp { flex: 1; }
+  #ovc { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); flex: none; }
+  #layers { flex: 1; overflow: auto; padding: 4px 12px 12px; }
+  .layer { padding: 8px 0; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 6px 8px; align-items: center; }
+  .layer.off { opacity: .5; }
+  .layer svg { width: 26px; height: 26px; color: var(--dim); }
+  .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
+  .layer .rot { grid-column: 2 / 6; display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 11px; }
+  .layer .rot input { flex: 1; }
+  .hint { color: var(--dim); padding: 12px; margin: 0; }
   .tile canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); }
   .foot { height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 11px; line-height: 1.25; }
   .foot svg { width: 30px; height: 30px; flex: none; color: var(--dim); }
@@ -62,6 +87,7 @@
 </head>
 <body>
 <header>
+  <button id="compose-btn">Compose (0)</button>
   <details open>
     <summary>Filters</summary>
     <div class="row"><span class="label">Rolling</span><span class="chips" id="f-mode"></span></div>
@@ -76,6 +102,14 @@
   </details>
 </header>
 <div id="grid"></div>
+<aside id="compose">
+  <div class="ch"><b>Overlay</b><span class="sp"></span>
+    <select id="ov-scale" title="True size keeps the patterns' real relative sizes"><option value="true">True size</option><option value="fit">Fit each</option></select>
+    <button id="ov-clear">Clear</button><button id="ov-close">✕</button></div>
+  <canvas id="ovc"></canvas>
+  <div id="layers"></div>
+  <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre.</p>
+</aside>
 
 <script type="importmap">
 { "imports": {
@@ -212,8 +246,8 @@ function pose(F, G, inside, s, out) {
   let c = _g[2] * tx + _g[3] * ty, sn = _g[2] * ty - _g[3] * tx; const l = Math.hypot(c, sn); c /= l; sn /= l;
   out[0] = c; out[1] = sn; out[2] = _f[0] - (c * _g[0] - sn * _g[1]); out[3] = _f[1] - (sn * _g[0] + c * _g[1]);
 }
-// Pen path for one hole, scaled to fit radius 0.9. Closes after lcm(NF, NG) teeth of travel.
-function trace(F, G, inside, hole, maxPts = 30000) {
+// Pen path for one hole in tooth units (z = 0), plus its max radius. Closes after lcm(NF, NG) teeth of travel.
+function traceRaw(F, G, inside, hole, maxPts = 30000) {
   const L = lcm(F.N, G.N), n = Math.min(maxPts, Math.ceil(L * 4)), out = new Float32Array((n + 1) * 3), P = [0, 0, 0, 0];
   let maxR = 0;
   for (let i = 0; i <= n; i++) {
@@ -221,9 +255,12 @@ function trace(F, G, inside, hole, maxPts = 30000) {
     const x = P[2] + P[0] * hole[0] - P[1] * hole[1], y = P[3] + P[1] * hole[0] + P[0] * hole[1];
     out[3 * i] = x; out[3 * i + 1] = y; maxR = Math.max(maxR, Math.hypot(x, y));
   }
-  const s = 0.9 / maxR;
-  for (let i = 0; i < out.length; i++) out[i] *= s;
-  return out;
+  return { pts: out, maxR };
+}
+function trace(F, G, inside, hole, maxPts) {     // same path scaled to fit radius 0.9
+  const { pts, maxR } = traceRaw(F, G, inside, hole, maxPts), s = 0.9 / maxR;
+  for (let i = 0; i < pts.length; i++) pts[i] *= s;
+  return pts;
 }
 
 // ---- collision check: would the two physical pieces overlap at any point of the roll?
@@ -440,7 +477,7 @@ let cols = 1, tile = MIN_TILE, pitch = MIN_TILE + FOOT + GAP;
 
 function dropTile(e) { e.alive = false; e.el.remove(); tiles.delete(e.i); }
 function layout() {
-  const w = grid.parentElement.clientWidth - 32;
+  const w = grid.clientWidth;
   cols = Math.max(1, Math.floor((w + GAP) / (MIN_TILE + GAP)));
   tile = (w - GAP * (cols - 1)) / cols;
   pitch = tile + FOOT + GAP;
@@ -458,6 +495,8 @@ function makeTile(i) {
   foot.innerHTML = `${trackIcon(p.track)}${rollerIcon(p.roller, p.hole)}<div class="txt"><b>${p.track.name}</b> · ${p.track.inside ? 'inside' : 'outside'}<br>${p.roller.name} · hole ${p.hole}${p.ok ? '' : ' · <span style="color:#e0793a">overlaps</span>'}</div>`;
   el.append(canvas, foot); grid.append(el);
   const e = { i, el, canvas, alive: true }; tiles.set(i, e); enqueue(e);
+  el.onclick = () => { if (composeOpen) toggleLayer(list[i]); };
+  markTile(e);
 }
 function sync() {                               // create tiles near the viewport, discard the rest
   const top = grid.getBoundingClientRect().top, rows = Math.ceil(list.length / cols);
@@ -467,12 +506,101 @@ function sync() {                               // create tiles near the viewpor
   for (let i = from; i < to; i++) if (!tiles.has(i)) makeTile(i);
 }
 window.addEventListener('scroll', sync, { passive: true });
-window.addEventListener('resize', () => { layout(); sync(); });
+function relayout() {                           // re-flow the grid but stay on the same tiles
+  const top = grid.getBoundingClientRect().top, row = Math.max(0, Math.floor(-top / pitch)), kept = scrollY > 0;
+  layout();
+  if (kept) window.scrollTo(0, grid.getBoundingClientRect().top + scrollY + row * pitch);
+  sync();
+}
+window.addEventListener('resize', relayout);
+
+// ---------------------------------------------------------------- compose: overlay several patterns on one centre
+const LAYER_COLORS = ['#1f4fd8', '#c4242b', '#0f8a5f', '#d9730d', '#7a2fb3', '#0aa5b8', '#c43b8f', '#1a1a1a'];
+const layers = new Map();                       // pattern key -> { key, p, color, visible, rot }
+const ovCache = new Map();                      // pattern key -> { geo, maxR } (raw tooth-unit curves)
+let composeOpen = false;
+const ovCanvas = $('ovc');
+const ov = new THREE.WebGLRenderer({ canvas: ovCanvas, antialias: true });
+const ovScene = new THREE.Scene();
+ovScene.background = scene.background;          // same Color object: paper changes reach both
+
+function ovCurve(p) {
+  let c = ovCache.get(p.key);
+  if (!c) {
+    const { pts, maxR } = traceRaw(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]);
+    const geo = new LineGeometry(); geo.setPositions(pts); c = { geo, maxR }; ovCache.set(p.key, c);
+  }
+  return c;
+}
+function renderOverlay() {
+  const css = ovCanvas.clientWidth;
+  if (!composeOpen || !css) return;
+  ov.setPixelRatio(pr); ov.setSize(css, css, false);
+  for (const o of [...ovScene.children]) { ovScene.remove(o); o.material.dispose(); }
+  const vis = [...layers.values()].filter(l => l.visible), trueSize = $('ov-scale').value === 'true';
+  const maxAll = Math.max(0.001, ...vis.map(l => ovCurve(l.p).maxR));
+  for (const l of vis) {
+    const c = ovCurve(l.p), m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: 1.6 * pr });
+    m.resolution.set(css * pr, css * pr);
+    const line = new Line2(c.geo, m), sc = 0.92 / (trueSize ? maxAll : c.maxR);
+    line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
+    ovScene.add(line);
+  }
+  ov.render(ovScene, camera);
+}
+function markTile(e) {                          // selection outline + badge on a grid tile
+  const l = layers.get(list[e.i].key);
+  e.el.classList.toggle('sel', !!l);
+  if (l) e.el.style.setProperty('--lc', l.color);
+}
+const markTiles = () => { for (const e of tiles.values()) markTile(e); };
+
+function toggleLayer(p) {
+  if (layers.has(p.key)) { layers.delete(p.key); ovCache.get(p.key)?.geo.dispose(); ovCache.delete(p.key); }
+  else {
+    const used = new Set([...layers.values()].map(l => l.color));
+    const color = LAYER_COLORS.find(c => !used.has(c)) || LAYER_COLORS[layers.size % LAYER_COLORS.length];
+    layers.set(p.key, { key: p.key, p, color, visible: true, rot: 0 });
+  }
+  markTiles(); buildLayerList(); renderOverlay();
+}
+function buildLayerList() {
+  $('compose-btn').textContent = `Compose (${layers.size})`;
+  $('ov-hint').style.display = layers.size ? 'none' : '';
+  const box = $('layers'); box.innerHTML = '';
+  for (const l of layers.values()) {
+    const row = document.createElement('div'); row.className = 'layer' + (l.visible ? '' : ' off');
+    row.innerHTML = `<input type="checkbox" title="Show / hide this layer" ${l.visible ? 'checked' : ''}>` +
+      `<input type="color" value="${l.color}" title="Layer color"><span style="display:flex">${trackIcon(l.p.track)}${rollerIcon(l.p.roller, l.p.hole)}</span>` +
+      `<span class="ltxt"><b>${l.p.track.name}</b> · ${l.p.track.inside ? 'inside' : 'outside'}<br>${l.p.roller.name} · hole ${l.p.hole}</span>` +
+      `<button title="Remove">✕</button>` +
+      `<label class="rot">Rotate <input type="range" min="0" max="359" value="${l.rot}"><span>${l.rot}°</span></label>`;
+    const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
+      del = row.querySelector('button'), rot = row.querySelector('input[type=range]');
+    vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); };
+    col.oninput = () => { l.color = col.value; markTiles(); renderOverlay(); };
+    rot.oninput = () => { l.rot = +rot.value; rot.nextElementSibling.textContent = l.rot + '°'; renderOverlay(); };
+    del.onclick = () => toggleLayer(l.p);
+    box.append(row);
+  }
+}
+function setCompose(open) {
+  composeOpen = open;
+  document.body.classList.toggle('compose-open', open);
+  $('compose-btn').classList.toggle('on', open);
+  relayout(); renderOverlay();
+}
+$('compose-btn').onclick = () => setCompose(!composeOpen);
+$('ov-close').onclick = () => setCompose(false);
+$('ov-clear').onclick = () => { for (const l of [...layers.values()]) toggleLayer(l.p); };
+$('ov-scale').onchange = renderOverlay;
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && composeOpen) setCompose(false); });
+new ResizeObserver(renderOverlay).observe(ovCanvas);
 
 // ---------------------------------------------------------------- start
 setTimeout(() => {                              // let "Preparing…" paint before the heavy enumeration
   const t0 = performance.now();
-  CAT = buildCatalog(); ALL = CAT.combos; okCount = ALL.filter(p => p.ok).length;
+  CAT = buildCatalog(); ALL = CAT.combos; ALL.forEach((p, i) => { p.key = i; }); okCount = ALL.filter(p => p.ok).length;
   console.log(`catalog: ${okCount} of ${ALL.length} patterns fit, ${Math.round(performance.now() - t0)} ms`);
   buildFilters(); refilter();
 }, 30);
