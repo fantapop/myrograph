@@ -2,29 +2,41 @@
 
 ## Current state
 
-Single-file static page (`index.html`) renders every ring/wheel/shape/pen-hole combination of a
-Deluxe-style Spirograph set: rings 144/96 and 150/105, rack 150, 15 round wheels (24-84), and
-the shaped wheels Eye (football), Bar (tube), Triangle, Cross. 7,196 combos enumerated, 6,595
-physically valid. Filter chips show piece pictures; ink and paper colors are adjustable.
-Verified by headless Chrome screenshots; the math core is tested under node (see below).
+Single-file static page (`index.html`) renders every ring/wheel/shape/pen-hole combination of the
+Deluxe set (from the user's photo `IMG_7377`): rings 144/96 and 150/105, rack 150, 15 round wheels
+(24-84, 5-35 holes), and the shaped wheels Eye (13 holes), Bar (9), Triangle (12), Cross (10).
+7,866 combos enumerated, 7,836 physically valid. Filter chips show piece pictures; ink and paper
+colors are adjustable. Verified by headless Chrome screenshots; the math core is tested under node.
 
 Next steps / not done:
-- The Cross has zero physically valid combos in the simulation (its notches collide with any
-  convex or flat partner); it only shows with "Include overlapping combos". Decide whether to
-  keep, drop the check for it, or model how the real piece behaves.
-- Bar/Eye/Triangle can't roll inside rings (no valid fit); they work around rings, the rack and
-  other wheels. Real toy may be looser than the strict meshing model.
-- Shaped-wheel tooth counts (Eye 64, Bar 64, Triangle 60, Cross 72) and hole positions are
-  guesses; the rack's inner side is not modelled; the straight-rack-as-open-track is not either.
+- Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
+  overlapping combos"). In the photo the Bar has teeth only on its short ends; modelled with teeth
+  all round, so Bar-in-ring is probably more permissive on the real toy.
+- Shaped-wheel sizes and hole positions were measured by eye from the photo (+/-0.5 tooth); a
+  closer photo of each would tighten them. Round-wheel hole distances are an even spread from
+  0.8 to 0.14 of the tip radius (only distance matters for a round wheel).
+- Rack is modelled with outside teeth only and aspect 7.8:1 (from the photo).
 - Possible: click-to-detail, animated drawing, shareable URLs, SVG/PNG export.
 
 Testing the core: extract the BEGIN/END CORE block of `index.html` into a `.mjs` with an
 `export {...}` line and run it with node (analytic hypo/epitrochoid ranges matched; catalog
-builds in ~200 ms).
-
+builds in ~250 ms).
 
 ## Log
 
+
+### 2026-11-07 — Parts re-measured from the user's photo; Cross made to work
+
+The Cross failed every collision check because its notches (and 0.5-tooth tip overshoot) hit the
+partner. In the photo only the four curved arm ends are toothed and they lie on a circle, so the
+Cross now rolls on a 60-tooth pitch circle (kinematics) while its real silhouette (curved ends,
+big concave notches) is used for collision and pictures. Pieces now carry `o` (pitch outline)
+and `body` (silhouette). Dead end: OpenCV Hough detection of holes was too noisy (digits,
+spokes); counts were checked by eye instead (all 15 wheels match the chart), shape holes read
+off an enlarged crop. Hole numbers per shape: Triangle has 12 not 10, Cross 10 not 9. Shapes
+resized to the photo (Bar 8.6x13.8, Eye 23x16.6, Reuleaux triangle 16.9 wide, rack 7.8:1).
+Gotcha: scaling an outline to an integer tooth count changes its size; compute the perimeter
+first when the silhouette must stay 1:1 with the pitch curve.
 
 ### 2026-11-07 — Real parts, pictures, colors, per-tile canvases
 

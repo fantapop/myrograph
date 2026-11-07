@@ -1,6 +1,6 @@
 <!--
-  index.html — Spirograph pattern gallery: every ring/wheel/shape/pen-hole combination of a
-  Deluxe-style set (rings 144/96 and 150/105, rack, 15 round wheels, Eye/Bar/Triangle/Cross).
+  index.html — Spirograph pattern gallery: every ring/wheel/shape/pen-hole combination of the
+  Deluxe set (rings 144/96 and 150/105, rack, 15 round wheels, Eye/Bar/Triangle/Cross).
 
   Role: this is the whole app (single static page, no build step, no server). The CORE section
   is pure math: it builds each piece's tooth outline, rolls one piece around/inside another with
@@ -16,8 +16,11 @@
   Shuffle / Reset order. Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
-  Edit PARTS to change tooth counts, shapes or hole layouts. Ring/rack/wheel tooth counts and
-  hole counts follow published charts; the shaped wheels' sizes and hole positions are estimates.
+  Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
+  published charts and the user's photo of the set; shaped-wheel sizes and hole positions were
+  measured by eye from that photo (about +/-0.5 tooth), and round-wheel hole distances are an
+  even spread over the range seen in the photo (a round wheel's pattern depends only on the
+  pen's distance from the centre, not its angle).
   The CORE block between the BEGIN/END markers is extracted and tested under node.
 -->
 <!doctype html>
@@ -96,10 +99,21 @@ const PER_TOOTH = 4;                          // outline samples per tooth
 // What's in the box. Round wheels are named by tooth count; shapes by name with an estimated size.
 const PARTS = {
   rings: [{ outer: 144, inner: 96 }, { outer: 150, inner: 105 }],
-  rack: { N: 150, aspect: 3.5 },              // stadium shape; teeth on the outside only
+  rack: { N: 150, aspect: 7.8 },              // long stadium shape; teeth on the outside only
   wheels: [24, 30, 32, 40, 42, 45, 48, 52, 56, 60, 63, 72, 75, 80, 84],
-  shapes: [{ key: 'eye', name: 'Eye', N: 64 }, { key: 'bar', name: 'Bar', N: 64 },
-           { key: 'triangle', name: 'Triangle', N: 60 }, { key: 'cross', name: 'Cross', N: 72 }],
+  // Shaped wheels: N = teeth the piece meshes with; holes = [x, y] in tooth units from the piece
+  // centre (y up), numbered in order. The Cross's arm ends lie on a circle, so it rolls like a
+  // 60-tooth wheel (pitch circle) while its real silhouette is used for collision and pictures.
+  shapes: [
+    { key: 'eye', name: 'Eye', N: 60, holes: [[-8.5, .6], [-6.3, .6], [-4.3, .6], [-2.4, .6], [-.9, .6],
+      [-.2, -2.5], [1.7, -2.4], [3.5, -1.8], [5.5, -.8], [7.5, -1.1], [.3, -4.3], [3.1, -3.9], [5.3, -2.9]] },
+    { key: 'bar', name: 'Bar', N: 42, holes: [[0, 4.9], [0, 3], [0, 1.2], [-2.8, -1], [-2.8, -2.8], [-2.8, -4.7],
+      [2.8, -1], [2.8, -2.8], [2.8, -4.7]] },
+    { key: 'triangle', name: 'Triangle', N: 53, holes: [[-.15, 7.9], [-2, 6.5], [1.7, 6.5], [-2.2, 4.4], [-.15, 4.2],
+      [1.7, 4.4], [-2.2, -1.8], [-.15, -1.8], [1.7, -1.8], [-2.6, -3.75], [-.15, -3.75], [1.9, -3.75]] },
+    { key: 'cross', name: 'Cross', N: 60, holes: [[0, 8.1], [0, 5.9], [0, 3.9], [0, 2.2],
+      [-8.5, -1.7], [-6.3, -1.7], [-4.4, -1.7], [4.4, -1.7], [6.3, -1.7], [7.9, -1.7]] },
+  ],
 };
 
 // ---- outlines: closed CCW curves resampled to exactly N*PER_TOOTH points, centred on the origin
@@ -135,38 +149,48 @@ function stadiumDense(aspect) {                // length : width = aspect : 1
   for (let i = 0; i <= 48; i++) { const a = Math.PI / 2 + Math.PI * i / 48; pts.push([-c + 0.5 * Math.cos(a), 0.5 * Math.sin(a)]); }
   return pts;
 }
-function eyeDense() {                          // football: pointed-ish lens, long axis along x
-  const up = [], b = 0.36;
-  for (let i = 0; i <= 80; i++) { const x = -Math.cos(Math.PI * i / 80); up.push([x, b * Math.pow(1 - x * x, 0.8)]); }
-  return up.concat(up.slice(1, -1).reverse().map(([x, y]) => [x, -y]));
-}
-function roundedPoly(v, cut, iters) {          // cut every corner, then Chaikin-smooth
-  let pts = [];
-  for (let i = 0; i < v.length; i++) {
-    const p = v[(i + v.length - 1) % v.length], c = v[i], n = v[(i + 1) % v.length];
-    pts.push([c[0] + (p[0] - c[0]) * cut, c[1] + (p[1] - c[1]) * cut], [c[0] + (n[0] - c[0]) * cut, c[1] + (n[1] - c[1]) * cut]);
-  }
-  for (let it = 0; it < iters; it++) {
-    const next = [];
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i], b = pts[(i + 1) % pts.length];
-      next.push([.75 * a[0] + .25 * b[0], .75 * a[1] + .25 * b[1]], [.25 * a[0] + .75 * b[0], .25 * a[1] + .75 * b[1]]);
-    }
-    pts = next;
-  }
+function smoothClosed(pts, passes) {           // round off corners slightly
+  for (let it = 0; it < passes; it++)
+    pts = pts.map((c, i) => { const a = pts[(i + pts.length - 1) % pts.length], b = pts[(i + 1) % pts.length];
+      return [.25 * a[0] + .5 * c[0] + .25 * b[0], .25 * a[1] + .5 * c[1] + .25 * b[1]]; });
   return pts;
 }
-const triangleDense = () => roundedPoly([0, 1, 2].map(i => [Math.cos(TAU * i / 3), Math.sin(TAU * i / 3)]), 0.2, 3);
-const crossDense = () => roundedPoly([[.5, .5], [.5, 1.5], [-.5, 1.5], [-.5, .5], [-1.5, .5], [-1.5, -.5], [-.5, -.5],
-  [-.5, -1.5], [.5, -1.5], [.5, -.5], [1.5, -.5], [1.5, .5]], 0.18, 3);
+function roundedRectDense(w, h, r) {           // the Bar
+  const pts = [];
+  for (const [cx, cy, a0] of [[w / 2 - r, -h / 2 + r, -90], [w / 2 - r, h / 2 - r, 0], [-w / 2 + r, h / 2 - r, 90], [-w / 2 + r, -h / 2 + r, 180]])
+    for (let i = 0; i <= 12; i++) { const a = (a0 + 90 * i / 12) * Math.PI / 180; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+  return pts;
+}
+function lensDense(len, thick) {               // the Eye: two circular arcs, tips on the x axis
+  const a = len / 2, b = thick / 2, rho = (a * a + b * b) / (2 * b), cy = rho - b, up = [];
+  for (let i = 0; i <= 120; i++) { const x = -a * Math.cos(Math.PI * i / 120); up.push([x, -cy + Math.sqrt(rho * rho - x * x)]); }
+  return smoothClosed(up.concat(up.slice(1, -1).reverse().map(([x, y]) => [x, -y])), 6);
+}
+function reuleauxDense(w) {                    // the Triangle: constant-width rounded triangle, vertex up
+  const V = [0, 1, 2].map(i => [w / Math.sqrt(3) * Math.cos(Math.PI / 2 + TAU * i / 3), w / Math.sqrt(3) * Math.sin(Math.PI / 2 + TAU * i / 3)]);
+  const pts = [];
+  for (let i = 0; i < 3; i++) {
+    const c = V[(i + 2) % 3], a0 = Math.atan2(V[i][1] - c[1], V[i][0] - c[0]);
+    let da = Math.atan2(V[(i + 1) % 3][1] - c[1], V[(i + 1) % 3][0] - c[0]) - a0; da -= TAU * Math.round(da / TAU);
+    for (let k = 0; k < 60; k++) pts.push([c[0] + w * Math.cos(a0 + da * k / 60), c[1] + w * Math.sin(a0 + da * k / 60)]);
+  }
+  return smoothClosed(pts, 6);
+}
+const perimeter = pts => pts.reduce((t, p, i) => t + Math.hypot(p[0] - pts[(i + 1) % pts.length][0], p[1] - pts[(i + 1) % pts.length][1]), 0);
+function crossBodyDense() {                    // real silhouette: curved arm ends, big concave notches
+  const Rt = 9.55, hw = 2.75, rho = 5, yf = hw + rho, yc = Math.sqrt(Rt * Rt - hw * hw), al = Math.asin(hw / Rt), q = [];
+  q.push([hw, yf], [hw, (yf + yc) / 2]);
+  for (let i = 0; i <= 16; i++) { const a = Math.PI / 2 - al + 2 * al * i / 16; q.push([Rt * Math.cos(a), Rt * Math.sin(a)]); }
+  q.push([-hw, (yf + yc) / 2]);
+  for (let i = 0; i < 16; i++) { const t = -Math.PI / 2 * i / 16; q.push([-hw - rho + rho * Math.cos(t), yf + rho * Math.sin(t)]); }
+  const out = [];
+  for (let k = 0; k < 4; k++) { const c = Math.cos(k * Math.PI / 2), sn = Math.sin(k * Math.PI / 2); for (const [x, y] of q) out.push([x * c - y * sn, x * sn + y * c]); }
+  return out;
+}
 
 // Pen holes in a piece's local frame (same units as the outline).
-function lineHoles(o, n, from, to) {           // n holes along +x axis, fractions of the x extent
-  let a = 0; for (let k = 0; k < o.M; k++) a = Math.max(a, o.p[2 * k]);
-  return Array.from({ length: n }, (_, k) => [a * (from + (to - from) * k / (n - 1)), 0]);
-}
 function wheelHoles(N) {                       // 5 holes on the 24 up to 35 on the 84, rim to centre
-  const n = Math.round(N / 2 - 7), r = N / TAU, d0 = r - 0.5, d1 = 0.3 * r;
+  const n = Math.round(N / 2 - 7), tip = N / TAU + 0.5, d0 = 0.8 * tip, d1 = 0.14 * tip;   // as seen in the photo
   return Array.from({ length: n }, (_, k) => [d0 + (d1 - d0) * k / (n - 1), 0]);
 }
 
@@ -227,12 +251,13 @@ function makeSDF(F) {                          // free-space distance field arou
   } };
 }
 // F: fixed outline; for inside tracks it must be a circle (the ring's opening).
-function fits(F, G, inside, sdf, tol = 0.4) {
-  const L = lcm(F.N, G.N), steps = Math.ceil(L / 1.5), S = 36, stride = Math.floor(G.M / S), P = [0, 0, 0, 0], rin = F.N / TAU;
+// G is the pitch outline that drives the motion; body is the real silhouette used for collisions.
+function fits(F, G, inside, sdf, body = G, tol = 0.4) {
+  const L = lcm(F.N, G.N), steps = Math.ceil(L / 1.5), S = 48, stride = Math.floor(body.M / S), P = [0, 0, 0, 0], rin = F.N / TAU;
   for (let st = 0; st < steps; st++) {
     pose(F, G, inside, L * st / steps, P);
     for (let j = 0; j < S; j++) {
-      const lx = G.p[2 * j * stride], ly = G.p[2 * j * stride + 1];
+      const lx = body.p[2 * j * stride], ly = body.p[2 * j * stride + 1];
       const x = P[2] + P[0] * lx - P[1] * ly, y = P[3] + P[1] * lx + P[0] * ly;
       if ((inside ? rin - Math.hypot(x, y) : sdf.at(x, y)) < -tol) return false;
     }
@@ -242,31 +267,30 @@ function fits(F, G, inside, sdf, tol = 0.4) {
 
 // ---- the box of parts -> pieces, tracks (fixed parts) and every valid combination
 function buildCatalog() {
-  const roundWheel = N => ({ id: 'w' + N, name: 'Wheel ' + N, N, o: makeOutline(circleDense(), N), holes: wheelHoles(N), round: true });
+  const roundWheel = N => { const o = makeOutline(circleDense(), N); return { id: 'w' + N, name: 'Wheel ' + N, N, o, body: o, holes: wheelHoles(N), round: true }; };
   const rollers = PARTS.wheels.map(roundWheel);
-  for (const s of PARTS.shapes) {
-    const dense = { eye: eyeDense, bar: () => stadiumDense(4), triangle: triangleDense, cross: crossDense }[s.key]();
-    const o = makeOutline(dense, s.N);
-    let holes;
-    if (s.key === 'bar') holes = lineHoles(o, 9, 0.85, 0.05);
-    else if (s.key === 'eye') holes = lineHoles(o, 13, 0.9, -0.9);
-    else if (s.key === 'cross') holes = lineHoles(o, 9, 0.85, 0.05);
-    else { holes = lineHoles(o, 10, 0.8, -0.35); }          // triangle: ray from a vertex through the centre
-    rollers.push({ id: s.key, name: s.name, N: s.N, o, holes });
+  for (const sp of PARTS.shapes) {
+    let o, body;
+    if (sp.key === 'cross') { o = makeOutline(circleDense(), sp.N); const dense = crossBodyDense(); body = makeOutline(dense, Math.round(perimeter(dense))); }   // ~1:1 scale
+    else {
+      const dense = { eye: () => lensDense(23.2, 16.6), bar: () => roundedRectDense(8.6, 13.8, 1.5), triangle: () => reuleauxDense(16.9) }[sp.key]();
+      o = body = makeOutline(dense, sp.N);
+    }
+    rollers.push({ id: sp.key, name: sp.name, N: sp.N, o, body, holes: sp.holes });
   }
   const tracks = [];
   for (const r of PARTS.rings) {
-    tracks.push({ id: `ring${r.inner}-in`, name: `Ring ${r.inner} inner`, kind: 'ring', inside: true, which: 'inner', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.inner) });
-    tracks.push({ id: `ring${r.outer}-out`, name: `Ring ${r.outer} outer`, kind: 'ring', inside: false, which: 'outer', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.outer) });
+    tracks.push({ id: `ring${r.inner}-in`, name: `Ring ${r.inner} inner`, kind: 'ring', inside: true, which: 'inner', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.inner), body: makeOutline(circleDense(), r.inner) });
+    tracks.push({ id: `ring${r.outer}-out`, name: `Ring ${r.outer} outer`, kind: 'ring', inside: false, which: 'outer', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.outer), body: makeOutline(circleDense(), r.outer) });
   }
-  tracks.push({ id: 'rack', name: `Rack ${PARTS.rack.N}`, kind: 'rack', inside: false, o: makeOutline(stadiumDense(PARTS.rack.aspect), PARTS.rack.N) });
-  for (const w of rollers) tracks.push({ id: 'fix-' + w.id, name: w.name, kind: 'piece', pieceId: w.id, inside: false, o: w.o, round: w.round });
+  tracks.push({ id: 'rack', name: `Rack ${PARTS.rack.N}`, kind: 'rack', inside: false, o: makeOutline(stadiumDense(PARTS.rack.aspect), PARTS.rack.N), body: null });
+  for (const w of rollers) tracks.push({ id: 'fix-' + w.id, name: w.name, kind: 'piece', pieceId: w.id, inside: false, o: w.o, body: w.body, round: w.round });
   const combos = [];
   for (const t of tracks) {
-    const sdf = t.inside ? null : makeSDF(t.o);
+    const sdf = t.inside ? null : makeSDF(t.body || t.o);
     for (const r of rollers) {
       if (t.pieceId === r.id) continue;                    // one physical piece can't be both
-      const ok = fits(t.o, r.o, t.inside, sdf);            // false: the pieces would overlap while rolling
+      const ok = fits(t.o, r.o, t.inside, sdf, r.body);            // false: the pieces would overlap while rolling
       for (let k = 0; k < r.holes.length; k++) combos.push({ track: t, roller: r, rollerIdx: rollers.indexOf(r), hole: k + 1, ok });
     }
   }
@@ -299,7 +323,7 @@ function trackIcon(t) {
       const hot = 'stroke="var(--accent)" stroke-width="0.13"';
       body = `<circle r="1" fill="currentColor" fill-opacity=".18" ${t.which === 'outer' ? hot : ''}/>` +
              `<circle r="${t.ratio}" fill="var(--panel)" ${t.which === 'inner' ? hot : ''}/>`;
-    } else body = `<path d="${outlinePath(t.o).d}" fill="currentColor" fill-opacity=".18"/>`;
+    } else body = `<path d="${outlinePath(t.body || t.o).d}" fill="currentColor" fill-opacity=".18"/>`;
     iconCache.set(key, svg(body));
   }
   return iconCache.get(key);
@@ -307,7 +331,7 @@ function trackIcon(t) {
 function rollerIcon(r, hole) {                  // hole: 1-based highlighted hole, or 0 for none
   const key = `r${r.id}:${hole}`;
   if (!iconCache.has(key)) {
-    const { d, rm } = outlinePath(r.o);
+    const { d, rm } = outlinePath(r.body);
     let body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>`;
     r.holes.forEach(([x, y], k) => {
       body += k + 1 === hole ? `<circle cx="${x / rm}" cy="${-y / rm}" r=".13" fill="var(--accent)" stroke="none"/>`
