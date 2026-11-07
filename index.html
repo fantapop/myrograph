@@ -19,9 +19,10 @@
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
   ("SpirographGallery", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
   they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
-  The Albums tab keeps named collections of those same small setups in the browser's
-  localStorage (per site/origin; thumbnails are re-rendered from the setup, never stored) and
-  exports/imports them as .spiroalbum.json files (importing a saved PNG adds it to the album). Combos whose pieces would physically collide while rolling (found by
+  The top-level Albums view (next to Patterns) keeps named collections of those same small
+  setups in the browser's localStorage (per site/origin; thumbnails are re-rendered from the
+  setup, never stored) and exports/imports them as .spiroalbum.json files (importing a saved
+  PNG adds it to the album). Opening an album item loads it into the Compose panel. Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -79,17 +80,21 @@
   [hidden] { display: none !important; }
   .pane { flex: 1; overflow: auto; min-height: 0; }
   #layers { padding: 4px 12px 0; }
-  .tabs { display: flex; gap: 4px; padding: 6px 12px 0; border-bottom: 1px solid #000; }
-  .tabs button { border-radius: 6px 6px 0 0; border-bottom: none; }
-  .tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
-  .ab { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px 0; }
+  #views { display: flex; gap: 4px; margin-bottom: 4px; }
+  #views button { border-radius: 6px; padding: 3px 14px; font-weight: 600; }
+  #views button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  #albumview { margin: 16px; }
+  body.compose-open #albumview { margin-right: calc(16px + var(--panel-w)); }
+  body.view-albums #grid, body.view-albums header details { display: none; }
+  .ab { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .ab .sp { flex: 1; }
-  .ab select { max-width: 45%; }
-  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; padding: 10px 12px 12px; }
+  .ab select { max-width: 40%; font-size: 14px; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding-top: 14px; }
   .card { background: #1f1f24; border-radius: 6px; overflow: hidden; }
   .card canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); cursor: pointer; }
-  .card .nm { display: flex; align-items: center; gap: 2px; padding: 3px 4px 3px 6px; font-size: 11px; }
+  .card .nm { display: flex; align-items: center; gap: 2px; padding: 5px 6px 2px 8px; font-size: 13px; }
   .card .nm span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .meta { padding: 0 8px 7px; font-size: 11px; color: var(--dim); }
   .card .nm button { padding: 0 5px; border-radius: 4px; background: none; border: none; color: var(--dim); }
   .card .nm button:hover { color: var(--ink); }
   .layer { padding: 8px 0; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 6px 8px; align-items: center; }
@@ -112,6 +117,7 @@
 </head>
 <body>
 <header>
+  <nav id="views"><button id="v-p" class="on">Patterns</button><button id="v-a">Albums</button></nav>
   <button id="compose-btn">Compose (0)</button>
   <details open>
     <summary>Filters</summary>
@@ -127,6 +133,14 @@
   </details>
 </header>
 <div id="grid"></div>
+<section id="albumview" hidden>
+  <div class="ab"><select id="al-sel" title="Album"></select>
+    <button id="al-new">New album</button><button id="al-ren">Rename</button><button id="al-del">Delete</button><span class="sp"></span>
+    <button id="al-exp" title="Download this album as a file">Export</button><button id="al-expall" title="Download every album">Export all</button>
+    <button id="al-imp" title="Import an album file (.json) or a saved PNG">Import…</button>
+    <input type="file" id="al-file" accept=".json,application/json,image/png" hidden></div>
+  <div id="al-items" class="thumbs"></div>
+</section>
 <aside id="compose">
   <div class="ch"><b>Overlay</b><span class="sp"></span>
     <label style="color:var(--dim)">Base scale</label>
@@ -137,21 +151,11 @@
     <select id="ov-px" title="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select>
     <button id="ov-open" title="Load a saved PNG (or drop one anywhere on the page)">Open…</button>
     <input type="file" id="ov-file" accept="image/png" hidden>
-    <span class="sp"></span><button id="ov-clear">Clear</button></div>
+    <span class="sp"></span><button id="ov-album" title="Add the current overlay to the selected album (see the Albums view)">＋ Album</button><button id="ov-clear">Clear</button></div>
   <div id="ov-msg"></div>
-  <div class="tabs"><button id="tab-l" class="on">Layers</button><button id="tab-a">Albums</button></div>
   <div id="tab-layers" class="pane">
     <div id="layers"></div>
     <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre. Drop a saved PNG here to re-open it.</p>
-  </div>
-  <div id="albums" class="pane" hidden>
-    <div class="ab"><select id="al-sel" title="Album"></select>
-      <button id="al-new">New</button><button id="al-ren">Rename</button><button id="al-del">Delete</button></div>
-    <div class="ab"><button id="al-save" title="Add the current overlay to this album">＋ Save overlay here</button><span class="sp"></span>
-      <button id="al-exp" title="Download this album as a file">Export</button><button id="al-expall" title="Download every album">Export all</button>
-      <button id="al-imp" title="Import an album file (.json) or a saved PNG">Import…</button>
-      <input type="file" id="al-file" accept=".json,application/json,image/png" hidden></div>
-    <div id="al-items" class="thumbs"></div>
   </div>
 </aside>
 
@@ -426,6 +430,7 @@ const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
 const $ = id => document.getElementById(id);
 const pr = Math.min(window.devicePixelRatio || 1, 2);
 let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', showOverlap = false, okCount = 0;
+let view = 'patterns', gridStale = false;   // which main view is showing; grid needs re-flow after being hidden
 const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: new Set() };
 
 // ---------------------------------------------------------------- icons (pictures of the pieces)
@@ -584,6 +589,7 @@ function makeTile(i) {
   markTile(e);
 }
 function sync() {                               // create tiles near the viewport, discard the rest
+  if (view !== 'patterns') return;
   const top = grid.getBoundingClientRect().top, rows = Math.ceil(list.length / cols);
   const first = Math.max(0, Math.floor(-top / pitch) - 1), last = Math.min(rows - 1, Math.floor((innerHeight - top) / pitch) + 1);
   const from = first * cols, to = Math.min(list.length, (last + 1) * cols);
@@ -592,6 +598,7 @@ function sync() {                               // create tiles near the viewpor
 }
 window.addEventListener('scroll', sync, { passive: true });
 function relayout() {                           // re-flow the grid but stay on the same tiles
+  if (view !== 'patterns') { gridStale = true; return; }
   const top = grid.getBoundingClientRect().top, row = Math.max(0, Math.floor(-top / pitch)), kept = scrollY > 0;
   layout();
   if (kept) window.scrollTo(0, grid.getBoundingClientRect().top + scrollY + row * pitch);
@@ -716,7 +723,7 @@ const thumbs = new Map();                       // item id -> canvas (in-memory;
 const thScene = new THREE.Scene(); thScene.background = new THREE.Color('#faf7f0');
 const thQueue = []; let thPumping = false;
 function renderThumb(item, canvas) {
-  const st = item.state, geos = [], T = Math.round(128 * pr);
+  const st = item.state, geos = [], T = Math.round(220 * pr);
   const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100 })).filter(l => l.p);
   const curve = p => { const { pts, maxR } = traceRaw(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]);
     const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR }; };
@@ -737,7 +744,7 @@ function thPump() {
 }
 function thumbFor(item) {
   let c = thumbs.get(item.id);
-  if (!c) { c = document.createElement('canvas'); c.width = c.height = 128; thumbs.set(item.id, c); thQueue.push([item, c]); if (!thPumping) { thPumping = true; requestAnimationFrame(thPump); } }
+  if (!c) { c = document.createElement('canvas'); c.width = c.height = Math.round(220 * pr); thumbs.set(item.id, c); thQueue.push([item, c]); if (!thPumping) { thPumping = true; requestAnimationFrame(thPump); } }
   return c;
 }
 function buildAlbums() {
@@ -755,16 +762,19 @@ function buildAlbums() {
     const nm = document.createElement('div'); nm.className = 'nm';
     nm.innerHTML = '<span></span><button title="Rename">✎</button><button title="Replace with the current overlay">⟳</button><button title="Delete">✕</button>';
     nm.firstChild.textContent = item.name; nm.firstChild.title = item.name;
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const n = (item.state.layers || []).length;
+    meta.textContent = `${n} layer${n === 1 ? '' : 's'} · ${new Date(item.created || Date.now()).toLocaleDateString()}`;
     const [ren, upd, del] = nm.querySelectorAll('button');
     ren.onclick = () => { const n = prompt('Name', item.name); if (n && n.trim()) { item.name = n.trim(); persist(); buildAlbums(); } };
     upd.onclick = () => { if (!layers.size) return say('The overlay is empty.'); if (confirm(`Replace “${item.name}” with the current overlay?`)) { item.state = overlayState(); thumbs.delete(item.id); persist(); buildAlbums(); } };
     del.onclick = () => { if (confirm(`Delete “${item.name}”?`)) { a.items = a.items.filter(i => i !== item); thumbs.delete(item.id); persist(); buildAlbums(); } };
-    card.append(nm); box.append(card);
+    card.append(nm, meta); box.append(card);
   }
 }
 function openItem(item) {
   if (layers.size && JSON.stringify(overlayState()) !== JSON.stringify(item.state) && !confirm('Replace the current overlay with this one?')) return;
-  try { applyState(item.state); setTab('layers'); } catch (err) { say(err.message, 6000); }
+  try { applyState(item.state); } catch (err) { say(err.message, 6000); }
 }
 function saveToAlbum() {
   if (!layers.size) return say('Add at least one layer first.');
@@ -773,10 +783,17 @@ function saveToAlbum() {
   if (persist()) say(`Saved “${item.name}” to ${a.name}`);
   buildAlbums();
 }
-function setTab(t) {
-  $('tab-layers').hidden = t !== 'layers'; $('albums').hidden = t !== 'albums';
-  $('tab-l').classList.toggle('on', t === 'layers'); $('tab-a').classList.toggle('on', t === 'albums');
-  if (t === 'albums') buildAlbums();
+const scrollMem = { patterns: 0, albums: 0 };
+function setView(v) {
+  if (v === view) return;
+  scrollMem[view] = scrollY; view = v;
+  document.body.classList.toggle('view-albums', v === 'albums');
+  $('v-p').classList.toggle('on', v === 'patterns'); $('v-a').classList.toggle('on', v === 'albums');
+  $('albumview').hidden = v !== 'albums';
+  if (v === 'albums') buildAlbums();
+  else if (gridStale) { gridStale = false; layout(); }
+  window.scrollTo(0, scrollMem[v]);
+  sync();
 }
 function albumPayload(list) {
   return { app: 'spirograph-gallery', kind: 'album', v: 1,
@@ -810,19 +827,19 @@ async function importFile(file) {
       const its = (src.items || []).filter(i => validState(i.state)).map(i => ({ id: uid(), name: String(i.name || 'Overlay'), created: i.created || Date.now(), state: i.state }));
       albums.push({ id: uid(), name, items: its }); curId = albums[albums.length - 1].id; n++; items += its.length;
     }
-    persist(); setTab('albums'); say(`Imported ${n} album${n === 1 ? '' : 's'}, ${items} overlay${items === 1 ? '' : 's'}`);
+    persist(); buildAlbums(); say(`Imported ${n} album${n === 1 ? '' : 's'}, ${items} overlay${items === 1 ? '' : 's'}`);
   } catch (err) { say(err.message, 6000); }
 }
-$('tab-l').onclick = () => setTab('layers'); $('tab-a').onclick = () => setTab('albums');
+$('v-p').onclick = () => setView('patterns'); $('v-a').onclick = () => setView('albums');
+$('ov-album').onclick = saveToAlbum;
 $('al-sel').onchange = e => { curId = e.target.value; persist(); buildAlbums(); };
 $('al-new').onclick = () => { const n = prompt('New album name', `Album ${albums.length + 1}`); if (n && n.trim()) { const a = { id: uid(), name: n.trim(), items: [] }; albums.push(a); curId = a.id; persist(); buildAlbums(); } };
 $('al-ren').onclick = () => { const a = curAlbum(), n = a && prompt('Album name', a.name); if (n && n.trim()) { a.name = n.trim(); persist(); buildAlbums(); } };
 $('al-del').onclick = () => { const a = curAlbum(); if (a && confirm(`Delete album “${a.name}” and its ${a.items.length} overlay(s)? Export it first if you want a copy.`)) { albums = albums.filter(x => x !== a); curId = albums[0]?.id; persist(); buildAlbums(); } };
-$('al-save').onclick = saveToAlbum;
 $('al-exp').onclick = () => exportAlbums(false); $('al-expall').onclick = () => exportAlbums(true);
 $('al-imp').onclick = () => $('al-file').click();
 $('al-file').onchange = e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
-window.addEventListener('storage', e => { if (e.key === STORE_KEY) { albums = loadAlbums(); thumbs.clear(); if (!$('albums').hidden) buildAlbums(); } });
+window.addEventListener('storage', e => { if (e.key === STORE_KEY) { albums = loadAlbums(); thumbs.clear(); if (view === 'albums') buildAlbums(); } });
 window.__spiro = { makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums };   // test hook
 function markTile(e) {                          // selection outline + badge on a grid tile
   const l = layers.get(list[e.i].key);

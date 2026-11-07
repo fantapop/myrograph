@@ -19,7 +19,7 @@ Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and emb
 "SpirographGallery" right after IHDR. "Open..." or dropping a PNG on the page restores it.
 Round trip verified in headless Chrome (state identical) and the PNG still decodes in sips/Chrome.
 
-Albums: the panel's Albums tab keeps named collections of overlay setups in localStorage
+Albums: the top-level Albums view (header tabs Patterns | Albums; thumbnails 220 px, count and date per item; the panel just has a "+ Album" button) keeps named collections of overlay setups in localStorage
 (`spirograph.albums.v1`; ~0.5 KB per overlay, thumbnails re-rendered from the setup on demand, not
 stored). Save-to-album, open, rename, replace-with-current, delete; export one/all albums as
 `.spiroalbum.json` and import them (names de-duplicated, fresh ids); importing/dropping a saved
@@ -45,6 +45,14 @@ builds in ~250 ms).
 
 ## Log
 
+
+### 2026-11-07 — Albums promoted to a top-level view
+
+Feedback: albums were buried in the editor panel. Now header nav switches the main area between
+the Patterns grid and an Albums view; the Compose panel can stay open beside either. Opening an
+item loads it into the panel. Switching views remembers each view's scroll position; the grid is
+kept in the DOM while hidden and re-flowed only if the width changed meanwhile (`gridStale`;
+`relayout`/`sync` no-op while the grid is hidden).
 
 ### 2026-11-07 — Albums
 
