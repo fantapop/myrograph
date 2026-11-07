@@ -11,7 +11,7 @@ colors are adjustable. Verified by headless Chrome screenshots; the math core is
 Compose feature: header "Compose (n)" button slides a panel in from the right. While open, grid
 tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
 three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
-rotation slider and remove; "True size" keeps real relative sizes (tooth units), "Fit each"
+rotation + size sliders (25-200%) and remove; "True size" keeps real relative sizes (tooth units), "Fit each"
 normalises every layer. Selection is in-memory only (lost on reload).
 
 Next steps / not done:

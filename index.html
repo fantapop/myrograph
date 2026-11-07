@@ -15,7 +15,7 @@
   Controls: filter chips with piece pictures (none selected = no filter), ink and paper colors,
   Shuffle / Reset order. "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (shared centre) with per-layer color,
-  visibility and rotation, and a True-size / Fit-each scale switch. Combos whose pieces would physically collide while rolling (found by
+  visibility, rotation and size, and a Base scale switch (True size / Fit each). Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -75,7 +75,7 @@
   .layer.off { opacity: .5; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
   .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
-  .layer .rot { grid-column: 2 / 6; display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 11px; }
+  .layer .rot { grid-column: 2 / 6; width: 100%; display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 11px; }
   .layer .rot input { flex: 1; }
   .hint { color: var(--dim); padding: 12px; margin: 0; }
   .tile canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); }
@@ -104,6 +104,7 @@
 <div id="grid"></div>
 <aside id="compose">
   <div class="ch"><b>Overlay</b><span class="sp"></span>
+    <label style="color:var(--dim)">Base scale</label>
     <select id="ov-scale" title="True size keeps the patterns' real relative sizes"><option value="true">True size</option><option value="fit">Fit each</option></select>
     <button id="ov-clear">Clear</button><button id="ov-close">✕</button></div>
   <canvas id="ovc"></canvas>
@@ -542,7 +543,7 @@ function renderOverlay() {
   for (const l of vis) {
     const c = ovCurve(l.p), m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: 1.6 * pr });
     m.resolution.set(css * pr, css * pr);
-    const line = new Line2(c.geo, m), sc = 0.92 / (trueSize ? maxAll : c.maxR);
+    const line = new Line2(c.geo, m), sc = 0.92 / (trueSize ? maxAll : c.maxR) * l.size / 100;
     line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
     ovScene.add(line);
   }
@@ -560,7 +561,7 @@ function toggleLayer(p) {
   else {
     const used = new Set([...layers.values()].map(l => l.color));
     const color = LAYER_COLORS.find(c => !used.has(c)) || LAYER_COLORS[layers.size % LAYER_COLORS.length];
-    layers.set(p.key, { key: p.key, p, color, visible: true, rot: 0 });
+    layers.set(p.key, { key: p.key, p, color, visible: true, rot: 0, size: 100 });
   }
   markTiles(); buildLayerList(); renderOverlay();
 }
@@ -574,12 +575,14 @@ function buildLayerList() {
       `<input type="color" value="${l.color}" title="Layer color"><span style="display:flex">${trackIcon(l.p.track)}${rollerIcon(l.p.roller, l.p.hole)}</span>` +
       `<span class="ltxt"><b>${l.p.track.name}</b> · ${l.p.track.inside ? 'inside' : 'outside'}<br>${l.p.roller.name} · hole ${l.p.hole}</span>` +
       `<button title="Remove">✕</button>` +
-      `<label class="rot">Rotate <input type="range" min="0" max="359" value="${l.rot}"><span>${l.rot}°</span></label>`;
+      `<label class="rot">Rotate <input type="range" data-k="rot" min="0" max="359" value="${l.rot}"><span>${l.rot}°</span></label>` +
+      `<label class="rot">Size <input type="range" data-k="size" min="25" max="200" value="${l.size}"><span>${l.size}%</span></label>`;
     const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
-      del = row.querySelector('button'), rot = row.querySelector('input[type=range]');
+      del = row.querySelector('button');
     vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); };
     col.oninput = () => { l.color = col.value; markTiles(); renderOverlay(); };
-    rot.oninput = () => { l.rot = +rot.value; rot.nextElementSibling.textContent = l.rot + '°'; renderOverlay(); };
+    for (const r of row.querySelectorAll('input[type=range]'))
+      r.oninput = () => { l[r.dataset.k] = +r.value; r.nextElementSibling.textContent = r.value + (r.dataset.k === 'rot' ? '°' : '%'); renderOverlay(); };
     del.onclick = () => toggleLayer(l.p);
     box.append(row);
   }
