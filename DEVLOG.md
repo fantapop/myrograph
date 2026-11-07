@@ -14,8 +14,13 @@ three.js overlay canvas (all layers share the centre), and a layer list with sho
 rotation + size sliders (25-200%) and remove; "True size" keeps real relative sizes (tooth units), "Fit each"
 normalises every layer. Selection is in-memory only (lost on reload).
 
+Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
+(JSON, part ids + color/visible/rotation/size, paper color, base scale) in an iTXt chunk
+"SpirographGallery" right after IHDR. "Open..." or dropping a PNG on the page restores it.
+Round trip verified in headless Chrome (state identical) and the PNG still decodes in sips/Chrome.
+
 Next steps / not done:
-- Compose: no save/load of compositions, no PNG/SVG export, no layer reordering, no per-layer
+- Compose: no SVG export, no layer reordering, no per-layer
   offset (all share one centre), no per-layer line width.
 - Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
   overlapping combos"). In the photo the Bar has teeth only on its short ends; modelled with teeth
@@ -32,6 +37,15 @@ builds in ~250 ms).
 
 ## Log
 
+
+### 2026-11-07 — PNG save with embedded setup
+
+Chunk helpers (crc32, addTextChunk, readTextChunk) live in the CORE block and are tested under
+node (crc32 check value, roundtrip incl. non-ASCII). Layers are stored by `track|roller|hole` ids
+rather than ALL indices so files survive PARTS edits (parts that no longer exist are skipped and
+reported). Metadata is plain iTXt (uncompressed JSON); image viewers ignore it, but re-saving
+through tools that strip text chunks (many web uploaders, screenshots) loses the setup.
+`window.__spiro` exposes makePng/openFile/etc. for headless testing.
 
 ### 2026-11-07 — Overlay composer
 

@@ -15,7 +15,10 @@
   Controls: filter chips with piece pictures (none selected = no filter), ink and paper colors,
   Shuffle / Reset order. "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (shared centre) with per-layer color,
-  visibility, rotation and size, and a Base scale switch (True size / Fit each). Combos whose pieces would physically collide while rolling (found by
+  visibility, rotation and size, and a Base scale switch (True size / Fit each). "Save PNG"
+  exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
+  ("SpirographGallery", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
+  they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices. Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -78,6 +81,10 @@
   .layer .rot { grid-column: 2 / 6; width: 100%; display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 11px; }
   .layer .rot input { flex: 1; }
   .hint { color: var(--dim); padding: 12px; margin: 0; }
+  #compose .tb { border-top: 1px solid #000; }
+  #ov-msg { padding: 4px 12px; font-size: 11px; color: var(--accent); min-height: 1px; }
+  body.dragging::after { content: "Drop a saved spirograph PNG to open it"; position: fixed; inset: 0; z-index: 9; display: grid;
+    place-items: center; background: rgba(0,0,0,.7); font-size: 20px; }
   .tile canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); }
   .foot { height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 11px; line-height: 1.25; }
   .foot svg { width: 30px; height: 30px; flex: none; color: var(--dim); }
@@ -106,10 +113,16 @@
   <div class="ch"><b>Overlay</b><span class="sp"></span>
     <label style="color:var(--dim)">Base scale</label>
     <select id="ov-scale" title="True size keeps the patterns' real relative sizes"><option value="true">True size</option><option value="fit">Fit each</option></select>
-    <button id="ov-clear">Clear</button><button id="ov-close">✕</button></div>
+    <button id="ov-close">✕</button></div>
   <canvas id="ovc"></canvas>
+  <div class="ch tb"><button id="ov-save" title="Save the overlay as a PNG with the layer setup embedded">Save PNG</button>
+    <select id="ov-px" title="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select>
+    <button id="ov-open" title="Load a saved PNG (or drop one anywhere on the page)">Open…</button>
+    <input type="file" id="ov-file" accept="image/png" hidden>
+    <span class="sp"></span><button id="ov-clear">Clear</button></div>
+  <div id="ov-msg"></div>
   <div id="layers"></div>
-  <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre.</p>
+  <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre. Drop a saved PNG here to re-open it.</p>
 </aside>
 
 <script type="importmap">
@@ -334,6 +347,47 @@ function buildCatalog() {
   }
   return { rollers, tracks, combos };
 }
+
+// ---- PNG metadata: a text chunk carrying the overlay setup, so an exported image can be re-imported
+const CRC_TABLE = (() => { const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t; })();
+function crc32(bytes) { let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+const PNG_SIG = [137, 80, 78, 71, 13, 10, 26, 10];
+function checkPng(png) { if (png.length < 33 || PNG_SIG.some((b, i) => png[i] !== b)) throw new Error('Not a PNG file'); }
+function* pngChunks(png) {                      // yields { type, start (of data), end (of data) }
+  const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  for (let o = 8; o + 12 <= png.length;) {
+    const len = dv.getUint32(o), type = String.fromCharCode(...png.subarray(o + 4, o + 8));
+    yield { type, start: o + 8, end: o + 8 + len };
+    o += 12 + len;
+  }
+}
+function addTextChunk(png, keyword, text) {     // returns a new PNG with an iTXt chunk after IHDR
+  checkPng(png);
+  const enc = new TextEncoder(), k = enc.encode(keyword), t = enc.encode(text);
+  const data = new Uint8Array(k.length + 5 + t.length);          // keyword 0 | compression 0 | method 0 | lang 0 | translated 0 | text
+  data.set(k, 0); data.set(t, k.length + 5);
+  const chunk = new Uint8Array(12 + data.length), dv = new DataView(chunk.buffer);
+  dv.setUint32(0, data.length); chunk.set(enc.encode('iTXt'), 4); chunk.set(data, 8);
+  dv.setUint32(8 + data.length, crc32(chunk.subarray(4, 8 + data.length)));
+  const out = new Uint8Array(png.length + chunk.length);
+  out.set(png.subarray(0, 33), 0); out.set(chunk, 33); out.set(png.subarray(33), 33 + chunk.length);
+  return out;
+}
+function readTextChunk(png, keyword) {          // text of the first uncompressed iTXt/tEXt chunk with this keyword, else null
+  checkPng(png);
+  for (const c of pngChunks(png)) {
+    if (c.type !== 'iTXt' && c.type !== 'tEXt') continue;
+    const d = png.subarray(c.start, c.end), z = d.indexOf(0);
+    if (new TextDecoder().decode(d.subarray(0, z)) !== keyword) continue;
+    if (c.type === 'tEXt') return new TextDecoder('latin1').decode(d.subarray(z + 1));
+    if (d[z + 1] !== 0) return null;            // compressed: we never write these
+    let i = z + 3; i = d.indexOf(0, i) + 1; i = d.indexOf(0, i) + 1;   // skip language tag and translated keyword
+    return new TextDecoder().decode(d.subarray(i));
+  }
+  return null;
+}
 // ======================================================= END CORE
 
 // ---------------------------------------------------------------- UI constants and state
@@ -533,22 +587,85 @@ function ovCurve(p) {
   }
   return c;
 }
-function renderOverlay() {
-  const css = ovCanvas.clientWidth;
-  if (!composeOpen || !css) return;
-  ov.setPixelRatio(pr); ov.setSize(css, css, false);
+function buildOverlay(lineWidth, resPx) {      // (re)fill ovScene from the layers; lineWidth in px of a resPx-wide image
   for (const o of [...ovScene.children]) { ovScene.remove(o); o.material.dispose(); }
   const vis = [...layers.values()].filter(l => l.visible), trueSize = $('ov-scale').value === 'true';
   const maxAll = Math.max(0.001, ...vis.map(l => ovCurve(l.p).maxR));
   for (const l of vis) {
-    const c = ovCurve(l.p), m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: 1.6 * pr });
-    m.resolution.set(css * pr, css * pr);
+    const c = ovCurve(l.p), m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: lineWidth });
+    m.resolution.set(resPx, resPx);
     const line = new Line2(c.geo, m), sc = 0.92 / (trueSize ? maxAll : c.maxR) * l.size / 100;
     line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
     ovScene.add(line);
   }
+}
+function renderOverlay() {
+  const css = ovCanvas.clientWidth;
+  if (!composeOpen || !css) return;
+  ov.setPixelRatio(pr); ov.setSize(css, css, false);
+  buildOverlay(1.6 * pr, css * pr);
   ov.render(ovScene, camera);
 }
+
+// ---- save / open
+const say = (msg, ms = 4000) => { $('ov-msg').textContent = msg; if (ms) setTimeout(() => { if ($('ov-msg').textContent === msg) $('ov-msg').textContent = ''; }, ms); };
+function overlayState() {
+  return { app: 'spirograph-gallery', v: 1, paper: $('paper').value, baseScale: $('ov-scale').value,
+    layers: [...layers.values()].map(l => ({ track: l.p.track.id, roller: l.p.roller.id, hole: l.p.hole,
+      color: l.color, visible: l.visible, rot: l.rot, size: l.size })) };
+}
+async function makePng(px) {
+  const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  r.setPixelRatio(1); r.setSize(px, px, false);
+  buildOverlay(1.6 * px / (ovCanvas.clientWidth || 440), px);   // same line weight relative to the picture as on screen
+  r.render(ovScene, camera);
+  const blob = await new Promise(res => r.domElement.toBlob(res, 'image/png'));
+  r.dispose(); r.forceContextLoss();
+  renderOverlay();
+  return addTextChunk(new Uint8Array(await blob.arrayBuffer()), 'SpirographGallery', JSON.stringify(overlayState()));
+}
+async function savePng() {
+  if (!layers.size) return say('Add at least one layer first.');
+  say('Rendering…', 0);
+  const bytes = await makePng(+$('ov-px').value);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
+  a.download = `spirograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.png`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  say(`Saved ${a.download}`);
+}
+function applyState(meta) {                     // replace the overlay with a saved one
+  if (!meta || meta.app !== 'spirograph-gallery') throw new Error('This PNG has no spirograph data');
+  const byId = new Map(ALL.map(p => [`${p.track.id}|${p.roller.id}|${p.hole}`, p]));
+  for (const l of [...layers.values()]) { ovCache.get(l.key)?.geo.dispose(); ovCache.delete(l.key); }
+  layers.clear();
+  if (meta.paper) { $('paper').value = meta.paper; document.documentElement.style.setProperty('--paper', meta.paper); scene.background.set(meta.paper); }
+  if (meta.baseScale) $('ov-scale').value = meta.baseScale;
+  let missing = 0;
+  for (const l of meta.layers || []) {
+    const p = byId.get(`${l.track}|${l.roller}|${l.hole}`);
+    if (!p) { missing++; continue; }
+    layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100 });
+  }
+  if (!composeOpen) setCompose(true);
+  markTiles(); buildLayerList(); renderOverlay(); repaintAll();
+  say(`Opened ${layers.size} layer${layers.size === 1 ? '' : 's'}` + (missing ? ` (${missing} skipped: part not in this set)` : ''));
+}
+async function openFile(file) {
+  try {
+    if (layers.size && !confirm('Replace the current overlay with the one in this file?')) return;
+    const txt = readTextChunk(new Uint8Array(await file.arrayBuffer()), 'SpirographGallery');
+    if (txt == null) throw new Error('This PNG has no spirograph data');
+    applyState(JSON.parse(txt));
+  } catch (err) { say(err.message, 6000); }
+}
+$('ov-save').onclick = savePng;
+$('ov-open').onclick = () => $('ov-file').click();
+$('ov-file').onchange = e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; };
+window.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('dragging'); });
+window.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('dragging'); });
+window.addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('dragging'); if (e.dataTransfer.files[0]) openFile(e.dataTransfer.files[0]); });
+window.__spiro = { makePng, applyState, openFile, overlayState, layers };   // test hook
 function markTile(e) {                          // selection outline + badge on a grid tile
   const l = layers.get(list[e.i].key);
   e.el.classList.toggle('sel', !!l);
