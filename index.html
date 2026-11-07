@@ -151,7 +151,10 @@
     <select id="ov-px" title="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select>
     <button id="ov-open" title="Load a saved PNG (or drop one anywhere on the page)">Open…</button>
     <input type="file" id="ov-file" accept="image/png" hidden>
-    <span class="sp"></span><button id="ov-album" title="Add the current overlay to the selected album (see the Albums view)">＋ Album</button><button id="ov-clear">Clear</button></div>
+    <span class="sp"></span><button id="ov-clear">Clear</button></div>
+  <div class="ch tb"><label style="color:var(--dim)">Album</label>
+    <select id="ov-albumsel" title="Which album the button adds to (same selection as in the Albums view)" style="flex:1;min-width:0"></select>
+    <button id="ov-album" title="Add the current overlay to the selected album">＋ Add to album</button></div>
   <div id="ov-msg"></div>
   <div id="tab-layers" class="pane">
     <div id="layers"></div>
@@ -747,10 +750,18 @@ function thumbFor(item) {
   if (!c) { c = document.createElement('canvas'); c.width = c.height = Math.round(220 * pr); thumbs.set(item.id, c); thQueue.push([item, c]); if (!thPumping) { thPumping = true; requestAnimationFrame(thPump); } }
   return c;
 }
+function fillAlbumSelects() {                   // the Albums view and the Compose panel share one album selection
+  const a = curAlbum();
+  for (const sel of [$('al-sel'), $('ov-albumsel')]) {
+    sel.innerHTML = albums.length ? '' : '<option value="">New album “My album” (created on first add)</option>';
+    for (const al of albums) { const o = document.createElement('option'); o.value = al.id; o.textContent = `${al.name} (${al.items.length})`; o.selected = !!a && al.id === a.id; sel.append(o); }
+  }
+  const o = document.createElement('option'); o.value = '__new'; o.textContent = '＋ New album…'; $('ov-albumsel').append(o);
+  $('ov-album').textContent = `＋ Add to ${a ? '“' + (a.name.length > 14 ? a.name.slice(0, 13) + '…' : a.name) + '”' : 'album'}`;
+}
 function buildAlbums() {
-  const sel = $('al-sel'), a = curAlbum();
-  sel.innerHTML = albums.length ? '' : '<option>(no albums yet)</option>';
-  for (const al of albums) { const o = document.createElement('option'); o.value = al.id; o.textContent = `${al.name} (${al.items.length})`; o.selected = !!a && al.id === a.id; sel.append(o); }
+  const a = curAlbum();
+  fillAlbumSelects();
   for (const id of ['al-ren', 'al-del', 'al-exp']) $(id).disabled = !a;
   $('al-expall').disabled = !albums.length;
   const box = $('al-items'); box.innerHTML = '';
@@ -780,7 +791,7 @@ function saveToAlbum() {
   if (!layers.size) return say('Add at least one layer first.');
   const a = ensureAlbum(), item = { id: uid(), name: `Overlay ${a.items.length + 1}`, created: Date.now(), state: overlayState() };
   a.items.push(item);
-  if (persist()) say(`Saved “${item.name}” to ${a.name}`);
+  if (persist()) say(`Added “${item.name}” to the album “${a.name}”`);
   buildAlbums();
 }
 const scrollMem = { patterns: 0, albums: 0 };
@@ -833,13 +844,16 @@ async function importFile(file) {
 $('v-p').onclick = () => setView('patterns'); $('v-a').onclick = () => setView('albums');
 $('ov-album').onclick = saveToAlbum;
 $('al-sel').onchange = e => { curId = e.target.value; persist(); buildAlbums(); };
-$('al-new').onclick = () => { const n = prompt('New album name', `Album ${albums.length + 1}`); if (n && n.trim()) { const a = { id: uid(), name: n.trim(), items: [] }; albums.push(a); curId = a.id; persist(); buildAlbums(); } };
+const newAlbum = () => { const n = prompt('New album name', `Album ${albums.length + 1}`); if (n && n.trim()) { const a = { id: uid(), name: n.trim(), items: [] }; albums.push(a); curId = a.id; persist(); } buildAlbums(); };
+$('al-new').onclick = newAlbum;
+$('ov-albumsel').onchange = e => { if (e.target.value === '__new') return newAlbum(); if (e.target.value) { curId = e.target.value; persist(); } buildAlbums(); };
 $('al-ren').onclick = () => { const a = curAlbum(), n = a && prompt('Album name', a.name); if (n && n.trim()) { a.name = n.trim(); persist(); buildAlbums(); } };
 $('al-del').onclick = () => { const a = curAlbum(); if (a && confirm(`Delete album “${a.name}” and its ${a.items.length} overlay(s)? Export it first if you want a copy.`)) { albums = albums.filter(x => x !== a); curId = albums[0]?.id; persist(); buildAlbums(); } };
 $('al-exp').onclick = () => exportAlbums(false); $('al-expall').onclick = () => exportAlbums(true);
 $('al-imp').onclick = () => $('al-file').click();
 $('al-file').onchange = e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
-window.addEventListener('storage', e => { if (e.key === STORE_KEY) { albums = loadAlbums(); thumbs.clear(); if (view === 'albums') buildAlbums(); } });
+window.addEventListener('storage', e => { if (e.key === STORE_KEY) { albums = loadAlbums(); thumbs.clear(); view === 'albums' ? buildAlbums() : fillAlbumSelects(); } });
+fillAlbumSelects();
 window.__spiro = { makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums };   // test hook
 function markTile(e) {                          // selection outline + badge on a grid tile
   const l = layers.get(list[e.i].key);

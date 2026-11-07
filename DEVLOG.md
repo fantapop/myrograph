@@ -46,6 +46,14 @@ builds in ~250 ms).
 ## Log
 
 
+### 2026-11-07 — Panel shows which album it adds to
+
+The Compose panel's "+ Album" gave no hint of its target. Now there is an Album dropdown beside a
+button labelled "+ Add to \"<album>\"" (name truncated), plus a "+ New album..." entry; the
+selection is shared with the Albums view (`fillAlbumSelects`). With no albums yet the dropdown
+says one called "My album" will be created on first add, and the confirmation message names the
+album.
+
 ### 2026-11-07 — Albums promoted to a top-level view
 
 Feedback: albums were buried in the editor panel. Now header nav switches the main area between
