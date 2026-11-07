@@ -18,7 +18,10 @@
   visibility, rotation and size, and a Base scale switch (True size / Fit each). "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
   ("SpirographGallery", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
-  they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices. Combos whose pieces would physically collide while rolling (found by
+  they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
+  The Albums tab keeps named collections of those same small setups in the browser's
+  localStorage (per site/origin; thumbnails are re-rendered from the setup, never stored) and
+  exports/imports them as .spiroalbum.json files (importing a saved PNG adds it to the album). Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -73,7 +76,22 @@
   #compose .ch { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #000; }
   #compose .ch .sp { flex: 1; }
   #ovc { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); flex: none; }
-  #layers { flex: 1; overflow: auto; padding: 4px 12px 12px; }
+  [hidden] { display: none !important; }
+  .pane { flex: 1; overflow: auto; min-height: 0; }
+  #layers { padding: 4px 12px 0; }
+  .tabs { display: flex; gap: 4px; padding: 6px 12px 0; border-bottom: 1px solid #000; }
+  .tabs button { border-radius: 6px 6px 0 0; border-bottom: none; }
+  .tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  .ab { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px 0; }
+  .ab .sp { flex: 1; }
+  .ab select { max-width: 45%; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; padding: 10px 12px 12px; }
+  .card { background: #1f1f24; border-radius: 6px; overflow: hidden; }
+  .card canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); cursor: pointer; }
+  .card .nm { display: flex; align-items: center; gap: 2px; padding: 3px 4px 3px 6px; font-size: 11px; }
+  .card .nm span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .nm button { padding: 0 5px; border-radius: 4px; background: none; border: none; color: var(--dim); }
+  .card .nm button:hover { color: var(--ink); }
   .layer { padding: 8px 0; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 6px 8px; align-items: center; }
   .layer.off { opacity: .5; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
@@ -121,8 +139,20 @@
     <input type="file" id="ov-file" accept="image/png" hidden>
     <span class="sp"></span><button id="ov-clear">Clear</button></div>
   <div id="ov-msg"></div>
-  <div id="layers"></div>
-  <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre. Drop a saved PNG here to re-open it.</p>
+  <div class="tabs"><button id="tab-l" class="on">Layers</button><button id="tab-a">Albums</button></div>
+  <div id="tab-layers" class="pane">
+    <div id="layers"></div>
+    <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre. Drop a saved PNG here to re-open it.</p>
+  </div>
+  <div id="albums" class="pane" hidden>
+    <div class="ab"><select id="al-sel" title="Album"></select>
+      <button id="al-new">New</button><button id="al-ren">Rename</button><button id="al-del">Delete</button></div>
+    <div class="ab"><button id="al-save" title="Add the current overlay to this album">＋ Save overlay here</button><span class="sp"></span>
+      <button id="al-exp" title="Download this album as a file">Export</button><button id="al-expall" title="Download every album">Export all</button>
+      <button id="al-imp" title="Import an album file (.json) or a saved PNG">Import…</button>
+      <input type="file" id="al-file" accept=".json,application/json,image/png" hidden></div>
+    <div id="al-items" class="thumbs"></div>
+  </div>
 </aside>
 
 <script type="importmap">
@@ -587,17 +617,21 @@ function ovCurve(p) {
   }
   return c;
 }
+// Lines for a list of layers ({ p, color, visible, rot, size }); curve(p) -> { geo, maxR }.
+function makeLines(ls, trueSize, lineWidth, resPx, curve) {
+  const vis = ls.filter(l => l.visible), cs = vis.map(l => curve(l.p));
+  const maxAll = Math.max(0.001, ...cs.map(c => c.maxR));
+  return vis.map((l, i) => {
+    const m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: lineWidth });
+    m.resolution.set(resPx, resPx);
+    const line = new Line2(cs[i].geo, m), sc = 0.92 / (trueSize ? maxAll : cs[i].maxR) * l.size / 100;
+    line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
+    return line;
+  });
+}
 function buildOverlay(lineWidth, resPx) {      // (re)fill ovScene from the layers; lineWidth in px of a resPx-wide image
   for (const o of [...ovScene.children]) { ovScene.remove(o); o.material.dispose(); }
-  const vis = [...layers.values()].filter(l => l.visible), trueSize = $('ov-scale').value === 'true';
-  const maxAll = Math.max(0.001, ...vis.map(l => ovCurve(l.p).maxR));
-  for (const l of vis) {
-    const c = ovCurve(l.p), m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: lineWidth });
-    m.resolution.set(resPx, resPx);
-    const line = new Line2(c.geo, m), sc = 0.92 / (trueSize ? maxAll : c.maxR) * l.size / 100;
-    line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
-    ovScene.add(line);
-  }
+  ovScene.add(...makeLines([...layers.values()], $('ov-scale').value === 'true', lineWidth, resPx, ovCurve));
 }
 function renderOverlay() {
   const css = ovCanvas.clientWidth;
@@ -634,16 +668,17 @@ async function savePng() {
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   say(`Saved ${a.download}`);
 }
+let byId = null;
+const lookup = l => (byId ??= new Map(ALL.map(p => [`${p.track.id}|${p.roller.id}|${p.hole}`, p]))).get(`${l.track}|${l.roller}|${l.hole}`);
 function applyState(meta) {                     // replace the overlay with a saved one
   if (!meta || meta.app !== 'spirograph-gallery') throw new Error('This PNG has no spirograph data');
-  const byId = new Map(ALL.map(p => [`${p.track.id}|${p.roller.id}|${p.hole}`, p]));
   for (const l of [...layers.values()]) { ovCache.get(l.key)?.geo.dispose(); ovCache.delete(l.key); }
   layers.clear();
   if (meta.paper) { $('paper').value = meta.paper; document.documentElement.style.setProperty('--paper', meta.paper); scene.background.set(meta.paper); }
   if (meta.baseScale) $('ov-scale').value = meta.baseScale;
   let missing = 0;
   for (const l of meta.layers || []) {
-    const p = byId.get(`${l.track}|${l.roller}|${l.hole}`);
+    const p = lookup(l);
     if (!p) { missing++; continue; }
     layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100 });
   }
@@ -664,8 +699,131 @@ $('ov-open').onclick = () => $('ov-file').click();
 $('ov-file').onchange = e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; };
 window.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('dragging'); });
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('dragging'); });
-window.addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('dragging'); if (e.dataTransfer.files[0]) openFile(e.dataTransfer.files[0]); });
-window.__spiro = { makePng, applyState, openFile, overlayState, layers };   // test hook
+window.addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('dragging'); const f = e.dataTransfer.files[0]; if (f) (/\.json$/i.test(f.name) ? importFile(f) : openFile(f)); });
+
+// ---- albums: named collections of saved setups, kept in localStorage; exportable as .spiroalbum.json
+const STORE_KEY = 'spirograph.albums.v1', CUR_KEY = 'spirograph.album.current';
+const uid = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { say('Could not write to browser storage: ' + e.message, 8000); return false; } } };
+function loadAlbums() { try { const a = JSON.parse(store.get(STORE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } }
+let albums = loadAlbums(), curId = store.get(CUR_KEY);
+const curAlbum = () => albums.find(a => a.id === curId) || albums[0];
+function ensureAlbum() { if (!albums.length) { const a = { id: uid(), name: 'My album', items: [] }; albums.push(a); curId = a.id; } return curAlbum(); }
+function persist() { store.set(CUR_KEY, curId || ''); return store.set(STORE_KEY, JSON.stringify(albums)); }
+
+const thumbs = new Map();                       // item id -> canvas (in-memory; re-rendered from the setup)
+const thScene = new THREE.Scene(); thScene.background = new THREE.Color('#faf7f0');
+const thQueue = []; let thPumping = false;
+function renderThumb(item, canvas) {
+  const st = item.state, geos = [], T = Math.round(128 * pr);
+  const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100 })).filter(l => l.p);
+  const curve = p => { const { pts, maxR } = traceRaw(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]);
+    const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR }; };
+  gl.setSize(T, T, false);
+  thScene.background.set(st.paper || '#faf7f0');
+  const lines = makeLines(ls, (st.baseScale || 'true') === 'true', 1.5 * pr, T, curve);
+  thScene.add(...lines); gl.render(thScene, camera);
+  canvas.width = canvas.height = T; canvas.getContext('2d').drawImage(gl.domElement, 0, 0, T, T);
+  for (const l of lines) { thScene.remove(l); l.material.dispose(); }
+  geos.forEach(g => g.dispose());
+  gl.setSize(px, px, false);                    // back to the grid's tile size
+}
+function thPump() {
+  thPumping = false;
+  const t0 = performance.now();
+  while (thQueue.length && performance.now() - t0 < 8) { const [item, c] = thQueue.shift(); if (thumbs.get(item.id) === c) renderThumb(item, c); }
+  if (thQueue.length) { thPumping = true; requestAnimationFrame(thPump); }
+}
+function thumbFor(item) {
+  let c = thumbs.get(item.id);
+  if (!c) { c = document.createElement('canvas'); c.width = c.height = 128; thumbs.set(item.id, c); thQueue.push([item, c]); if (!thPumping) { thPumping = true; requestAnimationFrame(thPump); } }
+  return c;
+}
+function buildAlbums() {
+  const sel = $('al-sel'), a = curAlbum();
+  sel.innerHTML = albums.length ? '' : '<option>(no albums yet)</option>';
+  for (const al of albums) { const o = document.createElement('option'); o.value = al.id; o.textContent = `${al.name} (${al.items.length})`; o.selected = !!a && al.id === a.id; sel.append(o); }
+  for (const id of ['al-ren', 'al-del', 'al-exp']) $(id).disabled = !a;
+  $('al-expall').disabled = !albums.length;
+  const box = $('al-items'); box.innerHTML = '';
+  if (!a || !a.items.length) { box.innerHTML = '<p class="hint" style="grid-column:1/-1">Nothing saved here yet. Build an overlay and press “Save overlay here”.</p>'; return; }
+  for (const item of a.items) {
+    const card = document.createElement('div'); card.className = 'card';
+    const c = thumbFor(item); c.title = 'Open this overlay'; c.onclick = () => openItem(item);
+    card.append(c);
+    const nm = document.createElement('div'); nm.className = 'nm';
+    nm.innerHTML = '<span></span><button title="Rename">✎</button><button title="Replace with the current overlay">⟳</button><button title="Delete">✕</button>';
+    nm.firstChild.textContent = item.name; nm.firstChild.title = item.name;
+    const [ren, upd, del] = nm.querySelectorAll('button');
+    ren.onclick = () => { const n = prompt('Name', item.name); if (n && n.trim()) { item.name = n.trim(); persist(); buildAlbums(); } };
+    upd.onclick = () => { if (!layers.size) return say('The overlay is empty.'); if (confirm(`Replace “${item.name}” with the current overlay?`)) { item.state = overlayState(); thumbs.delete(item.id); persist(); buildAlbums(); } };
+    del.onclick = () => { if (confirm(`Delete “${item.name}”?`)) { a.items = a.items.filter(i => i !== item); thumbs.delete(item.id); persist(); buildAlbums(); } };
+    card.append(nm); box.append(card);
+  }
+}
+function openItem(item) {
+  if (layers.size && JSON.stringify(overlayState()) !== JSON.stringify(item.state) && !confirm('Replace the current overlay with this one?')) return;
+  try { applyState(item.state); setTab('layers'); } catch (err) { say(err.message, 6000); }
+}
+function saveToAlbum() {
+  if (!layers.size) return say('Add at least one layer first.');
+  const a = ensureAlbum(), item = { id: uid(), name: `Overlay ${a.items.length + 1}`, created: Date.now(), state: overlayState() };
+  a.items.push(item);
+  if (persist()) say(`Saved “${item.name}” to ${a.name}`);
+  buildAlbums();
+}
+function setTab(t) {
+  $('tab-layers').hidden = t !== 'layers'; $('albums').hidden = t !== 'albums';
+  $('tab-l').classList.toggle('on', t === 'layers'); $('tab-a').classList.toggle('on', t === 'albums');
+  if (t === 'albums') buildAlbums();
+}
+function albumPayload(list) {
+  return { app: 'spirograph-gallery', kind: 'album', v: 1,
+    albums: list.map(a => ({ name: a.name, items: a.items.map(i => ({ name: i.name, created: i.created, state: i.state })) })) };
+}
+function exportAlbums(all) {
+  const list = all ? albums : [curAlbum()].filter(Boolean);
+  if (!list.length) return say('No album to export.');
+  const a = document.createElement('a'), name = all ? 'spirograph-albums' : list[0].name.replace(/[^\w.-]+/g, '-');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(albumPayload(list), null, 1)], { type: 'application/json' }));
+  a.download = `${name}.spiroalbum.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  say(`Exported ${list.length} album${list.length > 1 ? 's' : ''}`);
+}
+const validState = st => st && st.app === 'spirograph-gallery' && Array.isArray(st.layers);
+async function importFile(file) {
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes[0] === 137) {                     // a saved PNG: add its setup to the current album
+      const txt = readTextChunk(bytes, 'SpirographGallery');
+      const st = txt == null ? null : JSON.parse(txt);
+      if (!validState(st)) throw new Error('This PNG has no spirograph data');
+      const a = ensureAlbum(); a.items.push({ id: uid(), name: file.name.replace(/\.png$/i, ''), created: Date.now(), state: st });
+      persist(); buildAlbums(); return say(`Added the PNG's overlay to ${a.name}`);
+    }
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    if (!data || data.app !== 'spirograph-gallery' || data.kind !== 'album' || !Array.isArray(data.albums)) throw new Error('Not a spirograph album file');
+    let n = 0, items = 0;
+    for (const src of data.albums) {
+      const base = String(src.name || 'Imported'); let name = base;
+      for (let k = 2; albums.some(a => a.name === name); k++) name = `${base} (${k})`;
+      const its = (src.items || []).filter(i => validState(i.state)).map(i => ({ id: uid(), name: String(i.name || 'Overlay'), created: i.created || Date.now(), state: i.state }));
+      albums.push({ id: uid(), name, items: its }); curId = albums[albums.length - 1].id; n++; items += its.length;
+    }
+    persist(); setTab('albums'); say(`Imported ${n} album${n === 1 ? '' : 's'}, ${items} overlay${items === 1 ? '' : 's'}`);
+  } catch (err) { say(err.message, 6000); }
+}
+$('tab-l').onclick = () => setTab('layers'); $('tab-a').onclick = () => setTab('albums');
+$('al-sel').onchange = e => { curId = e.target.value; persist(); buildAlbums(); };
+$('al-new').onclick = () => { const n = prompt('New album name', `Album ${albums.length + 1}`); if (n && n.trim()) { const a = { id: uid(), name: n.trim(), items: [] }; albums.push(a); curId = a.id; persist(); buildAlbums(); } };
+$('al-ren').onclick = () => { const a = curAlbum(), n = a && prompt('Album name', a.name); if (n && n.trim()) { a.name = n.trim(); persist(); buildAlbums(); } };
+$('al-del').onclick = () => { const a = curAlbum(); if (a && confirm(`Delete album “${a.name}” and its ${a.items.length} overlay(s)? Export it first if you want a copy.`)) { albums = albums.filter(x => x !== a); curId = albums[0]?.id; persist(); buildAlbums(); } };
+$('al-save').onclick = saveToAlbum;
+$('al-exp').onclick = () => exportAlbums(false); $('al-expall').onclick = () => exportAlbums(true);
+$('al-imp').onclick = () => $('al-file').click();
+$('al-file').onchange = e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
+window.addEventListener('storage', e => { if (e.key === STORE_KEY) { albums = loadAlbums(); thumbs.clear(); if (!$('albums').hidden) buildAlbums(); } });
+window.__spiro = { makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums };   // test hook
 function markTile(e) {                          // selection outline + badge on a grid tile
   const l = layers.get(list[e.i].key);
   e.el.classList.toggle('sel', !!l);

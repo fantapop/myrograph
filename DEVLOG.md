@@ -19,7 +19,15 @@ Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and emb
 "SpirographGallery" right after IHDR. "Open..." or dropping a PNG on the page restores it.
 Round trip verified in headless Chrome (state identical) and the PNG still decodes in sips/Chrome.
 
+Albums: the panel's Albums tab keeps named collections of overlay setups in localStorage
+(`spirograph.albums.v1`; ~0.5 KB per overlay, thumbnails re-rendered from the setup on demand, not
+stored). Save-to-album, open, rename, replace-with-current, delete; export one/all albums as
+`.spiroalbum.json` and import them (names de-duplicated, fresh ids); importing/dropping a saved
+PNG adds its embedded setup to the current album. Verified in headless Chrome.
+
 Next steps / not done:
+- Albums live per browser profile and per origin (file:// vs http://localhost are separate
+  stores) - export is the backup path. No drag-reorder of items, no multi-select.
 - Compose: no SVG export, no layer reordering, no per-layer
   offset (all share one centre), no per-layer line width.
 - Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
@@ -37,6 +45,15 @@ builds in ~250 ms).
 
 ## Log
 
+
+### 2026-11-07 — Albums
+
+Decision: store the same small setup object used for PNG metadata (no images), so one format
+serves PNG, albums and export. localStorage is plenty (5 MB ~ thousands of overlays); IndexedDB
+not needed. Refactored overlay drawing into `makeLines(layers, trueSize, width, res, curve)` shared
+by the live canvas, PNG export and album thumbnails; thumbnails reuse the grid's offscreen
+renderer (resized then restored) and are rendered in an 8 ms/frame queue. Cross-tab `storage`
+events refresh the list. Prompt/confirm are used for rename/delete (not exercised headless).
 
 ### 2026-11-07 — PNG save with embedded setup
 
