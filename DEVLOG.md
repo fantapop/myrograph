@@ -25,7 +25,16 @@ stored). Save-to-album, open, rename, replace-with-current, delete; export one/a
 `.spiroalbum.json` and import them (names de-duplicated, fresh ids); importing/dropping a saved
 PNG adds its embedded setup to the current album. Verified in headless Chrome.
 
+Share links: "Copy link" in the panel (and a link button on each album item) copies
+`<page url>#v1/<paper>/<t|f>/<track,roller,hole,color,visible,rot,size>/...` (~35 chars/layer, in
+the fragment so no server sees it). Opening such a URL (or pasting one and triggering
+`hashchange`, which confirms before replacing) restores the overlay in the Compose panel; bad or
+unknown parts are rejected/skipped with a message. `encodeShare`/`decodeShare` are in CORE and
+node-tested; the URL is not updated live while editing (button only).
+
 Next steps / not done:
+- Share links are only useful when the page is hosted; a file:// link works only on the same
+  computer (the copy message says so). No deployment set up yet (e.g. GitHub Pages).
 - Albums live per browser profile and per origin (file:// vs http://localhost are separate
   stores) - export is the backup path. No drag-reorder of items, no multi-select.
 - Compose: no SVG export, no layer reordering, no per-layer
@@ -45,6 +54,13 @@ builds in ~250 ms).
 
 ## Log
 
+
+### 2026-11-07 — Share via URL
+
+Chose a readable fragment format over base64/deflate: layers are short ids and numbers, ~110
+chars for 3 layers, so compression would add async code for little gain. Fragment (not query)
+so the data never reaches a server and the page needs no routing. Decoder validates every field
+(hex colors, id charset, clamped rot/size) before anything touches the app.
 
 ### 2026-11-07 — Panel shows which album it adds to
 

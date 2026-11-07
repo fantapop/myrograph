@@ -22,7 +22,11 @@
   The top-level Albums view (next to Patterns) keeps named collections of those same small
   setups in the browser's localStorage (per site/origin; thumbnails are re-rendered from the
   setup, never stored) and exports/imports them as .spiroalbum.json files (importing a saved
-  PNG adds it to the album). Opening an album item loads it into the Compose panel. Combos whose pieces would physically collide while rolling (found by
+  PNG adds it to the album). Opening an album item loads it into the Compose panel.
+  Share links: "Copy link" (panel) / the link button on an album item puts the overlay into the
+  URL fragment (#v1/paper/scale/layer/layer..., ~35 chars per layer, never sent to a server);
+  opening such a URL restores the overlay in the Compose panel. A file:// link only works on
+  the machine that has the file, so host the page (e.g. GitHub Pages) to share with others. Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -150,6 +154,7 @@
   <div class="ch tb"><button id="ov-save" title="Save the overlay as a PNG with the layer setup embedded">Save PNG</button>
     <select id="ov-px" title="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select>
     <button id="ov-open" title="Load a saved PNG (or drop one anywhere on the page)">Open…</button>
+    <button id="ov-link" title="Copy a link that re-creates this overlay (data is in the URL)">🔗 Copy link</button>
     <input type="file" id="ov-file" accept="image/png" hidden>
     <span class="sp"></span><button id="ov-clear">Clear</button></div>
   <div class="ch tb"><label style="color:var(--dim)">Album</label>
@@ -424,6 +429,25 @@ function readTextChunk(png, keyword) {          // text of the first uncompresse
     return new TextDecoder().decode(d.subarray(i));
   }
   return null;
+}
+
+// ---- share links: overlay setup <-> compact URL-fragment text
+// v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size>/...   (t = true size, f = fit each)
+function encodeShare(st) {
+  return ['v1', st.paper.replace('#', ''), st.baseScale === 'fit' ? 'f' : 't',
+    ...st.layers.map(l => [l.track, l.roller, l.hole, l.color.replace('#', ''), l.visible === false ? 0 : 1,
+      Math.round(l.rot || 0), Math.round(l.size || 100)].join(','))].join('/');
+}
+function decodeShare(text) {                    // throws on anything malformed
+  const parts = text.replace(/^#/, '').split('/'), hex = /^[0-9a-f]{6}$/i, bad = () => new Error('This share link is damaged or not recognised');
+  if (parts[0] !== 'v1' || parts.length < 3 || !hex.test(parts[1])) throw bad();
+  const layers = parts.slice(3).filter(Boolean).map(str => {
+    const [track, roller, hole, color, vis, rot, size] = str.split(',');
+    if (!/^[\w-]+$/.test(track || '') || !/^[\w-]+$/.test(roller || '') || !/^\d+$/.test(hole || '') || !hex.test(color || '')) throw bad();
+    return { track, roller, hole: +hole, color: '#' + color, visible: vis !== '0',
+      rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(200, Math.max(25, Math.round(+size) || 100)) };
+  });
+  return { app: 'spirograph-gallery', v: 1, paper: '#' + parts[1], baseScale: parts[2] === 'f' ? 'fit' : 'true', layers };
 }
 // ======================================================= END CORE
 
@@ -771,12 +795,13 @@ function buildAlbums() {
     const c = thumbFor(item); c.title = 'Open this overlay'; c.onclick = () => openItem(item);
     card.append(c);
     const nm = document.createElement('div'); nm.className = 'nm';
-    nm.innerHTML = '<span></span><button title="Rename">✎</button><button title="Replace with the current overlay">⟳</button><button title="Delete">✕</button>';
+    nm.innerHTML = '<span></span><button title="Rename">✎</button><button title="Replace with the current overlay">⟳</button><button title="Copy a share link">🔗</button><button title="Delete">✕</button>';
     nm.firstChild.textContent = item.name; nm.firstChild.title = item.name;
     const meta = document.createElement('div'); meta.className = 'meta';
     const n = (item.state.layers || []).length;
     meta.textContent = `${n} layer${n === 1 ? '' : 's'} · ${new Date(item.created || Date.now()).toLocaleDateString()}`;
-    const [ren, upd, del] = nm.querySelectorAll('button');
+    const [ren, upd, lnk, del] = nm.querySelectorAll('button');
+    lnk.onclick = () => copyLink(item.state);
     ren.onclick = () => { const n = prompt('Name', item.name); if (n && n.trim()) { item.name = n.trim(); persist(); buildAlbums(); } };
     upd.onclick = () => { if (!layers.size) return say('The overlay is empty.'); if (confirm(`Replace “${item.name}” with the current overlay?`)) { item.state = overlayState(); thumbs.delete(item.id); persist(); buildAlbums(); } };
     del.onclick = () => { if (confirm(`Delete “${item.name}”?`)) { a.items = a.items.filter(i => i !== item); thumbs.delete(item.id); persist(); buildAlbums(); } };
@@ -854,6 +879,24 @@ $('al-imp').onclick = () => $('al-file').click();
 $('al-file').onchange = e => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
 window.addEventListener('storage', e => { if (e.key === STORE_KEY) { albums = loadAlbums(); thumbs.clear(); view === 'albums' ? buildAlbums() : fillAlbumSelects(); } });
 fillAlbumSelects();
+
+// ---- share links
+async function copyLink(state) {
+  if (!state.layers.length) return say('Add at least one layer first.');
+  const url = location.href.split('#')[0] + '#' + encodeShare(state);
+  try { await navigator.clipboard.writeText(url); say(`Link copied (${url.length} characters)` + (location.protocol === 'file:' ? ' - note: a file:// link only works on this computer' : '') + (url.length > 2000 ? ' - long; some apps truncate links' : ''), 7000); }
+  catch { prompt('Copy this link:', url); }
+}
+function applyHash() {
+  if (!location.hash.startsWith('#v1/')) return;
+  try { applyState(decodeShare(location.hash)); } catch (err) { say(err.message, 8000); if (!composeOpen) setCompose(true); }
+}
+$('ov-link').onclick = () => copyLink(overlayState());
+window.addEventListener('hashchange', () => {
+  if (!location.hash.startsWith('#v1/')) return;
+  if (layers.size && !confirm('Open the shared overlay and replace the current one?')) return;
+  applyHash();
+});
 window.__spiro = { makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums };   // test hook
 function markTile(e) {                          // selection outline + badge on a grid tile
   const l = layers.get(list[e.i].key);
@@ -911,7 +954,7 @@ setTimeout(() => {                              // let "Preparing…" paint befo
   const t0 = performance.now();
   CAT = buildCatalog(); ALL = CAT.combos; ALL.forEach((p, i) => { p.key = i; }); okCount = ALL.filter(p => p.ok).length;
   console.log(`catalog: ${okCount} of ${ALL.length} patterns fit, ${Math.round(performance.now() - t0)} ms`);
-  buildFilters(); refilter();
+  buildFilters(); refilter(); applyHash();
 }, 30);
 </script>
 </body>
