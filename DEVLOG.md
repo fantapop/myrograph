@@ -23,6 +23,9 @@ Testing the core: extract the BEGIN/END CORE block of `index.html` into a `.mjs`
 builds in ~200 ms).
 
 
+## Log
+
+
 ### 2026-11-07 — Real parts, pictures, colors, per-tile canvases
 
 Changes from first feedback: (1) labels overlapped the art and lagged it on scroll because one
