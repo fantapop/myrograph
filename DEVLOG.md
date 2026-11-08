@@ -81,6 +81,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Row labels on the first line; to-scale is the only mode
+
+Row labels were vertically centred on the whole row, which looked wrong once rows wrapped or expanded. They are now
+`align-self: flex-start` with a min-height equal to the first line (24 px normally, 82 px for the `.row.big` picture rows),
+so each label is centred on its first line of chips. Removed the "Relative sizes" toggle (and `relSizes`, `SIZE_KEY`, the
+function-valued chip html): the Fixed part / Moving piece pictures are always drawn to scale. The stale
+`spirograph.relsize` localStorage key is simply ignored. `trackIcon`/`rollerIcon` keep their optional `ref` because the
+tile footers, layer rows and custom chips still use the normalised form.
+
 ### 2026-11-08 — Rows collapse to one line with a "+N more" pill
 
 Feedback: the "collapse / show all N" text button looked bad. Replaced by measuring: `applyCollapse(id)` shows the chips

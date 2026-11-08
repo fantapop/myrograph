@@ -68,8 +68,9 @@
     padding: 8px 16px; max-height: 50vh; overflow: auto; }
   summary { cursor: pointer; color: var(--dim); }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
-  .row > .label { color: var(--dim); width: 92px; flex: none; text-transform: uppercase;
-    font-size: 11px; letter-spacing: .05em; }
+  .row > .label { color: var(--dim); width: 92px; flex: none; text-transform: uppercase; font-size: 11px; letter-spacing: .05em;
+    align-self: flex-start; display: flex; align-items: center; min-height: 24px; }     /* centred on the row's first line, not the whole row */
+  .row.big > .label { min-height: 82px; }                    /* rows of tall picture chips */
   .row > .chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
   .chip, button { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e;
     border-radius: 999px; padding: 1px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
@@ -77,8 +78,8 @@
   .chip svg { width: 28px; height: 28px; flex: none; }
   .chip.pic svg { width: 34px; height: 34px; }
   /* to-scale rows: big pictures with the label underneath */
-  .chips.rel .chip.pic { flex-direction: column; gap: 1px; padding: 4px 6px 3px; font-size: 11px; line-height: 1.2; }
-  .chips.rel .chip.pic svg { width: 56px; height: 56px; }
+  .row.big .chip.pic { flex-direction: column; gap: 1px; padding: 4px 6px 3px; font-size: 11px; line-height: 1.2; }
+  .row.big .chip.pic svg { width: 56px; height: 56px; }
   header.tall { position: static; max-height: none; }   /* too tall to stay pinned over the grid: scrolls away instead */
   .rowtoggle { font-size: 12px; padding: 4px 12px; color: var(--ink); border: 1px dashed #66666f; border-radius: 999px; align-self: center; }
   .rowtoggle:hover { border-color: #fff; }
@@ -205,8 +206,8 @@
   <details open>
     <summary>Filters</summary>
     <div class="row"><span class="label">Rolling</span><span class="chips" id="f-mode"></span></div>
-    <div class="row"><span class="label">Fixed part</span><span class="chips" id="f-fixed"></span></div>
-    <div class="row"><span class="label">Moving piece</span><span class="chips" id="f-roller"></span></div>
+    <div class="row big"><span class="label">Fixed part</span><span class="chips" id="f-fixed"></span></div>
+    <div class="row big"><span class="label">Moving piece</span><span class="chips" id="f-roller"></span></div>
     <div class="row"><span class="label">Pen hole</span><span class="chips" id="f-hole"></span></div>
     <div class="row"><span class="label">Custom parts</span><span class="chips" id="f-custom"></span></div>
     <div class="row"><span class="label">Ink</span><span class="chips" id="f-ink"></span></div>
@@ -750,8 +751,6 @@ const pr = Math.min(window.devicePixelRatio || 1, 2);
 let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', showOverlap = false, okCount = 0;
 const collapsed = { 'f-fixed': true, 'f-roller': true };   // rows showing only what fits on one line (persisted under ROWS_KEY)
 const ROWS_KEY = 'spirograph.rows';
-let relSizes = true;                            // filter-chip pictures drawn to scale (persisted under SIZE_KEY)
-const SIZE_KEY = 'spirograph.relsize';
 let view = 'patterns', gridStale = false;   // which main view is showing; grid needs re-flow after being hidden
 const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: new Set(), custom: new Set() };   // custom: part ids, or '*' for all
 // custom parts: the library is what the user made or kept (saved in localStorage); the registry also holds
@@ -828,10 +827,9 @@ function rowToggle(id) {
   t.onclick = () => { collapsed[id] = !collapsed[id]; store.set(ROWS_KEY, JSON.stringify(collapsed)); fitHeader(); };
   $(id).append(t); applyCollapse(id);
 }
-function chip(container, set, key, html, pic, title) {   // html: string, or rel => string (re-run when relative sizes are toggled)
+function chip(container, set, key, html, pic, title) {
   const b = document.createElement('button');
-  b.className = 'chip' + (pic ? ' pic' : ''); if (title) b.title = title;
-  if (typeof html === 'function') { b._html = html; b.innerHTML = html(relSizes); } else b.innerHTML = html;
+  b.className = 'chip' + (pic ? ' pic' : ''); if (title) b.title = title; b.innerHTML = html;
   b.onclick = () => { set.has(key) ? set.delete(key) : set.add(key); b.classList.toggle('on'); refilter(); };
   $(container).append(b);
 }
@@ -842,18 +840,10 @@ function buildFilters() {
   ov.textContent = 'Include overlapping combos';
   ov.onclick = () => { showOverlap = !showOverlap; ov.classList.toggle('on', showOverlap); refilter(); };
   $('f-mode').append(ov);
-  relSizes = store.get(SIZE_KEY) !== '0';
-  const refFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(trackRadius)), refMoving = Math.max(...CAT.rollers.map(rollerRadius));   // largest piece fills its icon
-  const sz = document.createElement('button'); sz.className = 'chip' + (relSizes ? ' on' : ''); sz.textContent = 'Relative sizes';
-  sz.title = 'Draw the fixed and moving piece pictures to scale (a 24 wheel looks small next to a 150 ring), instead of filling each picture';
-  sz.onclick = () => { relSizes = !relSizes; sz.classList.toggle('on', relSizes); store.set(SIZE_KEY, relSizes ? '1' : '0');
-    for (const id of ['f-fixed', 'f-roller']) $(id).classList.toggle('rel', relSizes);
-    for (const b of document.querySelectorAll('#f-fixed .chip, #f-roller .chip')) if (b._html) b.innerHTML = b._html(relSizes);
-    fitHeader(); };
-  $('f-mode').append(sz);
-  for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, rel => `${trackIcon(t, rel ? refFixed : 0)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
-  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, rel => `${rollerIcon(r, 0, rel ? refMoving : 0)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
-  for (const id of ['f-fixed', 'f-roller']) $(id).classList.toggle('rel', relSizes);
+  // fixed and moving piece pictures are drawn to scale: the largest piece of each row (the rack aside, it is cropped) fills its icon
+  const refFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(trackRadius)), refMoving = Math.max(...CAT.rollers.map(rollerRadius));
+  for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, refFixed)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
+  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0, refMoving)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
   try { Object.assign(collapsed, JSON.parse(store.get(ROWS_KEY) || '{}')); } catch { /* keep defaults */ }
   rowToggle('f-fixed'); rowToggle('f-roller');
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
