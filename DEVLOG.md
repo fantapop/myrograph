@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — One scale for the Fixed and Moving rows
+
+Each row used to be scaled so its own largest piece filled the icon (the 150 ring for Fixed, the 84 wheel for Moving), so the same
+wheel was drawn bigger in the Moving row than in the Fixed row. Now both rows share one reference radius (the largest moving piece,
+13.4 teeth, fills the standard 56 px box) and the Fixed row's icon boxes are taller (`box` = largest ring / ref + .15, ~94 px) so
+the rings fit at that same scale; the rack gets a wider box. Every piece in both rows is therefore drawn at the same px per tooth
+(measured: wheel 60 = 34.8 px in both rows). Row labels now centre on the first line using the measured chip height
+(`applyCollapse` sets the label's min-height) instead of a fixed 82 px, since the two rows have different heights. Trade-off: the
+Fixed row is taller and fits fewer chips per line (9 collapsed at 1300 px).
+
 ### 2026-11-08 — Overlapping combos removed; teeth and holes in the piece pictures
 
 1. Dropped the "Include overlapping combos" chip: combos whose pieces would collide (`p.ok` false) are never listed, and the

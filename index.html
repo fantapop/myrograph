@@ -70,7 +70,6 @@
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
   .row > .label { color: var(--dim); width: 92px; flex: none; text-transform: uppercase; font-size: 11px; letter-spacing: .05em;
     align-self: flex-start; display: flex; align-items: center; min-height: 24px; }     /* centred on the row's first line, not the whole row */
-  .row.big > .label { min-height: 82px; }                    /* rows of tall picture chips */
   .row > .chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
   .chip, button { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e;
     border-radius: 999px; padding: 1px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
@@ -768,10 +767,11 @@ function outlinePath(o) {
   for (let k = 0; k < o.N; k++) { const i = 2 * k * PER_TOOTH; d += `${k ? 'L' : 'M'}${(o.p[i] / rm).toFixed(3)} ${(-o.p[i + 1] / rm).toFixed(3)}`; }
   return { d: d + 'Z', rm };
 }
-// hw: half the viewBox width (default square). A piece wider than the icon's reference (the rack) gets a proportionally wider icon.
-const svg = (body, hw = 1.15) => `<svg viewBox="${-hw} -1.15 ${2 * hw} 2.3"${hw > 1.15 ? ` style="width:${(56 * hw / 1.15).toFixed(1)}px"` : ''} fill="none" stroke="currentColor" stroke-width="0.07" stroke-linejoin="round">${body}</svg>`;
-// ref (optional): the radius in teeth that fills the whole icon, so pieces drawn with the same ref are to scale
-// (a piece can exceed it, e.g. the rack, and is then cropped). Without ref every piece is normalised to fill its icon.
+// hx, hy: half the viewBox width / height, in units of the reference radius (1.15 = the standard 56 px square). To-scale rows pass a box
+// big enough for their largest piece (rings, rack), so every piece in every row is drawn at the same pixels per tooth.
+const svg = (body, hx = 1.15, hy = 1.15) => `<svg viewBox="${-hx} ${-hy} ${2 * hx} ${2 * hy}"${hx !== 1.15 || hy !== 1.15 ? ` style="width:${(56 * hx / 1.15).toFixed(1)}px;height:${(56 * hy / 1.15).toFixed(1)}px"` : ''} fill="none" stroke="currentColor" stroke-width="0.07" stroke-linejoin="round">${body}</svg>`;
+// ref (optional): the radius in teeth that fills a standard icon, so pieces drawn with the same ref are to scale; box = the half-size
+// (in ref units) of the row's icon box. Without ref every piece is normalised to fill its icon.
 const radiusOf = o => { let m = 0; for (let k = 0; k < o.M; k++) m = Math.max(m, Math.hypot(o.p[2 * k], o.p[2 * k + 1])); return m; };
 const trackRadius = t => t.kind === 'ring' ? (t.inside ? t.o.N / t.ratio : t.o.N) / TAU : radiusOf(t.body || t.o);   // a ring's icon shows its outer edge
 const rollerRadius = r => radiusOf(r.body);
@@ -788,8 +788,8 @@ function holePoints(r) {                        // where to draw the pen holes: 
   if (!r.round) return r.holes;                 // drawn along a spiral like the real ones (only a hole's distance matters there)
   return r.holes.map(([x], k) => { const d = Math.abs(x), a = 0.7 * k; return [d * Math.cos(a), d * Math.sin(a)]; });
 }
-function trackIcon(t, ref = 0) {
-  const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}`, px = ref ? 56 : 28;
+function trackIcon(t, ref = 0, box = 1.15) {
+  const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}:${box.toFixed(2)}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     let body;
     if (t.kind === 'ring') {                    // the ring, plus a small wheel where it would roll: inside the opening, or against the outer edge
@@ -802,12 +802,12 @@ function trackIcon(t, ref = 0) {
       const o = t.body || t.o, { d, rm } = outlinePath(o);
       body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (o === t.o ? `<path d="${d}" fill="none" ${teeth(o.N, rm, ref, px)}/>` : '');   // the Cross's teeth are not along its silhouette
     }
-    iconCache.set(key, svg(scaled(body, s), Math.max(1.15, s + 0.15)));
+    iconCache.set(key, svg(scaled(body, s), Math.max(box, t.kind === 'rack' ? s + 0.15 : 0), box));   // only the rack is wider than the row's box
   }
   return iconCache.get(key);
 }
-function rollerIcon(r, hole, ref = 0) {         // hole: 1-based highlighted hole, or 0 for none
-  const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}`, px = ref ? 56 : 28;
+function rollerIcon(r, hole, ref = 0, box = 1.15) {         // hole: 1-based highlighted hole, or 0 for none
+  const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}:${box.toFixed(2)}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     const { d, rm } = outlinePath(r.body);
     let body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (r.body === r.o ? `<path d="${d}" fill="none" ${teeth(r.o.N, rm, ref, px)}/>` : '');
@@ -815,7 +815,7 @@ function rollerIcon(r, hole, ref = 0) {         // hole: 1-based highlighted hol
       body += n + 1 === hole ? `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.13 * k).toFixed(3)}" fill="var(--accent)" stroke="none"/>`
                              : `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.045 * k).toFixed(3)}" fill="currentColor" stroke="none" opacity=".55"/>`;
     });
-    iconCache.set(key, svg(scaled(body, s)));
+    iconCache.set(key, svg(scaled(body, s), box, box));
   }
   return iconCache.get(key);
 }
@@ -827,6 +827,7 @@ function applyCollapse(id) {                    // collapsed: only what fits on 
   all.forEach(b => b.classList.remove('fold'));
   t.hidden = true; box.append(t);
   if (!box.offsetParent || !chips.length) return;              // not on screen (filters closed / albums view): nothing to measure
+  const lab = box.previousElementSibling; if (lab && lab.classList.contains('label')) lab.style.minHeight = Math.max(24, chips[0].offsetHeight) + 'px';   // label centred on the first line
   const top0 = chips[0].offsetTop, line1 = chips[0].offsetHeight - 1;
   const k0 = chips.findIndex(b => b.offsetTop !== top0);
   if (k0 < 0) return;                                          // everything fits on one line: no pill needed
@@ -854,10 +855,11 @@ function chip(container, set, key, html, pic, title) {
 }
 function buildFilters() {
   chip('f-mode', filters.mode, 'in', 'Inside a ring'); chip('f-mode', filters.mode, 'out', 'Around the outside');
-  // fixed and moving piece pictures are drawn to scale: the largest piece of each row (the rack aside, it is cropped) fills its icon
-  const refFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(trackRadius)), refMoving = Math.max(...CAT.rollers.map(rollerRadius));
-  for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, refFixed)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
-  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0, refMoving)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
+  // fixed and moving piece pictures are drawn to scale, with ONE scale for both rows (a 60 wheel is the same size in each): the largest
+  // moving piece fills the standard 56 px box; the Fixed row's boxes are taller so the rings fit at that same scale, the rack is wider
+  const ref = Math.max(...CAT.rollers.map(rollerRadius)), boxFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(t => trackRadius(t) / ref)) + 0.15;
+  for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, ref, boxFixed)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
+  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0, ref)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
   rowToggle('f-fixed'); rowToggle('f-roller');
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
   for (let k = 1; k <= maxHoles; k++) chip('f-hole', filters.hole, k, k);
