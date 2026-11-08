@@ -525,8 +525,8 @@ function buildCatalog() {
   }
   const tracks = [];
   for (const r of PARTS.rings) {
-    tracks.push({ id: `ring${r.inner}-in`, name: `Ring ${r.inner}/${r.outer}`, kind: 'ring', inside: true, which: 'inner', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.inner), body: makeOutline(circleDense(), r.inner) });
-    tracks.push({ id: `ring${r.outer}-out`, name: `Ring ${r.inner}/${r.outer}`, kind: 'ring', inside: false, which: 'outer', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.outer), body: makeOutline(circleDense(), r.outer) });
+    tracks.push({ id: `ring${r.inner}-in`, name: `Ring ${r.inner}/${r.outer} (Inside)`, kind: 'ring', inside: true, which: 'inner', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.inner), body: makeOutline(circleDense(), r.inner) });
+    tracks.push({ id: `ring${r.outer}-out`, name: `Ring ${r.inner}/${r.outer} (Outside)`, kind: 'ring', inside: false, which: 'outer', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.outer), body: makeOutline(circleDense(), r.outer) });
   }
   tracks.push({ id: 'rack', name: `Rack ${PARTS.rack.N}`, kind: 'rack', inside: false, o: makeOutline(stadiumDense(PARTS.rack.aspect), PARTS.rack.N), body: null });
   for (const w of rollers) tracks.push({ id: 'fix-' + w.id, name: w.name, kind: 'piece', pieceId: w.id, inside: false, o: w.o, body: w.body, round: w.round, holes: w.holes });
@@ -916,7 +916,7 @@ function buildFilters() {
   // moving piece fills the standard 56 px box; the Fixed row's boxes are taller so the rings fit at that same scale, the rack is wider
   const ref = Math.max(...CAT.rollers.map(rollerRadius)), boxFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(t => trackRadius(t) / ref)) + 0.15;
   for (const t of CAT.tracks) {                  // a ring has two sets of teeth, so two chips: label them by ring and side
-    const label = t.kind === 'ring' ? `Ring ${t.name.slice(5)}<br>${t.inside ? 'inside' : 'outside'} (${t.o.N})` : t.name.replace(/^Wheel /, '');
+    const label = t.kind === 'ring' ? t.name.replace(' (', '<br>(') : t.name.replace(/^Wheel /, '');
     chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, ref, boxFixed)}<span class="lbl">${label}</span>`, true,
       t.kind === 'ring' ? `${t.name}: its ${t.inside ? 'inner' : 'outer'} teeth (${t.o.N}); wheels roll ${t.inside ? 'inside it' : 'around the outside'}` : `${t.name}: ${t.o.N} teeth`);
   }
@@ -1147,7 +1147,7 @@ function makeTile(i) {
   el.style.cssText = `left:${col * (tile + GAP)}px;top:${row * pitch}px;width:${tile}px;height:${tile + FOOT}px`;
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = px;
   const foot = document.createElement('div'); foot.className = 'foot';
-  foot.innerHTML = `${trackIcon(p.track)}${rollerIcon(p.roller, p.hole)}<div class="txt"><b>${p.track.name}</b> · ${p.track.inside ? 'inside' : 'outside'}<br>${p.roller.name} · hole ${p.hole}</div>`;
+  foot.innerHTML = `${trackIcon(p.track)}${rollerIcon(p.roller, p.hole)}<div class="txt"><b>${p.track.name}</b>${p.track.kind === 'ring' ? '' : ' · outside'}<br>${p.roller.name} · hole ${p.hole}</div>`;     // a ring's name already says which side
   el.append(canvas, foot); grid.append(el);
   const e = { i, el, canvas, alive: true }; tiles.set(i, e); enqueue(e);
   el.onclick = () => { if (composeOpen) toggleLayer(list[i]); };
@@ -1519,7 +1519,7 @@ function buildLayerList() {
     const row = document.createElement('div'); row.className = 'layer' + (l.visible ? '' : ' off');
     row.innerHTML = `<input type="checkbox" title="Show / hide this layer" ${l.visible ? 'checked' : ''}>` +
       `<input type="color" value="${l.color}" title="Layer color"><span style="display:flex">${trackIcon(l.p.track)}${rollerIcon(l.p.roller, l.p.hole)}</span>` +
-      `<span class="ltxt"><b>${l.p.track.name}</b> · ${l.p.track.inside ? 'inside' : 'outside'}<br>${l.p.roller.name} · hole ${l.p.hole}` +
+      `<span class="ltxt"><b>${l.p.track.name}</b>${l.p.track.kind === 'ring' ? '' : ' · outside'}<br>${l.p.roller.name} · hole ${l.p.hole}` +
       `${keepable(l.p) ? '<br><button class="keep" title="Add this custom part to your library (Custom parts filter)">＋ keep part</button>' : ''}</span>` +
       `<button title="Remove">✕</button>` +
       `<label class="rot">Rotate <input type="range" data-k="rot" min="0" max="359" value="${l.rot}"><span>${l.rot}°</span></label>` +
@@ -1770,7 +1770,7 @@ function edCheck() {
     box.append(b); return b;
   };
   add('t', 'Your part rolls around / inside:');
-  for (const t of edTracks()) { const key = 't:' + t.id, b = mk(key, trackIcon(t), t.name + (t.inside ? ' (inside)' : ' (outside)'), 't', t.id); jobs.push({ key, b, t, r: me.roller }); }
+  for (const t of edTracks()) { const key = 't:' + t.id, b = mk(key, trackIcon(t), t.kind === 'ring' ? t.name : `${t.name} (outside)`, 't', t.id); jobs.push({ key, b, t, r: me.roller }); }
   add('r', 'Rolls around your part:');
   for (const r of edRollers()) { const key = 'r:' + r.id, b = mk(key, rollerIcon(r, 0), r.name, 'r', r.id); jobs.push({ key, b, t: me.fixed, r }); }
   (function step() {
@@ -1798,7 +1798,7 @@ function edCheck() {
 // -- roll preview: the part (or its partner) rolls and the pen draws
 function partnerPieces() {                      // -> { t, r, label } for the chosen partner, or null
   const { kind, id } = ed.partner;
-  if (kind === 't') { const t = edTracks().find(x => x.id === id); return t && { t: t.custom && t.pieceId === 'editing' ? edPiece.fixed : t, r: edPiece.roller, label: `Your part rolls ${t.inside ? 'inside' : 'around'} ${t.name}` }; }
+  if (kind === 't') { const t = edTracks().find(x => x.id === id); return t && { t: t.custom && t.pieceId === 'editing' ? edPiece.fixed : t, r: edPiece.roller, label: `Your part rolls ${t.kind === 'ring' ? 'on' : 'around'} ${t.name}` }; }
   const r = edRollers().find(x => x.id === id); return r && { t: edPiece.fixed, r, label: `${r.name} rolls around your part` };
 }
 function fillPartnerHoles() {

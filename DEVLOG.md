@@ -81,6 +81,13 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Ring names include the side
+
+Ring tracks are now named "Ring 96/144 (Inside)", "Ring 96/144 (Outside)", "Ring 105/150 (Inside)", "Ring 105/150 (Outside)" (`track.name`,
+set in `buildCatalog`). Chips show the name on two lines (tooth count only in the tooltip); tile footers, layer rows, the maker's fit grid
+tooltips and its preview label use the full name and no longer append "· inside/outside" for rings (other fixed pieces still say "· outside").
+Ids (`ring96-in`, ...) and saved files are unchanged.
+
 ### 2026-11-08 — A part that fits nothing cannot be saved
 
 If the fit check finds no piece a part fits with (0 of 24 as the moving piece AND 0 of the wheels rolling around it, other custom parts
