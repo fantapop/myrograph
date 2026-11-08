@@ -6,8 +6,8 @@ Read `DEVLOG.md` first (Current state + dated log). This file is just the orient
 Single-file static web page, `index.html` (three.js from a CDN import map, no build, no server).
 Gallery of gear-curve patterns from a Deluxe-style Spirograph-type set (see `README.md`), with an
 overlay composer, PNG save with embedded setup, albums (localStorage + export/import) and
-share-by-URL-fragment. Repo: https://github.com/fantapop/myrograph (private; public + GitHub Pages
-not done yet - share links only work for others once hosted).
+share-by-URL-fragment. Repo: https://github.com/fantapop/myrograph (public, MIT). Hosted on GitHub Pages from `main`:
+https://fantapop.github.io/myrograph/ (redeploys on every push; share links only work for others when copied from there).
 
 ## Layout of index.html
 - `PARTS` (top of the CORE block): tooth counts and hole layouts. Edit here to change the set.

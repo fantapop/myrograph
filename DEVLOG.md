@@ -45,8 +45,8 @@ light paper only if the previous palette set it (`paperFromPalette`), so a hand-
 Next steps / not done:
 - Palettes: no export/import (browser-local only, like albums), no reordering colors. Paper isn't persisted
   across reloads; it is re-applied from the saved palette on load, so a hand-picked paper is lost on reload.
-- Share links are only useful when the page is hosted; a file:// link works only on the same
-  computer (the copy message says so). No deployment set up yet (e.g. GitHub Pages).
+- Share links only work for others when copied from the hosted page (GitHub Pages, below); a file:// or
+  localhost link works only on the same computer (the copy message says so).
 - Albums live per browser profile and per origin (file:// vs http://localhost are separate
   stores) - export is the backup path. No drag-reorder of items, no multi-select.
 - Compose: no SVG export, no layer reordering, no per-layer
@@ -65,6 +65,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-07 — Public, MIT, GitHub Pages
+
+Repo made public after auditing history (all commits use the noreply identity; Conductor's `checkpointer@noreply`
+commits exist only on local `refs/conductor-checkpoints/*`, never pushed) and adding an MIT `LICENSE`. GitHub Pages
+enabled via `gh api -X POST repos/fantapop/myrograph/pages` (branch main, path /); site is
+https://fantapop.github.io/myrograph/ and redeploys on each push to main. The copy-link note now warns on localhost too.
+Next planned feature: custom shaped part maker (own filter, no custom rings; sharing needs part definitions embedded in
+PNGs/exports and a decision on whether URL links can carry one).
 
 ### 2026-11-07 — Dark-paper palettes
 

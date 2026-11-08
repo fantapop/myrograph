@@ -32,7 +32,7 @@
   Share links: "Copy link" (panel) / the link button on an album item puts the overlay into the
   URL fragment (#v1/paper/scale/layer/layer..., ~35 chars per layer, never sent to a server);
   opening such a URL restores the overlay in the Compose panel. A file:// link only works on
-  the machine that has the file, so host the page (e.g. GitHub Pages) to share with others. Combos whose pieces would physically collide while rolling (found by
+  the machine that has the file (same for localhost); the page is hosted at https://fantapop.github.io/myrograph/ (GitHub Pages, from main), so copy links there to share. Combos whose pieces would physically collide while rolling (found by
   simulation) are hidden unless "Include overlapping combos" is on.
 
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -1030,7 +1030,7 @@ fillAlbumSelects();
 async function copyLink(state) {
   if (!state.layers.length) return say('Add at least one layer first.');
   const url = location.href.split('#')[0] + '#' + encodeShare(state);
-  try { await navigator.clipboard.writeText(url); say(`Link copied (${url.length} characters)` + (location.protocol === 'file:' ? ' - note: a file:// link only works on this computer' : '') + (url.length > 2000 ? ' - long; some apps truncate links' : ''), 7000); }
+  try { await navigator.clipboard.writeText(url); say(`Link copied (${url.length} characters)` + (/^(localhost|127\.0\.0\.1|)$/.test(location.hostname) ? ' - note: this link only works on this computer; open the page at the GitHub Pages address to share' : '') + (url.length > 2000 ? ' - long; some apps truncate links' : ''), 7000); }
   catch { prompt('Copy this link:', url); }
 }
 function applyHash() {

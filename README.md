@@ -14,8 +14,9 @@ pen-hole layouts of a Deluxe-style set. No build step, no server: open `index.ht
 ## Run
 
 Open `index.html` in a browser (needs network for the three.js CDN), or run
-`python3 -m http.server` here and visit <http://localhost:8000>. Share links only work for others
-once the page is hosted somewhere.
+`python3 -m http.server` here and visit <http://localhost:8000>. The page is also hosted at
+<https://fantapop.github.io/myrograph/> (GitHub Pages, from `main`); share links only work for others
+when copied from that address, not from a `file://` or `localhost` copy.
 
 ## Notes
 
