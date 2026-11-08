@@ -1,5 +1,5 @@
 <!--
-  index.html — Spirograph pattern gallery: every ring/wheel/shape/pen-hole combination of the
+  index.html — myrograph, a gallery of gear-curve patterns: every ring/wheel/shape/pen-hole combination of the
   Deluxe set (rings 144/96 and 150/105, rack, 15 round wheels, Eye/Bar/Triangle/Cross).
 
   Role: this is the whole app (single static page, no build step, no server). The CORE section
@@ -9,6 +9,9 @@
   a virtualized grid, and for tiles on screen renders the curve with three.js into an offscreen
   WebGL canvas, copying the result into a plain 2D canvas inside the tile (so tiles scroll
   natively with their labels). Tiles that scroll away are discarded and redrawn on demand.
+
+  Naming: the saved-file identifiers still say "spirograph" (PNG chunk SpirographGallery, album and
+  share-link app id spirograph-gallery, localStorage keys spirograph.*) so files made earlier keep working.
 
   Usage: open index.html in a browser (needs network for the three.js CDN import map), or run
   `python3 -m http.server` in this directory and visit http://localhost:8000.
@@ -41,7 +44,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Spirograph gallery</title>
+<title>myrograph</title>
 <style>
   :root { --bg: #1b1b1f; --panel: #26262c; --ink: #e8e6e1; --dim: #8d8b86; --accent: #e9b44c; --paper: #faf7f0; }
   * { box-sizing: border-box; }
@@ -110,7 +113,7 @@
   .hint { color: var(--dim); padding: 12px; margin: 0; }
   #compose .tb { border-top: 1px solid #000; }
   #ov-msg { padding: 4px 12px; font-size: 11px; color: var(--accent); min-height: 1px; }
-  body.dragging::after { content: "Drop a saved spirograph PNG to open it"; position: fixed; inset: 0; z-index: 9; display: grid;
+  body.dragging::after { content: "Drop a saved myrograph PNG to open it"; position: fixed; inset: 0; z-index: 9; display: grid;
     place-items: center; background: rgba(0,0,0,.7); font-size: 20px; }
   .tile canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); }
   .foot { height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 11px; line-height: 1.25; }
@@ -698,14 +701,14 @@ async function savePng() {
   const bytes = await makePng(+$('ov-px').value);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
-  a.download = `spirograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.png`;
+  a.download = `myrograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.png`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   say(`Saved ${a.download}`);
 }
 let byId = null;
 const lookup = l => (byId ??= new Map(ALL.map(p => [`${p.track.id}|${p.roller.id}|${p.hole}`, p]))).get(`${l.track}|${l.roller}|${l.hole}`);
 function applyState(meta) {                     // replace the overlay with a saved one
-  if (!meta || meta.app !== 'spirograph-gallery') throw new Error('This PNG has no spirograph data');
+  if (!meta || meta.app !== 'spirograph-gallery') throw new Error('This PNG has no myrograph data');
   for (const l of [...layers.values()]) { ovCache.get(l.key)?.geo.dispose(); ovCache.delete(l.key); }
   layers.clear();
   if (meta.paper) { $('paper').value = meta.paper; document.documentElement.style.setProperty('--paper', meta.paper); scene.background.set(meta.paper); }
@@ -724,7 +727,7 @@ async function openFile(file) {
   try {
     if (layers.size && !confirm('Replace the current overlay with the one in this file?')) return;
     const txt = readTextChunk(new Uint8Array(await file.arrayBuffer()), 'SpirographGallery');
-    if (txt == null) throw new Error('This PNG has no spirograph data');
+    if (txt == null) throw new Error('This PNG has no myrograph data');
     applyState(JSON.parse(txt));
   } catch (err) { say(err.message, 6000); }
 }
@@ -850,7 +853,7 @@ async function importFile(file) {
     if (bytes[0] === 137) {                     // a saved PNG: add its setup to the current album
       const txt = readTextChunk(bytes, 'SpirographGallery');
       const st = txt == null ? null : JSON.parse(txt);
-      if (!validState(st)) throw new Error('This PNG has no spirograph data');
+      if (!validState(st)) throw new Error('This PNG has no myrograph data');
       const a = ensureAlbum(); a.items.push({ id: uid(), name: file.name.replace(/\.png$/i, ''), created: Date.now(), state: st });
       persist(); buildAlbums(); return say(`Added the PNG's overlay to ${a.name}`);
     }

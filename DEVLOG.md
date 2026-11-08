@@ -55,6 +55,15 @@ builds in ~250 ms).
 ## Log
 
 
+### 2026-11-07 — Named myrograph, moved to its own repo
+
+Moved out of the shared `misc` repo into `fantapop/myrograph` (history pushed as `main`). Chose
+the name myrograph over using "Spirograph" (a registered trademark; risk judged low for a free
+hobby project, rename if a takedown arrives). Visible strings (title, README, download names,
+messages) say myrograph; internal identifiers keep "spirograph" so old PNGs, album files, share
+links and localStorage keep working - if renaming them later, keep reading the old names. The
+reference photo of the set stays out of the repo (packaging artwork).
+
 ### 2026-11-07 — Share via URL
 
 Chose a readable fragment format over base64/deflate: layers are short ids and numbers, ~110
