@@ -83,6 +83,7 @@
   header.tall { position: static; max-height: none; }   /* too tall to stay pinned over the grid: scrolls away instead */
   .rowtoggle { font-size: 12px; padding: 4px 12px; color: var(--ink); border: 1px dashed #66666f; border-radius: 999px; align-self: center; }
   .rowtoggle:hover { border-color: #fff; }
+  .chip.fold { display: none !important; }
   .chip.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
   button { border-radius: 4px; padding: 3px 10px; }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid #44444e; }
@@ -749,7 +750,7 @@ const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
 const $ = id => document.getElementById(id);
 const pr = Math.min(window.devicePixelRatio || 1, 2);
 let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', showOverlap = false, okCount = 0;
-const collapsed = { 'f-fixed': true, 'f-roller': true };   // rows showing only what fits on one line; always starts collapsed (not remembered) so the page lands clean
+const collapsed = { 'f-fixed': true, 'f-roller': true, 'f-hole': true };   // rows showing only what fits on one line; always starts collapsed (not remembered) so the page lands clean
 let view = 'patterns', gridStale = false;   // which main view is showing; grid needs re-flow after being hidden
 const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: new Set(), custom: new Set() };   // custom: part ids, or '*' for all
 // custom parts: the library is what the user made or kept (saved in localStorage); the registry also holds
@@ -803,8 +804,9 @@ function rollerIcon(r, hole, ref = 0) {         // hole: 1-based highlighted hol
 
 // ---------------------------------------------------------------- filter UI
 function applyCollapse(id) {                    // collapsed: only what fits on one line, plus a "+N more" pill; selected chips always stay
-  const box = $(id), t = box.querySelector('.rowtoggle'), chips = [...box.querySelectorAll('.chip')];
-  chips.forEach(b => { b.hidden = false; });
+  const box = $(id), t = box.querySelector('.rowtoggle'), all = [...box.querySelectorAll('.chip')];
+  const chips = all.filter(b => !b.hidden);                    // `hidden` = not applicable to the current filters (pen holes); `fold` = collapsed away
+  all.forEach(b => b.classList.remove('fold'));
   t.hidden = true; box.append(t);
   if (!box.offsetParent || !chips.length) return;              // not on screen (filters closed / albums view): nothing to measure
   const top0 = chips[0].offsetTop, line1 = chips[0].offsetHeight - 1;
@@ -814,9 +816,9 @@ function applyCollapse(id) {                    // collapsed: only what fits on 
   if (!collapsed[id]) { t.textContent = '▴ fewer'; t.title = 'Show only one line'; return; }
   const sel = n => chips[n].classList.contains('on');
   const place = k => {                                         // chips before k stay, later ones hide unless selected; pill sits after chip k-1
-    chips.forEach((b, n) => { b.hidden = n >= k && !sel(n); });
-    const hidden = chips.filter(b => b.hidden).length;
-    box.insertBefore(t, chips[k] || null); t.textContent = `＋${hidden} more`; t.title = 'Show every piece'; t.hidden = hidden === 0;
+    chips.forEach((b, n) => b.classList.toggle('fold', n >= k && !sel(n)));
+    const folded = chips.filter(b => b.classList.contains('fold')).length;
+    box.insertBefore(t, chips[k] || null); t.textContent = `＋${folded} more`; t.title = 'Show them all'; t.hidden = folded === 0;
   };
   for (let k = k0; k > 0; k--) { place(k); if (t.hidden || t.offsetTop < top0 + line1) return; }   // stop once the pill fits on the first line
   place(0);
@@ -846,6 +848,7 @@ function buildFilters() {
   rowToggle('f-fixed'); rowToggle('f-roller');
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
   for (let k = 1; k <= maxHoles; k++) chip('f-hole', filters.hole, k, k);
+  rowToggle('f-hole');
   customPalettes = parsePalettes(store.get(PAL_KEY));
   palId = store.get(PAL_CUR) || 'classic';
   buildInk();
@@ -980,7 +983,7 @@ function pool() {                               // regular combos, or the custom
   return !c.size ? ALL : c.has('*') ? CUSTOM : CUSTOM.filter(p => c.has(p.roller.id) || c.has(p.track.pieceId));
 }
 function syncHoleChips(avail) {                 // pen hole chips follow the other filters: hide numbers no matching piece has
-  for (const b of $('f-hole').children) {
+  for (const b of $('f-hole').querySelectorAll('.chip')) {
     const k = +b.textContent, ok = avail.has(k);
     b.hidden = !ok;
     if (!ok && filters.hole.delete(k)) b.classList.remove('on');       // a hidden chip must not keep filtering

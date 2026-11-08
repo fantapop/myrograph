@@ -81,6 +81,13 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Pen hole row collapses too
+
+The Pen hole row (35 chips, wraps to two lines) uses the same one-line "＋N more" collapse as the piece rows (always starts
+collapsed). Collapsing now hides chips with a `.fold` class instead of the `hidden` attribute, because the pen hole chips
+already use `hidden` for "no matching piece has this hole" (`syncHoleChips`); `applyCollapse` measures only the non-`hidden`
+chips, so the two mechanisms stay independent (and `syncHoleChips` iterates `.chip`, since the pill is now a child of the row).
+
 ### 2026-11-08 — Rows always start collapsed
 
 The expand/collapse state of the Fixed part / Moving piece rows was persisted (`spirograph.rows`), so anyone who had
