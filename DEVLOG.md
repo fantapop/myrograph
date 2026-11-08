@@ -11,7 +11,7 @@ colors are adjustable. Verified by headless Chrome screenshots; the math core is
 Compose feature: header "Compose (n)" button slides a panel in from the right. While open, grid
 tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
 three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
-rotation + size sliders (25-200%) and remove; "True size" keeps real relative sizes (tooth units), "Fit each"
+rotation, size (25-200%) and line width (0.5-6x) sliders and remove; "True size" keeps real relative sizes (tooth units), "Fit each"
 normalises every layer. Selection is in-memory only (lost on reload).
 
 Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
@@ -80,6 +80,18 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-08 — Per-layer line width; layer colors match the grid
+
+Feedback: wanted line width per layer in the Compose canvas, and the color of a selected tile on the left should
+be the color used on the canvas (new layers used the next unused palette color, so they rarely matched the tile).
+Now: each layer has `width` (multiplier of the base 1.6 px line, 0.5-6x, slider "Line"); saved in PNG/album
+state and share links (optional 8th field, tenths, omitted at 1.0x so old links and short links are unchanged;
+decoder defaults to 1x). New layers take `inkFor(p)`, exactly what the tile is drawn with (Auto = palette color of
+the moving piece, or the fixed ink swatch). Selected tiles are drawn in their layer's color (`tileColor`), so
+recoloring a layer or changing the ink afterwards cannot make the left side disagree with the canvas.
+Trade-off: layers from the same moving piece (e.g. several holes of wheel 30) now start with the same color, where
+before each got a fresh palette color; recolor them in the layer row.
 
 ### 2026-11-07 — Custom part maker
 

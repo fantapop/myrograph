@@ -47,10 +47,13 @@ check('PNG text chunk round-trips', C.readTextChunk(withMeta, 'K') === text && C
 
 // share links
 const st = { app: 'spirograph-gallery', v: 1, paper: '#faf7f0', baseScale: 'fit', layers: [
-  { track: 'ring96-in', roller: 'cross', hole: 1, color: '#1f4fd8', visible: true, rot: 0, size: 100 },
-  { track: 'ring144-out', roller: 'eye', hole: 6, color: '#c4242b', visible: false, rot: 40, size: 70 }] };
+  { track: 'ring96-in', roller: 'cross', hole: 1, color: '#1f4fd8', visible: true, rot: 0, size: 100, width: 1 },
+  { track: 'ring144-out', roller: 'eye', hole: 6, color: '#c4242b', visible: false, rot: 40, size: 70, width: 2.5 }] };
 check('share link round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(st))) === JSON.stringify(st));
 const rejects = ['v2/faf7f0/t', 'v1/zzzzzz/t', 'v1/faf7f0/t/a,b,x,1f4fd8,1,0,100', 'v1/faf7f0/t/a b,c,1,1f4fd8,1,0,100', 'junk'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } });
+check('line width: 1.0x is omitted from the link, others are kept; links without it decode as 1.0x',
+  !C.encodeShare(st).split('/')[3].split(',')[7] && C.encodeShare(st).split('/')[4].split(',')[7] === '25' && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100').layers[0].width === 1
+  && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,99').layers[0].width === 6);
 check('malformed share links are rejected', rejects);
 
 // custom parts
