@@ -431,15 +431,24 @@ function pose(F, G, inside, s, out) {
   out[0] = c; out[1] = sn; out[2] = _f[0] - (c * _g[0] - sn * _g[1]); out[3] = _f[1] - (sn * _g[0] + c * _g[1]);
 }
 // Pen path for one hole in tooth units (z = 0), plus its max radius. Closes after lcm(NF, NG) teeth of travel.
-function traceRaw(F, G, inside, hole, maxPts = 30000) {
-  const L = lcm(F.N, G.N), n = Math.min(maxPts, Math.ceil(L * 4)), out = new Float32Array((n + 1) * 3), P = [0, 0, 0, 0];
-  let maxR = 0;
-  for (let i = 0; i <= n; i++) {
-    pose(F, G, inside, L * i / n, P);
-    const x = P[2] + P[0] * hole[0] - P[1] * hole[1], y = P[3] + P[1] * hole[0] + P[0] * hole[1];
-    out[3 * i] = x; out[3 * i + 1] = y; maxR = Math.max(maxR, Math.hypot(x, y));
+function traceRaw(F, G, inside, hole, maxPts = 30000, target = 0.15) {
+  // Samples the pen path every 1/4 tooth of contact travel, then adds points wherever the pen itself moved more than `target` teeth between
+  // two samples (a pen far from the piece's centre sweeps much faster than the contact point: straight chords and hooked cusps otherwise).
+  // maxPts caps the point count. Returns the points (x, y, 0), the largest radius, and the travel `ss` each point belongs to.
+  const L = lcm(F.N, G.N), n0 = Math.min(maxPts, Math.ceil(L * 4)), P = [0, 0, 0, 0], xs = [], ys = [], ss = [];
+  const pen = s => { pose(F, G, inside, s, P); return [P[2] + P[0] * hole[0] - P[1] * hole[1], P[3] + P[1] * hole[0] + P[0] * hole[1]]; };
+  let [px, py] = pen(0); xs.push(px); ys.push(py); ss.push(0);
+  for (let i = 1; i <= n0; i++) {
+    const s0 = L * (i - 1) / n0, s1 = L * i / n0, [x, y] = pen(s1), d = Math.hypot(x - px, y - py);
+    if (d > target && xs.length + (n0 - i + 1) < maxPts) {        // only spend what the base samples leave of the budget
+      const sub = Math.min(64, Math.ceil(d / target));
+      for (let j = 1; j < sub; j++) { const s = s0 + (s1 - s0) * j / sub, [qx, qy] = pen(s); xs.push(qx); ys.push(qy); ss.push(s); }
+    }
+    xs.push(x); ys.push(y); ss.push(s1); px = x; py = y;
   }
-  return { pts: out, maxR };
+  const out = new Float32Array(xs.length * 3); let maxR = 0;
+  for (let i = 0; i < xs.length; i++) { out[3 * i] = xs[i]; out[3 * i + 1] = ys[i]; maxR = Math.max(maxR, Math.hypot(xs[i], ys[i])); }
+  return { pts: out, maxR, ss: Float64Array.from(ss) };
 }
 function trace(F, G, inside, hole, maxPts) {     // same path scaled to fit radius 0.9
   const { pts, maxR } = traceRaw(F, G, inside, hole, maxPts), s = 0.9 / maxR;
@@ -448,11 +457,14 @@ function trace(F, G, inside, hole, maxPts) {     // same path scaled to fit radi
 }
 
 // ---- collision check: would the two physical pieces overlap at any point of the roll?
-function makeSDF(F) {                          // free-space distance field around a fixed piece (+ outside)
+function makeSDF(F, hi = false) {              // free-space distance field around a piece (+ outside, - inside)
+  // hi (custom parts): every outline point instead of one per tooth (a thin tip would otherwise be lost), and a cell size that
+  // shrinks for small pieces (a 7-tooth wheel is 2 teeth across)
   let B = 0; for (let k = 0; k < F.M; k++) B = Math.max(B, Math.abs(F.p[2 * k]), Math.abs(F.p[2 * k + 1]));
+  const cell = hi ? Math.min(0.6, Math.max(0.1, B / 30)) : 0.6, stride = hi ? 1 : PER_TOOTH;
   B += 6;
-  const cell = 0.6, n = Math.ceil(2 * B / cell) + 1, g = new Float32Array(n * n), K = F.N, xs = new Float64Array(K), ys = new Float64Array(K);
-  for (let k = 0; k < K; k++) { xs[k] = F.p[2 * k * PER_TOOTH]; ys[k] = F.p[2 * k * PER_TOOTH + 1]; }
+  const n = Math.ceil(2 * B / cell) + 1, g = new Float32Array(n * n), K = hi ? F.M : F.N, xs = new Float64Array(K), ys = new Float64Array(K);
+  for (let k = 0; k < K; k++) { xs[k] = F.p[2 * k * stride]; ys[k] = F.p[2 * k * stride + 1]; }
   for (let gy = 0; gy < n; gy++) for (let gx = 0; gx < n; gx++) {
     const px = -B + gx * cell, py = -B + gy * cell; let d2 = Infinity, inside = false;
     for (let k = 0, j = K - 1; k < K; j = k++) {
@@ -473,14 +485,22 @@ function makeSDF(F) {                          // free-space distance field arou
 }
 // F: fixed outline; for inside tracks it must be a circle (the ring's opening).
 // G is the pitch outline that drives the motion; body is the real silhouette used for collisions.
-function fits(F, G, inside, sdf, body = G, tol = 0.4) {
-  const L = lcm(F.N, G.N), steps = Math.ceil(L / 1.5), S = Math.min(48, body.M), stride = Math.floor(body.M / S), P = [0, 0, 0, 0], rin = F.N / TAU;
+// hi (used when a custom part is involved): { fbody, rsdf } - tests every ~0.5 tooth of travel instead of 1.5, up to 160 outline
+// points instead of 48, and BOTH ways: the moving piece's outline against the fixed piece, and the fixed piece's outline against the
+// moving piece (rsdf = its distance field, evaluated in its own frame), so a thin tip of either piece cannot slip between samples.
+function fits(F, G, inside, sdf, body = G, tol = 0.4, hi = null) {
+  const L = lcm(F.N, G.N), steps = Math.min(Math.ceil(L / (hi ? 0.5 : 1.5)), hi ? 24000 : Infinity), S = Math.min(hi ? 160 : 48, body.M), stride = Math.floor(body.M / S), P = [0, 0, 0, 0], rin = F.N / TAU;
+  const fb = hi && hi.rsdf ? hi.fbody : null, SF = fb ? Math.min(160, fb.M) : 0, fstride = fb ? Math.floor(fb.M / SF) : 0;
   for (let st = 0; st < steps; st++) {
     pose(F, G, inside, L * st / steps, P);
     for (let j = 0; j < S; j++) {
       const lx = body.p[2 * j * stride], ly = body.p[2 * j * stride + 1];
       const x = P[2] + P[0] * lx - P[1] * ly, y = P[3] + P[1] * lx + P[0] * ly;
       if ((inside ? rin - Math.hypot(x, y) : sdf.at(x, y)) < -tol) return false;
+    }
+    for (let j = 0; j < SF; j++) {                                // the fixed outline, in the moving piece's frame
+      const dx = fb.p[2 * j * fstride] - P[2], dy = fb.p[2 * j * fstride + 1] - P[3];
+      if (hi.rsdf.at(P[0] * dx + P[1] * dy, -P[1] * dx + P[0] * dy) < -tol) return false;
     }
   }
   return true;
@@ -691,8 +711,9 @@ function fillHoles(o, mode, d) {                 // candidate pen holes (quarter
   const cap = PART_LIMITS.maxHoles;
   return pts.length <= cap ? pts : Array.from({ length: cap }, (_, i) => pts[Math.round(i * (pts.length - 1) / (cap - 1))]);
 }
-// starting shapes: radius as a function of angle, sampled at the handle angles. Lobed shapes only mesh with
-// a circle when the lobes are shallow (deep petals overlap the partner), so the presets keep them gentle.
+// starting shapes: radius as a function of angle, sampled at the handle angles. A piece only rolls on a circle without overlapping it
+// when its sides are convex enough and its lobes shallow (flat sides and deep petals overlap the partner; the fit check is strict
+// and exact enough to see that), so the presets are rounded off: each rolls on 17-24 of the 24 tracks.
 const polyR = s => th => { const w = TAU / s, a = Math.cos(Math.PI / s); return a / Math.cos((((th % w) + w) % w) - Math.PI / s); };
 const superR = (p, a, b) => th => Math.pow(Math.pow(Math.abs(Math.cos(th) / a), p) + Math.pow(Math.abs(Math.sin(th) / b), p), -1 / p);
 const PART_PRESETS = [
@@ -700,12 +721,12 @@ const PART_PRESETS = [
   { id: 'oval',     name: 'Oval',            N: 48, k: 2, n: 6, mir: 1, f: superR(2, 1, .6) },
   { id: 'lens',     name: 'Lens',            N: 56, k: 2, n: 6, mir: 1, f: superR(1.5, 1, .55) },
   { id: 'egg',      name: 'Egg',             N: 48, k: 1, n: 8, mir: 1, f: th => (1 + .22 * Math.cos(th)) * superR(2, 1, .72)(th) },
-  { id: 'square',   name: 'Rounded square',  N: 48, k: 4, n: 3, mir: 1, f: superR(4, 1, 1) },
-  { id: 'triangle', name: 'Rounded triangle', N: 54, k: 3, n: 4, mir: 1, f: polyR(3) },
-  { id: 'pentagon', name: 'Pentagon',        N: 54, k: 5, n: 3, mir: 1, f: polyR(5) },
-  { id: 'flower',   name: 'Flower (5)',      N: 66, k: 5, n: 4, mir: 1, f: th => 1 + .07 * Math.cos(5 * th) },
-  { id: 'clover',   name: 'Clover (3)',      N: 60, k: 3, n: 6, mir: 1, f: th => 1 + .14 * Math.cos(3 * th) },
-  { id: 'star',     name: 'Star (6)',        N: 84, k: 6, n: 4, mir: 1, f: th => 1 + .06 * Math.cos(6 * th) },
+  { id: 'square',   name: 'Rounded square',  N: 48, k: 4, n: 3, mir: 1, f: superR(3, 1, 1) },
+  { id: 'triangle', name: 'Rounded triangle', N: 54, k: 3, n: 4, mir: 1, f: th => .5 * polyR(3)(th) + .5 * .75 },
+  { id: 'pentagon', name: 'Pentagon',        N: 54, k: 5, n: 3, mir: 1, f: th => .7 * polyR(5)(th) + .3 * .9 },
+  { id: 'flower',   name: 'Flower (5)',      N: 66, k: 5, n: 4, mir: 1, f: th => 1 + .05 * Math.cos(5 * th) },
+  { id: 'clover',   name: 'Clover (3)',      N: 60, k: 3, n: 6, mir: 1, f: th => 1 + .1 * Math.cos(3 * th) },
+  { id: 'star',     name: 'Star (6)',        N: 84, k: 6, n: 4, mir: 1, f: th => 1 + .04 * Math.cos(6 * th) },
 ];
 function presetShape(pr) {                       // -> { N (suggested size), k, n, mir, r } for a PART_PRESETS entry
   const K = pr.k * pr.n, raw = Array.from({ length: pr.n }, (_, j) => pr.f(TAU * j / K)), mx = Math.max(...raw);
@@ -719,13 +740,16 @@ function resampleShape(d, n2) {                  // same outline with n2 handles
   const r = raw.map(v => Math.max(8, Math.min(255, Math.round(255 * v / mx))));
   return { ...d, n: n2, r: d.mir ? partCanon({ r }) : r };
 }
-// fit tests against the box (and against other custom parts). A fixed piece's distance field is built once per piece object
-// (WeakMap: it goes away with the piece) however many partners are tested against it.
-const SDF_CACHE = new WeakMap();
+// fit tests against the box (and against other custom parts). Distance fields are built once per outline object (WeakMap: they go
+// away with the piece). Pairs involving a custom part use the strict mode of fits(): a pen hole's path is only believable if the
+// pieces really clear each other, so the tolerance is 0.05 tooth against a ring (exact) and 0.1 against another piece (grid error).
+const SDF_LO = new WeakMap(), SDF_HI = new WeakMap();
+const sdfOf = (o, hi) => { const c = hi ? SDF_HI : SDF_LO; let v = c.get(o); if (!v) { v = makeSDF(o, hi); c.set(o, v); } return v; };
 function pairFits(t, r) {
-  let sdf = null;
-  if (!t.inside) { sdf = SDF_CACHE.get(t); if (!sdf) { sdf = makeSDF(t.body || t.o); SDF_CACHE.set(t, sdf); } }
-  return fits(t.o, r.o, t.inside, sdf, r.body);
+  const hi = !!(t.custom || r.custom), fb = t.body || t.o;
+  const sdf = t.inside ? null : sdfOf(fb, !!t.custom);
+  return fits(t.o, r.o, t.inside, sdf, r.body, hi ? (t.inside ? 0.05 : 0.1) : 0.4,
+    hi ? { fbody: fb, rsdf: t.inside ? null : sdfOf(r.body, !!r.custom) } : null);
 }
 // every combination that involves at least one custom piece. pieces: makePart() results; memo: 'trackId|rollerId' -> bool
 function customCombos(CAT, pieces, memo = new Map()) {
@@ -771,6 +795,9 @@ const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: ne
 // custom parts: the library is what the user made or kept (saved in localStorage); the registry also holds
 // "guest" parts that came with an opened PNG, album or link (rendered, but not in the library unless kept)
 const PARTS_KEY = STORAGE_PREFIX + 'parts.v1';
+// 'trackId|rollerId' -> fits? for pairs involving a library part. Ids are content hashes, so a result never goes stale; the strict check
+// is slow (up to a second per part), so results are kept in browser storage (the .v2 is the version of the check: bump it if it changes).
+const FITS_KEY = STORAGE_PREFIX + 'fits.v2';
 let library = [], CUSTOM = [];                  // CUSTOM: combos of library parts (kept out of ALL, shown via the Custom parts filter)
 const registry = new Map(), pieceMemo = new Map(), fitMemo = new Map(), guestCombos = new Map();
 const piece = id => { let q = pieceMemo.get(id); if (!q && registry.has(id)) pieceMemo.set(id, q = makePart(registry.get(id))); return q; };
@@ -1522,7 +1549,15 @@ new ResizeObserver(renderOverlay).observe(ovCanvas);
 
 // ---------------------------------------------------------------- custom parts: library, filter row, maker dialog
 const keepable = p => { const id = customIdOf(p); return !!id && !library.some(d => d.id === id); };
-function rebuildCustom() { CUSTOM = customCombos(CAT, library.map(d => piece(d.id)), fitMemo); byId = null; }
+function loadFits() {
+  try { for (const [k, v] of Object.entries(JSON.parse(store.get(FITS_KEY) || '{}'))) fitMemo.set(k, v === 1); } catch { /* recompute */ }
+}
+function saveFits() {                           // only pairs that still involve a library part
+  const ids = new Set(library.flatMap(d => [d.id, 'fix-' + d.id])), out = {};
+  for (const [k, v] of fitMemo) if (k.split('|').some(x => ids.has(x))) out[k] = v ? 1 : 0;
+  store.set(FITS_KEY, JSON.stringify(out));
+}
+function rebuildCustom() { CUSTOM = customCombos(CAT, library.map(d => piece(d.id)), fitMemo); byId = null; saveFits(); }
 function saveLibrary() { return store.set(PARTS_KEY, JSON.stringify(library)); }
 function libraryChanged(showId) {               // after add / edit / delete: refresh combos, the row, and the grid if it shows custom parts
   rebuildCustom(); saveLibrary();
@@ -1596,7 +1631,7 @@ function edSync(shapeChanged) {                 // recompute the piece, refresh 
     ? 'Drag a handle in or out. Symmetry repeats the section you edit around the part; Size sets how many teeth long the edge is (the dashed circle is a circle of the same size).'
     : `Click inside the shape to add a pen hole, drag to move it, right-click or press Delete to remove. ${ed.d.h.length} hole${ed.d.h.length === 1 ? '' : 's'}` +
       (bad ? `; ${bad} too close to the edge (red, needs ${HOLE_MARGIN} tooth of margin)` : '') + '.';
-  if (shapeChanged) { clearTimeout(edTimer); edTimer = setTimeout(edCheck, 160); }
+  if (shapeChanged) { ed.checked = false; clearTimeout(edTimer); edTimer = setTimeout(edCheck, 160); }
   fillPartnerHoles(); clearTimeout(pvTimer); pvTimer = setTimeout(pvStart, shapeChanged ? 220 : 60);
   edDraw();
 }
@@ -1730,7 +1765,7 @@ const edTracks = () => [...CAT.tracks, ...library.filter(d => d.id !== ed.orig).
 const edRollers = () => [...CAT.rollers, ...library.filter(d => d.id !== ed.orig).map(d => piece(d.id).roller)];
 function edCheck() {
   if (!ed || !pm.open) return;
-  const gen = ++edGen, me = edPiece, box = $('pm-compat'); box.textContent = ''; edFit.clear();
+  const gen = ++edGen, me = edPiece, box = $('pm-compat'); box.textContent = ''; edFit.clear(); ed.checked = false;
   const jobs = [], add = (grp, label) => { const g = document.createElement('div'); g.className = 'grp'; g.textContent = label; box.append(g); };
   const mk = (key, icon, title, kind, id) => {
     const b = document.createElement('button'); b.className = 'wait' + (ed.partner.kind === kind && ed.partner.id === id ? ' on' : '');
@@ -1751,6 +1786,7 @@ function edCheck() {
     }
     if (jobs.length) { edTimer = setTimeout(step, 0); return; }
     const a = [...edFit].filter(([k]) => k[0] === 't'), b = [...edFit].filter(([k]) => k[0] === 'r');
+    ed.checked = true;                                       // every pair of this shape is known: edSave can keep the results
     const fitsN = a.filter(x => x[1]).length;
     $('pm-sum').textContent = `Rolls on ${fitsN} of ${a.length} pieces; ${b.filter(x => x[1]).length} of ${b.length} can roll around it. Green fits, red would overlap.` +
       (fitsN < 6 ? ' Thin or deeply lobed shapes rarely mesh with the round parts: try shallower lobes, a rounder shape, or another size.' : '');
@@ -1781,11 +1817,11 @@ function pvStart() {
   pvStop(); if (!ed || !pm.open) return;
   const pp = partnerPieces(); if (!pp) return;
   const { t, r } = pp, hole = r.holes[(ed.phole || 1) - 1] || r.holes[0]; if (!hole) return;
-  const { pts } = traceRaw(t.o, r.o, t.inside, hole, 2500), n = pts.length / 3 - 1, L = lcm(t.o.N, r.o.N);
+  const { pts, ss } = traceRaw(t.o, r.o, t.inside, hole, 20000), n = ss.length - 1;     // ss: the travel of each point, so the moving piece is drawn where the pen is
   const radius = o => { let m = 0; for (let i = 0; i < o.M; i++) m = Math.max(m, Math.hypot(o.p[2 * i], o.p[2 * i + 1])); return m; };
   const fr = radius(t.body || t.o), gr = radius(r.body), bound = (t.inside ? fr : fr + 2 * gr) * 1.06;
   const w = Math.round(Math.min(340, pmv.getBoundingClientRect().width || 300)); pmv.width = pmv.height = Math.round(w * pr);
-  pv = { t, r, pts, n, L, bound, w, i: 0, hold: 0, raf: 0, P: [0, 0, 0, 0] };
+  pv = { t, r, pts, n, bound, w, i: 0, hold: 0, raf: 0, P: [0, 0, 0, 0] };
   const ctx = pmv.getContext('2d'), S = w / (2 * bound), X = x => w / 2 + x * S, Y = y => w / 2 - y * S, ink = palette().colors[0], paper = $('paper').value;
   const poly = (o, tf) => { ctx.beginPath(); for (let i = 0; i < o.M; i++) { const x = o.p[2 * i], y = o.p[2 * i + 1], q = tf ? [tf[2] + tf[0] * x - tf[1] * y, tf[3] + tf[1] * x + tf[0] * y] : [x, y];
     ctx[i ? 'lineTo' : 'moveTo'](X(q[0]), Y(q[1])); } ctx.closePath(); };
@@ -1794,7 +1830,7 @@ function pvStart() {
     ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.fillStyle = paper; ctx.fillRect(0, 0, w, w);
     ctx.lineWidth = 1.5; ctx.strokeStyle = '#8d8b86'; ctx.fillStyle = 'rgba(0,0,0,.06)';
     if (t.inside) { ctx.beginPath(); ctx.arc(X(0), Y(0), fr * S, 0, TAU); ctx.stroke(); } else { poly(t.body || t.o); ctx.fill(); ctx.stroke(); }
-    const k = Math.min(Math.floor(pv.i), n); pose(t.o, r.o, t.inside, L * k / n, pv.P);
+    const k = Math.min(Math.floor(pv.i), n); pose(t.o, r.o, t.inside, ss[k], pv.P);
     ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.beginPath(); for (let i = 0; i <= k; i++) ctx[i ? 'lineTo' : 'moveTo'](X(pts[3 * i]), Y(pts[3 * i + 1])); ctx.stroke();
     poly(r.body, pv.P); ctx.fillStyle = 'rgba(233,180,76,.25)'; ctx.fill(); ctx.strokeStyle = '#555'; ctx.lineWidth = 1.2; ctx.stroke();
     ctx.beginPath(); ctx.arc(X(pts[3 * k]), Y(pts[3 * k + 1]), 3.5, 0, TAU); ctx.fillStyle = ink; ctx.fill();
@@ -1818,6 +1854,7 @@ function edSave(asCopy) {
   else if (!placed) next.push(d);
   library = next; registry.set(d.id, d);
   pieceMemo.delete(d.id); guestCombos.clear();        // same content may come back under a new name
+  if (ed.checked) for (const [key, ok] of edFit) fitMemo.set(key[0] === 't' ? `${key.slice(2)}|${d.id}` : `fix-${d.id}|${key.slice(2)}`, ok);   // the panel just computed these (fits do not depend on holes)
   ed.dirty = false; pm.close(); libraryChanged(d.id);
 }
 function edClose() { if (ed?.dirty && !confirm('Discard your changes to this part?')) return; ed.dirty = false; pm.close(); }
@@ -1827,7 +1864,7 @@ $('pm-del').onclick = () => {
   library = library.filter(x => x.id !== ed.orig); ed.dirty = false; pm.close(); libraryChanged();
 };
 pm.addEventListener('cancel', ev => { if (ed?.dirty && !confirm('Discard your changes to this part?')) ev.preventDefault(); });
-pm.addEventListener('close', () => { pvStop(); clearTimeout(edTimer); clearTimeout(pvTimer); edGen++; ed = null; });
+pm.addEventListener('close', () => { if (pm.open) return; pvStop(); clearTimeout(edTimer); clearTimeout(pvTimer); edGen++; ed = null; });   // the event is queued: ignore it if a new session already opened
 window.addEventListener('resize', () => { if (ed && pm.open) { edResize(); edDraw(); pvStart(); } });
 
 // ---------------------------------------------------------------- start
@@ -1836,7 +1873,7 @@ setTimeout(() => {                              // let "Preparing…" paint befo
   CAT = buildCatalog(); ALL = CAT.combos; ALL.forEach((p, i) => { p.key = i; }); okCount = ALL.filter(p => p.ok).length;
   console.log(`catalog: ${okCount} of ${ALL.length} patterns fit, ${Math.round(performance.now() - t0)} ms`);
   const t1 = performance.now();
-  library = parseParts(store.get(PARTS_KEY)); library.forEach(d => registry.set(d.id, d)); rebuildCustom();
+  library = parseParts(store.get(PARTS_KEY)); library.forEach(d => registry.set(d.id, d)); loadFits(); rebuildCustom();
   if (library.length) console.log(`custom parts: ${library.length} in library, ${CUSTOM.length} combos, ${Math.round(performance.now() - t1)} ms`);
   buildFilters(); buildCustomRow(); refilter(); applyHash();
 }, 30);

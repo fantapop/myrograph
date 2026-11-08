@@ -42,6 +42,9 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
 - Shaped-wheel sizes/holes are estimates from a photo (+/-0.5 tooth). The Cross rolls on a 60-tooth
   pitch circle with its real silhouette used only for collision/pictures. Combos that would
   physically collide (`p.ok` false) are never listed in the gallery; the part maker still shows them red.
+- `fits()` has two modes: the original loose one (tolerance 0.4, 48 points) for the regular catalog, whose shaped wheels are estimated
+  from a photo, and a strict two-sided one used whenever a custom part is in the pair (`pairFits`). Strict results are slow, so they
+  are cached in localStorage (`myrograph.fits.v2`; bump the version if the check changes).
 - A pattern's identity in the UI is `p.key` (index in ALL); anything persisted uses part ids
   (`track|roller|hole`) instead, so files survive PARTS edits.
 - Headless Chrome screenshots taken after scrolling come out blank; verify scroll behaviour via DOM.

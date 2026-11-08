@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -104,7 +104,28 @@ check('limits: N from 7 to 300 accepted, 6 and 301 rejected', edge(7) && edge(30
 const tinyP = circ(7), bigP = circ(300);
 check('tiny pieces are collision-checked on every sample (7-tooth circle fits inside the 96 ring and around a 24 wheel)', C.pairFits(cat.tracks.find(t => t.id === 'ring96-in'), tinyP.roller) && C.pairFits(cat.tracks.find(t => t.id === 'fix-w24'), tinyP.roller));
 const t0 = Date.now(); const bigFits = cat.rollers.filter(r => C.pairFits(bigP.fixed, r)).length; const bigMs = Date.now() - t0;
-check('a 300-tooth fixed piece is checked against every wheel quickly (distance field built once)', bigFits >= 10 && bigMs < 400, `${bigFits}/${cat.rollers.length} fit, ${bigMs} ms`);
+check('a 300-tooth fixed piece is checked against every wheel in about a second (its distance field is built once)', bigFits >= 10 && bigMs < 1500, `${bigFits}/${cat.rollers.length} fit, ${bigMs} ms`);
+
+// strict collision check for custom parts (an oval 44-48 teeth long overlapped the 96 ring by 0.1-0.4 tooth and was accepted; ground truth below)
+const ring96 = cat.tracks.find(t => t.id === 'ring96-in'), rin96 = ring96.o.N / C.TAU;
+const deepest = G => { const L = C.lcm(ring96.o.N, G.N), steps = Math.ceil(L / 0.25), P = [0, 0, 0, 0]; let w = 0;   // every outline point, a pose every 0.25 tooth
+  for (let st = 0; st < steps; st++) { C.pose(ring96.o, G, true, L * st / steps, P); for (let j = 0; j < G.M; j++) { const x = P[2] + P[0] * G.p[2 * j] - P[1] * G.p[2 * j + 1], y = P[3] + P[1] * G.p[2 * j] + P[0] * G.p[2 * j + 1]; w = Math.max(w, Math.hypot(x, y) - rin96); } }
+  return w; };
+const mkp = (id, N) => { const sh = C.presetShape(C.PART_PRESETS.find(p => p.id === id)); return C.makePart({ id: 'x', name: 'x', ...sh, N, h: [[0, 0]] }); };
+check('ovals that overlap the ring by 0.1-0.4 tooth are now rejected (they were accepted)', [44, 46, 48].every(N => !C.pairFits(ring96, mkp('oval', N).roller)) && !C.pairFits(ring96, mkp('egg', 60).roller));
+check('a circle that exactly fits the ring is still accepted', C.pairFits(ring96, mkp('circle', 80).roller) && C.pairFits(ring96, mkp('circle', 96).roller));
+let seed = 7; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+let acceptedOverlap = 0, accepted = 0, tried = 0;
+for (let i = 0; i < 80; i++) { const k = 1 + Math.floor(rnd() * 6), n = 3 + Math.floor(rnd() * 5), mir = rnd() < .5 ? 1 : 0, N = 30 + Math.floor(rnd() * 60); let r = Array.from({ length: n }, () => 140 + Math.floor(rnd() * 116)); if (mir) r = r.map((_, j, a) => a[Math.min(j, (a.length - j) % a.length)]); if (k * n > 48) continue;
+  const q = C.makePart({ id: 'x', name: 'x', N, k, n, mir, r, h: [[0, 0]] }); tried++; if (!C.pairFits(ring96, q.roller)) continue; accepted++; if (deepest(q.roller.o) > 0.1) acceptedOverlap++; }
+check('random hand-shaped parts: none accepted in the ring while really overlapping it by more than 0.1 tooth', acceptedOverlap === 0 && accepted > 5, `${accepted} of ${tried} accepted`);
+// pen path: no long chords (the cause of broken-looking lines and hooked cusps)
+const stepsOf = pts => { let w = 0; for (let i = 0; i + 3 < pts.length; i += 3) w = Math.max(w, Math.hypot(pts[i + 3] - pts[i], pts[i + 4] - pts[i + 1])); return w; };
+const ov = mkp('oval', 48), far = [7, 0], oldStep = 1.0;
+const tr = C.traceRaw(ring96.o, ov.roller.o, true, far), n = tr.pts.length / 3;
+check('pen path far from the piece centre has no step over ~0.2 tooth (was 1.2), and still closes', stepsOf(tr.pts) < 0.2 && Math.hypot(tr.pts[0] - tr.pts[3 * (n - 1)], tr.pts[1] - tr.pts[3 * (n - 1) + 1]) < 1e-6, `largest step ${stepsOf(tr.pts).toFixed(3)}, ${n} points`);
+check('traceRaw returns the travel of every point (non-decreasing, 0 to L)', tr.ss.length === n && tr.ss[0] === 0 && Math.abs(tr.ss[n - 1] - C.lcm(96, 48)) < 1e-9 && tr.ss.every((v, i) => i === 0 || v >= tr.ss[i - 1]));
+check('the point cap still holds', C.traceRaw(ring96.o, mkp('circle', 83).roller.o, true, [10, 0], 3000).pts.length / 3 <= 3000 + 64);
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

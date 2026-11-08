@@ -81,6 +81,30 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Stricter collision check for custom parts; denser pen paths
+
+Report: in the part maker an oval "escaped" the ring and the pen line looked disconnected, worse for complicated parts. Two
+separate causes, measured before changing anything:
+1. Collision (`fits`): tolerance 0.4 tooth, only 48 outline points, poses every 1.5 teeth, one-sided (the moving outline against
+   the fixed piece only), and the fixed piece's distance field used one polygon vertex per tooth. Against a brute-force ground
+   truth (exact polygon distances both ways, a pose every 0.5 tooth) the old check accepted 7 of 39 gentle random shapes that really
+   overlapped their partner (up to 0.39 tooth; ovals of 44-48 teeth and eggs of 54-66 overlapped the 96 ring by 0.1-0.4).
+   Pairs involving a custom part now use a strict mode (`pairFits` -> `fits(..., hi)`): tolerance 0.05 vs a ring (exact) / 0.1 vs
+   another piece (grid error), a pose every 0.5 tooth (<= 24000), up to 160 outline points, BOTH directions (the fixed outline is
+   tested against the moving piece's own distance field in its frame), full-resolution distance fields for custom outlines (cell
+   shrinks for small pieces). Result on the same sample: 0 accepted overlaps, 0 wrongly rejected clear pairs. The regular catalog
+   (Eye/Bar/Triangle/Cross, estimated geometry) deliberately keeps the old check, so the gallery's 7,836 patterns did not change.
+2. The broken-looking line was the pen path itself: it was sampled every 1/4 tooth of CONTACT travel, but a pen far from the
+   piece's centre sweeps much faster (steps of 1.2-1.7 teeth = straight chords and hooked cusps; the path is mathematically
+   continuous, closing gap 0). `traceRaw` now adds points wherever the pen moved more than 0.15 tooth (largest step now 0.147),
+   within the point cap, and returns `ss` (travel per point) so the maker preview draws the moving piece where the pen is.
+Side effects handled: presets that only worked because of the loose check were rounded off again (triangle 4 -> 17 of 24 tracks,
+pentagon, flower, star, square, clover now fit 17-24); the strict check costs 0.2-0.9 s per part, which broke startup for a full
+library (12 parts: 4.6 s), so fit results are remembered: seeded from the fit panel at save time and persisted under
+`myrograph.fits.v2` (ids are content hashes, results never go stale; bump .v2 if the check changes): 12 parts load in 7 ms.
+Also fixed: a stale dialog `close` event could clear a freshly opened editor (queued event; now ignored if the dialog is open).
+First load after this change recomputes any existing library once (up to a few seconds for a big library).
+
 ### 2026-11-08 — Part maker size range 7-300 teeth
 
 Was 24-110 (24 is just the real set's smallest wheel). New range 7-300 (`PART_LIMITS.Nmin/Nmax`, also drives the slider).
