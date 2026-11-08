@@ -19,6 +19,8 @@ not done yet - share links only work for others once hosted).
 ## Working here
 - Run: open `index.html`, or `python3 -m http.server` and visit localhost:8000.
 - Test: `node tools/test.mjs` (extracts CORE, no browser). Visual checks: `tools/shot.sh`.
+- Git: commit directly to `main` - no feature branches or PRs. In a Conductor workspace (which starts on
+  a placeholder branch) commit there, then land it with `git push origin HEAD:main`.
 - Follow the user's global rules: header comment block on every source file, update `DEVLOG.md`
   at stopping points, and the cross-project journal at `~/Development/dev-journal/myrograph.md`.
 
