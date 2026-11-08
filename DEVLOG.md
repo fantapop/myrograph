@@ -81,6 +81,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Pen hole chips follow the other filters
+
+The pen hole chips used to always show 1-35. Now `refilter` first applies every other filter (rolling mode, fixed part,
+moving piece, overlap toggle, custom-parts pool), collects which hole numbers exist among those patterns
+(`syncHoleChips`), and hides the rest; a selected hole that becomes unavailable is dropped from the filter so a hidden
+chip can never silently empty the grid. Chosen over "just look at the selected moving piece" because it also handles
+the Custom parts row and the overlap setting for free. Not done (symmetry): hiding moving pieces that have fewer holes
+than a selected hole number.
+
 ### 2026-11-08 — White / Black paper buttons
 
 Paper row now has round White (#ffffff) and Black (#000000) swatches plus the free color picker (the active swatch gets

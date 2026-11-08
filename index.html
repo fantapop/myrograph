@@ -937,14 +937,22 @@ function pool() {                               // regular combos, or the custom
   const c = filters.custom;
   return !c.size ? ALL : c.has('*') ? CUSTOM : CUSTOM.filter(p => c.has(p.roller.id) || c.has(p.track.pieceId));
 }
+function syncHoleChips(avail) {                 // pen hole chips follow the other filters: hide numbers no matching piece has
+  for (const b of $('f-hole').children) {
+    const k = +b.textContent, ok = avail.has(k);
+    b.hidden = !ok;
+    if (!ok && filters.hole.delete(k)) b.classList.remove('on');       // a hidden chip must not keep filtering
+  }
+}
 function refilter() {
   const f = filters, src = pool(), custom = src !== ALL;
-  list = src.filter(p =>
+  const other = src.filter(p =>                  // everything the other filters allow, before the pen hole filter
     (showOverlap || p.ok) &&
     (!f.mode.size || f.mode.has(p.track.inside ? 'in' : 'out')) &&
     (!f.fixed.size || f.fixed.has(p.track.id)) &&
-    (!f.roller.size || f.roller.has(p.roller.id)) &&
-    (!f.hole.size || f.hole.has(p.hole)));
+    (!f.roller.size || f.roller.has(p.roller.id)));
+  syncHoleChips(new Set(other.map(p => p.hole)));
+  list = f.hole.size ? other.filter(p => f.hole.has(p.hole)) : other;
   if (shuffled) list = seededShuffle(list, shuffled);
   const okN = custom ? src.filter(p => p.ok).length : okCount, total = showOverlap ? src.length : okN;
   $('count').textContent = `${list.length.toLocaleString()} of ${total.toLocaleString()} ${custom ? 'custom ' : ''}patterns` +
