@@ -81,6 +81,20 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Overlapping combos removed; teeth and holes in the piece pictures
+
+1. Dropped the "Include overlapping combos" chip: combos whose pieces would collide (`p.ok` false) are never listed, and the
+count no longer mentions them ("7,836 of 7,836 patterns"). `ok` is still computed (the part maker shows red/green from it);
+the "overlaps" tag in the tile footer is gone (it could no longer appear).
+2. Piece pictures (chips, tile footers, layer rows, maker grid) now show teeth and holes. Teeth are a dashed band along the
+pitch outline with `pathLength = N` and `stroke-dasharray=".5 .5"`, so any shape gets exactly N teeth for free (`teeth()`);
+rings get teeth on both the inner and outer edge. Below ~2 px per tooth neighbouring teeth are merged (`m`) so the texture
+stays visible: the picture is an illustration, the tooth count is on the chip. The Cross has no teeth ring (its teeth are only
+on the arm ends, its outline is the silhouette). Pen holes were already drawn but round wheels' holes sit on a line at
+0.3-tooth spacing and merged into a bar; round wheels' holes are now displayed along a spiral (`holePoints`, 0.7 rad per hole,
+like the real wheels; only a round wheel's hole distance matters for the pattern, so this is cosmetic and the highlighted
+hole is just as valid). Shaped wheels and custom parts show their real hole positions.
+
 ### 2026-11-08 — Rack icon uncropped; ring icons show a small wheel
 
 Rack: it is 35 teeth from centre to end, more than the row's reference radius (the 150 ring, 23.9), so at true scale it was

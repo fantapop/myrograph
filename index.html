@@ -36,7 +36,7 @@
   URL fragment (#v1/paper/scale/layer/layer..., ~35 chars per layer, never sent to a server);
   opening such a URL restores the overlay in the Compose panel. A file:// link only works on
   the machine that has the file (same for localhost); the page is hosted at https://fantapop.github.io/myrograph/ (GitHub Pages, from main), so copy links there to share. Combos whose pieces would physically collide while rolling (found by
-  simulation) are hidden unless "Include overlapping combos" is on.
+  simulation) are never listed.
 
   Custom parts: the Custom parts filter row ("＋ Make a part…") opens a dialog to design your own shaped
   wheel: drag radial handles (with k-fold symmetry / mirror) or start from a preset, set its size in teeth
@@ -749,7 +749,7 @@ const palette = () => allPalettes().find(p => p.id === palId) || PRESET_PALETTES
 const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
 const $ = id => document.getElementById(id);
 const pr = Math.min(window.devicePixelRatio || 1, 2);
-let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', showOverlap = false, okCount = 0;
+let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', okCount = 0;
 const collapsed = { 'f-fixed': true, 'f-roller': true, 'f-hole': true };   // rows showing only what fits on one line; always starts collapsed (not remembered) so the page lands clean
 let view = 'patterns', gridStale = false;   // which main view is showing; grid needs re-flow after being hidden
 const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: new Set(), custom: new Set() };   // custom: part ids, or '*' for all
@@ -776,25 +776,42 @@ const radiusOf = o => { let m = 0; for (let k = 0; k < o.M; k++) m = Math.max(m,
 const trackRadius = t => t.kind === 'ring' ? (t.inside ? t.o.N / t.ratio : t.o.N) / TAU : radiusOf(t.body || t.o);   // a ring's icon shows its outer edge
 const rollerRadius = r => radiusOf(r.body);
 const scaled = (body, s) => s === 1 ? body : `<g transform="scale(${s.toFixed(4)})" stroke-width="${(0.07 / s).toFixed(3)}">${body}</g>`;   // keep line weight
+// Teeth: a dashed band along the pitch outline. pathLength = tooth count makes the dash pattern exactly N teeth (half on,
+// half off) whatever the shape; R = the piece's radius in teeth (the icon is normalised to it), so a tooth is 1/R tall.
+// When a tooth would be under ~2 px (small pictures), neighbouring teeth are merged so the cog texture stays visible: the
+// picture is an illustration, the tooth count is on the chip. px = on-screen size of the icon, ref = the row's reference radius.
+const teeth = (N, R, ref, px) => {
+  const pitch = px / 2.3 / (ref || R), m = Math.max(1, Math.ceil(2 / pitch)), n = Math.max(8, Math.round(N / m));
+  return `pathLength="${n}" stroke-dasharray=".5 .5" stroke-width="${(1.4 * m / R).toFixed(4)}" stroke-opacity=".8"`;
+};
+function holePoints(r) {                        // where to draw the pen holes: real positions, except round wheels, which are
+  if (!r.round) return r.holes;                 // drawn along a spiral like the real ones (only a hole's distance matters there)
+  return r.holes.map(([x], k) => { const d = Math.abs(x), a = 0.7 * k; return [d * Math.cos(a), d * Math.sin(a)]; });
+}
 function trackIcon(t, ref = 0) {
-  const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}`;
+  const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     let body;
     if (t.kind === 'ring') {                    // the ring, plus a small wheel where it would roll: inside the opening, or against the outer edge
       const w = 0.2, d = t.inside ? t.ratio - w : 1 + w, c = (d * Math.SQRT1_2).toFixed(3);   // centre of the wheel, up and to the right
+      const R = (t.inside ? t.o.N / t.ratio : t.o.N) / TAU, outerN = Math.round(R * TAU), innerN = Math.round(outerN * t.ratio);   // teeth on the outside and inside edges
       body = `<circle r="1" fill="currentColor" fill-opacity=".18"/><circle r="${t.ratio}" fill="var(--panel)"/>` +
+             `<circle r="1" fill="none" ${teeth(outerN, R, ref, px)}/><circle r="${t.ratio}" fill="none" ${teeth(innerN, R, ref, px)}/>` +
              `<circle cx="${c}" cy="-${c}" r="${w}" fill="currentColor" fill-opacity=".18"/>`;
-    } else body = `<path d="${outlinePath(t.body || t.o).d}" fill="currentColor" fill-opacity=".18"/>`;
+    } else {
+      const o = t.body || t.o, { d, rm } = outlinePath(o);
+      body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (o === t.o ? `<path d="${d}" fill="none" ${teeth(o.N, rm, ref, px)}/>` : '');   // the Cross's teeth are not along its silhouette
+    }
     iconCache.set(key, svg(scaled(body, s), Math.max(1.15, s + 0.15)));
   }
   return iconCache.get(key);
 }
 function rollerIcon(r, hole, ref = 0) {         // hole: 1-based highlighted hole, or 0 for none
-  const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}`;
+  const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     const { d, rm } = outlinePath(r.body);
-    let body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>`;
-    r.holes.forEach(([x, y], n) => {
+    let body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (r.body === r.o ? `<path d="${d}" fill="none" ${teeth(r.o.N, rm, ref, px)}/>` : '');
+    holePoints(r).forEach(([x, y], n) => {
       body += n + 1 === hole ? `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.13 * k).toFixed(3)}" fill="var(--accent)" stroke="none"/>`
                              : `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.045 * k).toFixed(3)}" fill="currentColor" stroke="none" opacity=".55"/>`;
     });
@@ -837,11 +854,6 @@ function chip(container, set, key, html, pic, title) {
 }
 function buildFilters() {
   chip('f-mode', filters.mode, 'in', 'Inside a ring'); chip('f-mode', filters.mode, 'out', 'Around the outside');
-  const ov = document.createElement('button'); ov.className = 'chip'; ov.style.marginLeft = '12px';
-  ov.title = 'Pieces that would physically collide while rolling (e.g. the Cross, or a Bar inside a ring) are hidden by default';
-  ov.textContent = 'Include overlapping combos';
-  ov.onclick = () => { showOverlap = !showOverlap; ov.classList.toggle('on', showOverlap); refilter(); };
-  $('f-mode').append(ov);
   // fixed and moving piece pictures are drawn to scale: the largest piece of each row (the rack aside, it is cropped) fills its icon
   const refFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(trackRadius)), refMoving = Math.max(...CAT.rollers.map(rollerRadius));
   for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, refFixed)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
@@ -993,17 +1005,16 @@ function syncHoleChips(avail) {                 // pen hole chips follow the oth
 function refilter() {
   const f = filters, src = pool(), custom = src !== ALL;
   const other = src.filter(p =>                  // everything the other filters allow, before the pen hole filter
-    (showOverlap || p.ok) &&
+    p.ok &&                                      // combos whose pieces would collide while rolling are never listed
     (!f.mode.size || f.mode.has(p.track.inside ? 'in' : 'out')) &&
     (!f.fixed.size || f.fixed.has(p.track.id)) &&
     (!f.roller.size || f.roller.has(p.roller.id)));
   syncHoleChips(new Set(other.map(p => p.hole)));
   list = f.hole.size ? other.filter(p => f.hole.has(p.hole)) : other;
   if (shuffled) list = seededShuffle(list, shuffled);
-  const okN = custom ? src.filter(p => p.ok).length : okCount, total = showOverlap ? src.length : okN;
+  const total = custom ? src.filter(p => p.ok).length : okCount;
   $('count').textContent = `${list.length.toLocaleString()} of ${total.toLocaleString()} ${custom ? 'custom ' : ''}patterns` +
-    (showOverlap ? '' : ` (${(src.length - okN).toLocaleString()} overlapping hidden)`) +
-    (custom && !src.length ? ' - make a custom part to see patterns here' : '');
+    (custom && !total ? ' - make a custom part to see patterns here' : '');
   fitHeader(); layout(); window.scrollTo(0, 0); sync();
 }
 $('shuffle').onclick = () => { shuffled = (Math.random() * 2 ** 31) | 1; refilter(); };
@@ -1070,7 +1081,7 @@ function makeTile(i) {
   el.style.cssText = `left:${col * (tile + GAP)}px;top:${row * pitch}px;width:${tile}px;height:${tile + FOOT}px`;
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = px;
   const foot = document.createElement('div'); foot.className = 'foot';
-  foot.innerHTML = `${trackIcon(p.track)}${rollerIcon(p.roller, p.hole)}<div class="txt"><b>${p.track.name}</b> · ${p.track.inside ? 'inside' : 'outside'}<br>${p.roller.name} · hole ${p.hole}${p.ok ? '' : ' · <span style="color:#e0793a">overlaps</span>'}</div>`;
+  foot.innerHTML = `${trackIcon(p.track)}${rollerIcon(p.roller, p.hole)}<div class="txt"><b>${p.track.name}</b> · ${p.track.inside ? 'inside' : 'outside'}<br>${p.roller.name} · hole ${p.hole}</div>`;
   el.append(canvas, foot); grid.append(el);
   const e = { i, el, canvas, alive: true }; tiles.set(i, e); enqueue(e);
   el.onclick = () => { if (composeOpen) toggleLayer(list[i]); };
