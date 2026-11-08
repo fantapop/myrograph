@@ -127,6 +127,24 @@ check('pen path far from the piece centre has no step over ~0.2 tooth (was 1.2),
 check('traceRaw returns the travel of every point (non-decreasing, 0 to L)', tr.ss.length === n && tr.ss[0] === 0 && Math.abs(tr.ss[n - 1] - C.lcm(96, 48)) < 1e-9 && tr.ss.every((v, i) => i === 0 || v >= tr.ss[i - 1]));
 check('the point cap still holds', C.traceRaw(ring96.o, mkp('circle', 83).roller.o, true, [10, 0], 3000).pts.length / 3 <= 3000 + 64);
 
+// pitch-circle parts (like the real Cross): a round N-tooth rolling circle, a body that stays inside it, teeth only on the tips
+const pcMk = (id, N, pc = 1) => { const sh = C.presetShape(C.PART_PRESETS.find(p => p.id === id)); const d = { id: 'x', name: 'x', ...sh, N: N || sh.N, h: [[0, 0]] }; if (!pc) delete d.pc; return C.makePart(d); };
+const bodyMax = o => { let m = 0; for (let i = 0; i < o.M; i++) m = Math.max(m, Math.hypot(o.p[2 * i], o.p[2 * i + 1])); return m; };
+const pcPresets = C.PART_PRESETS.filter(p => p.pc);
+check('pitch-circle presets exist and switch the mode on', pcPresets.length >= 4 && pcPresets.every(p => C.presetShape(p).pc === 1));
+check('pitch-circle body keeps inside the circle with its tips on it (max radius = N/2pi)', pcPresets.every(p => { const q = pcMk(p.id); return Math.abs(bodyMax(q.roller.body) - q.def.N / C.TAU) < 0.01 && q.roller.o.N === q.def.N; }));
+check('teeth exist only where the body reaches the circle (deep stars: some teeth, not all)', pcPresets.every(p => { const on = [...pcMk(p.id).roller.teethOn].reduce((a, b) => a + b, 0); return on > 0 && on < pcMk(p.id).def.N; }));
+const pcFit = pcPresets.map(p => { const q = pcMk(p.id), noPc = pcMk(p.id, 0, 0); return [cat.tracks.filter(t => C.pairFits(t, q.roller)).length, cat.tracks.filter(t => C.pairFits(t, noPc.roller)).length, cat.rollers.filter(r => r.id !== 'cross' && C.pairFits(q.fixed, r)).length]; });
+check('deep stars fit every track and every wheel with the pitch circle, and (almost) nothing without it', pcFit.every(([a, b, c]) => a === cat.tracks.length && c === cat.rollers.length - 1 && b < 6), pcFit.map(x => x.join('/')).join(' '));
+{ const ring = cat.tracks.find(t => t.id === 'ring96-in'), a = C.traceRaw(ring.o, pcMk('star8p', 60).roller.o, true, [5.5, 0], 5000), b = C.traceRaw(ring.o, cat.rollers.find(r => r.id === 'w60').o, true, [5.5, 0], 5000);
+  check('a pitch-circle part draws exactly the curve of a round wheel with the same teeth and hole distance', a.pts.length === b.pts.length && a.pts.every((v, i) => Math.abs(v - b.pts[i]) < 1e-9)); }
+{ const q = pcMk('star8p', 84), Rp = 84 / C.TAU, tip = [Rp * 0.9, 0], notch = [Rp * 0.9 * Math.cos(Math.PI / 8), Rp * 0.9 * Math.sin(Math.PI / 8)];
+  check('holes are checked against the body: out along an arm is fine, in a notch is not', C.holeFits(q.roller.body, tip[0] * 0.6, tip[1]) && !C.holeFits(q.roller.body, notch[0], notch[1]) && C.fillHoles(q.roller.body, 'x', 2).every(h => C.holeFits(q.roller.body, h[0] / 4, h[1] / 4))); }
+{ const base = { ...C.presetShape(C.PART_PRESETS.find(p => p.id === 'star8p')), name: 'S', h: [[0, 0], [20, 0]] }, withPc = C.canonPart(base), without = C.canonPart({ ...base, pc: 0 });
+  check('pc is part of a part\'s identity, and parts made before it keep their ids', withPc.pc === 1 && !('pc' in without) && withPc.id !== without.id && C.canonPart({ ...oval, pc: 0 }).id === oval.id && C.canonPart(oval).id === oval.id);
+  const stpc = { ...st, parts: [withPc, oval] };
+  check('share link carries a pitch-circle part (9th field) and still decodes older 8-field parts', JSON.stringify(C.decodeShare('#' + C.encodeShare(stpc))) === JSON.stringify(stpc) && C.encodePart(withPc).split(',').length === 9 && C.encodePart(oval).split(',').length === 8); }
+
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
 const saved = [{ id: 'u-1', name: ' Mine ', colors: ['#ABCDEF', 'red', '#123456'], paper: '#101010' }, { id: 'u-4', name: 'Bad paper', colors: ['#000000'], paper: 'black' }, { id: 'bad id', name: 'x', colors: ['#000000'] }, { id: 'u-2', name: '', colors: ['#000000'] }, { id: 'u-3', name: 'none', colors: ['nope'] }, null, 7];

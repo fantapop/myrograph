@@ -17,7 +17,9 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   (overlay), save/open, albums view, share links, and the custom part maker (`openMaker`, section
   "custom parts: library, filter row, maker dialog"; `<dialog id="pm">`).
 - Custom parts (CORE: `canonPart`, `makePart`, `customCombos`, ...): star-shaped outline from radial handles
-  (`k` x `n` handles, optional mirror), perimeter scaled to `N` teeth; holes in quarter-tooth ints.
+  (`k` x `n` handles, optional mirror), perimeter scaled to `N` teeth; holes in quarter-tooth ints. `pc: 1` = pitch-circle part
+  (`makePitchPart`): rolls on a circle of `N` teeth, the outline is only the body (tips touch the circle, notches can be deep),
+  `roller.o` is the circle and `roller.body` the silhouette, `teethOn` says which teeth exist; pen curves equal a round wheel's.
   Ids are `c` + hash of the content, so a part is immutable: editing makes a new id and saved things
   keep their own copy of the definition (`parts` in PNG/album state, `p,...` segments in share links).
   `library` (localStorage) is what the user made/kept; `registry` also holds guest parts from opened

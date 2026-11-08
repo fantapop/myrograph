@@ -81,6 +81,23 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Pitch-circle custom parts
+
+Why: the fit check showed that k-fold symmetry above ~4 only works for almost-circular parts (the dips between lobes get sharper
+with k squared; 8-fold tolerates ~3% lobe depth), so the symmetry options were nearly useless. Answer: let a part work like the
+real Cross. New part field `pc: 1` ("Rolls on a pitch circle" checkbox in the Shape panel): the rolling outline is a circle of N
+teeth, the radial-handle outline becomes only the BODY, scaled so its tips touch the circle exactly (the one rule: nothing sticks out
+past the circle), and teeth exist only where the body reaches within 0.6 tooth of it (`teethOn`). Because the body is inside the
+pitch disk, such parts clear every ring and wheel (deep 4/6/8-fold stars: 24/24 tracks, 18/18 wheels; the same shapes without the
+circle fit 0/24). Cost, stated plainly: a pen's curve depends only on the rolling circle and the hole distance, so a pitch-circle
+part draws EXACTLY the curves of a round N-tooth wheel (tested, difference 5e-14). What it adds is hole placement anywhere in the
+body (round wheels' holes stop short of the rim) and the look. Details: `makePitchPart` (CORE) builds circle + body (body.p rescaled
+back to its true size after `makeOutline` rounds its tooth count); `pc` is in `canonPart` only when 1 and in the id only then, so
+parts made earlier keep their ids; share segments get an optional 9th field `1`; holes are validated against `roller.body` (same
+object as the outline for ordinary parts); the editor draws the pitch circle with a tick per tooth, the drag scale is fixed by the
+largest radius instead of the perimeter; icons draw toothed arcs only where `teethOn` (`pcTeeth`); four presets (Cross, Trefoil,
+6- and 8-point stars) switch the mode on; toggling it keeps the holes that are still inside the body.
+
 ### 2026-11-08 — Roll preview timeline (play/pause + scrub slider)
 
 The maker's roll preview has a play/pause button and a slider (0-1000, step 5) above the picture. The slider follows the roll
