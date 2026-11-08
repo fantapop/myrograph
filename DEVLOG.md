@@ -8,7 +8,7 @@ Deluxe set (from the user's photo `IMG_7377`): rings 144/96 and 150/105, rack 15
 7,866 combos enumerated, 7,836 physically valid. Filter chips show piece pictures; ink and paper
 colors are adjustable. Verified by headless Chrome screenshots; the math core is tested under node.
 
-Compose feature: header "Compose (n)" button slides a panel in from the right. While open, grid
+Compose feature: header "Compose" button (static label, no layer count) slides a panel in from the right. While open, grid
 tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
 three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
 rotation, size (25-200%) and line width (0.5-6x) sliders and remove; "True size" keeps real relative sizes (tooth units), "Fit each"

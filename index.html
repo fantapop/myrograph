@@ -194,7 +194,7 @@
 <body>
 <header>
   <nav id="views"><button id="v-p" class="on">Patterns</button><button id="v-a">Albums</button></nav>
-  <button id="compose-btn">Compose (0)</button>
+  <button id="compose-btn">Compose</button>
   <details open>
     <summary>Filters</summary>
     <div class="row"><span class="label">Rolling</span><span class="chips" id="f-mode"></span></div>
@@ -1361,7 +1361,6 @@ function toggleLayer(p) {
   markTiles(); buildLayerList(); renderOverlay();
 }
 function buildLayerList() {
-  $('compose-btn').textContent = `Compose (${layers.size})`;
   $('ov-hint').style.display = layers.size ? 'none' : '';
   const box = $('layers'); box.innerHTML = '';
   for (const l of layers.values()) {
