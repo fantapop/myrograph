@@ -15,8 +15,10 @@
 
   Usage: open index.html in a browser (needs network for the three.js CDN import map), or run
   `python3 -m http.server` in this directory and visit http://localhost:8000.
-  Controls: filter chips with piece pictures (none selected = no filter), ink and paper colors,
-  Shuffle / Reset order. "Compose" opens a panel on the right and turns the grid into a picker:
+  Controls: filter chips with piece pictures (none selected = no filter), ink palette and paper
+  color, Shuffle / Reset order. Ink: pick a preset palette (or one of your own) and Auto cycles
+  through it per moving piece; newly added Compose layers take the palette's next unused color.
+  "Edit…" / "+ New" build custom palettes, kept in localStorage (spirograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (shared centre) with per-layer color,
   visibility, rotation and size, and a Base scale switch (True size / Fit each). "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
@@ -67,6 +69,12 @@
   .swatch.on { border-color: #fff; }
   input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid #44444e; background: none; cursor: pointer; }
   #count { margin-left: auto; color: var(--dim); }
+  #f-ink { align-items: center; }
+  #f-ink select, #pal-edit input[type=text] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 6px; }
+  #pal-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 2px; padding: 8px 10px; background: #1f1f24; border-radius: 6px; }
+  #pal-edit .pc { display: inline-flex; align-items: center; }
+  #pal-edit .pc button { padding: 0 5px; margin-left: 1px; border-radius: 4px; background: none; border: none; color: var(--dim); }
+  #pal-edit button:disabled { opacity: .35; cursor: default; }
   :root { --panel-w: min(440px, 92vw); }
   #compose-btn { position: absolute; right: 16px; top: 6px; }
   #grid { position: relative; margin: 16px; }
@@ -132,10 +140,11 @@
     <div class="row"><span class="label">Fixed part</span><span class="chips" id="f-fixed"></span></div>
     <div class="row"><span class="label">Moving piece</span><span class="chips" id="f-roller"></span></div>
     <div class="row"><span class="label">Pen hole</span><span class="chips" id="f-hole"></span></div>
-    <div class="row"><span class="label">Ink</span><span class="chips" id="f-ink"></span>
-      <span class="label" style="width:auto;margin-left:12px">Paper</span>
+    <div class="row"><span class="label">Ink</span><span class="chips" id="f-ink"></span></div>
+    <div id="pal-edit" hidden></div>
+    <div class="row"><span class="label">Paper</span>
       <input type="color" id="paper" value="#faf7f0">
-      <button id="shuffle">Shuffle</button><button id="reset">Reset order</button>
+      <button id="shuffle" style="margin-left:12px">Shuffle</button><button id="reset">Reset order</button>
       <span id="count">Preparing…</span></div>
   </details>
 </header>
@@ -452,10 +461,38 @@ function decodeShare(text) {                    // throws on anything malformed
   });
   return { app: 'spirograph-gallery', v: 1, paper: '#' + parts[1], baseScale: parts[2] === 'f' ? 'fit' : 'true', layers };
 }
+
+// ---- ink palettes: ordered color sets. The active one feeds the grid's Auto ink (one color per moving
+// piece, cycling) and the color given to each newly added Compose layer (first color not yet in use).
+// Presets are tuned for the default light paper unless the name says otherwise.
+const PRESET_PALETTES = [
+  { id: 'classic', name: 'Classic', colors: ['#1f4fd8', '#c4242b', '#0f8a5f', '#d9730d', '#7a2fb3', '#0aa5b8', '#c43b8f', '#1a1a1a'] },
+  { id: 'ocean',   name: 'Ocean',   colors: ['#0b3c5d', '#1b6ca8', '#2a9d8f', '#264653', '#5c80bc', '#0f766e', '#7b6fb0', '#3d5a80'] },
+  { id: 'sunset',  name: 'Sunset',  colors: ['#c8372d', '#e8702a', '#d98c0f', '#a63a50', '#6a2c70', '#3d2352', '#e0555b', '#b5541c'] },
+  { id: 'forest',  name: 'Forest',  colors: ['#1f5f3a', '#4a8f3c', '#7d8f1f', '#6b4f2a', '#2f7f7a', '#3a3a2e', '#8a5a2b', '#2d6a4f'] },
+  { id: 'berry',   name: 'Berry',   colors: ['#8e1b4a', '#c2185b', '#6a1b9a', '#3949ab', '#d1496b', '#4a148c', '#a8326f', '#283593'] },
+  { id: 'autumn',  name: 'Autumn',  colors: ['#8c3b1b', '#c2691f', '#b8860b', '#6b705c', '#5b3a29', '#a44a3f', '#7a5c1e', '#9c4a2f'] },
+  { id: 'jewel',   name: 'Jewel',   colors: ['#0f4c81', '#9b1d64', '#0e7c61', '#b8860b', '#5b2a86', '#a3262a', '#1a6b8a', '#2f2f6b'] },
+  { id: 'slate',   name: 'Slate',   colors: ['#1a1a1a', '#2b4a6f', '#4a6785', '#6b7b8c', '#0b3c5d', '#444b55'] },
+  { id: 'neon',    name: 'Neon (dark paper)', colors: ['#ff4d6d', '#ffd23f', '#3bf4fb', '#7cff6b', '#c77dff', '#ff9f1c', '#4d9fff', '#ff6ad5'] },
+];
+const MAX_PALETTE_COLORS = 12;
+function cleanPalette(p) {                      // -> { id, name, colors } or null if unusable
+  if (!p || typeof p !== 'object') return null;
+  const colors = (Array.isArray(p.colors) ? p.colors : []).filter(c => /^#[0-9a-f]{6}$/i.test(c)).map(c => c.toLowerCase()).slice(0, MAX_PALETTE_COLORS);
+  const id = String(p.id || ''), name = String(p.name || '').trim().slice(0, 40);
+  return colors.length && /^[\w-]+$/.test(id) && name ? { id, name, colors } : null;
+}
+function parsePalettes(text) {                  // saved custom palettes (JSON); never throws
+  try { const a = JSON.parse(text || '[]'); return Array.isArray(a) ? a.map(cleanPalette).filter(Boolean) : []; } catch { return []; }
+}
 // ======================================================= END CORE
 
 // ---------------------------------------------------------------- UI constants and state
-const INKS = ['#1f4fd8', '#c4242b', '#0f8a5f', '#7a2fb3', '#1a1a1a', '#d9730d'];
+const PAL_KEY = 'spirograph.palettes.v1', PAL_CUR = 'spirograph.palette.current';
+let customPalettes = [], palId = 'classic';     // loaded in buildInk's caller (the storage helper is defined further down)
+const allPalettes = () => [...PRESET_PALETTES, ...customPalettes];
+const palette = () => allPalettes().find(p => p.id === palId) || PRESET_PALETTES[0];
 const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
 const $ = id => document.getElementById(id);
 const pr = Math.min(window.devicePixelRatio || 1, 2);
@@ -517,19 +554,101 @@ function buildFilters() {
   for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0)}${r.name.replace(/^Wheel /, '')}`, true);
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
   for (let k = 1; k <= maxHoles; k++) chip('f-hole', filters.hole, k, k);
-  const ink = $('f-ink'), auto = document.createElement('button');
-  auto.className = 'swatch on'; auto.title = 'Auto: one color per moving piece';
-  auto.style.background = `conic-gradient(${INKS.join(',')},${INKS[0]})`;
-  const picker = document.createElement('input'); picker.type = 'color'; picker.value = '#1f4fd8'; picker.title = 'Custom ink color';
-  const setInk = (mode, el) => { inkMode = mode; ink.querySelectorAll('.swatch').forEach(s => s.classList.toggle('on', s === el)); repaintAll(); };
-  auto.onclick = () => setInk('auto', auto); ink.append(auto);
-  for (const c of INKS) {
-    const s = document.createElement('button'); s.className = 'swatch'; s.style.background = c; s.title = c;
-    s.onclick = () => { picker.value = c; setInk(c, s); }; ink.append(s);
-  }
-  picker.oninput = () => setInk(picker.value, null);
-  ink.append(picker);
+  customPalettes = parsePalettes(store.get(PAL_KEY));
+  palId = store.get(PAL_CUR) || 'classic';
+  buildInk();
   $('paper').oninput = e => { document.documentElement.style.setProperty('--paper', e.target.value); scene.background.set(e.target.value); repaintAll(); };
+}
+
+// ---- ink: palette picker + Auto / fixed swatches / custom color, and the palette editor
+let inkPick = '#1f4fd8';                        // last color in the free color picker
+function buildInk() {
+  const ink = $('f-ink'), cols = palette().colors;
+  ink.textContent = '';
+  const sel = document.createElement('select'); sel.title = 'Color palette: Auto ink and new Compose layers cycle through it';
+  const group = (label, ps) => {
+    const g = document.createElement('optgroup'); g.label = label;
+    for (const p of ps) g.append(new Option(p.name, p.id));
+    sel.append(g);
+  };
+  group('Presets', PRESET_PALETTES);
+  if (customPalettes.length) group('My palettes', customPalettes);
+  sel.value = palette().id;
+  sel.onchange = () => setPalette(sel.value);
+  const edit = document.createElement('button'); edit.textContent = 'Edit…';
+  edit.title = 'Edit this palette (a preset is copied first), or build your own'; edit.onclick = () => openPalEditor(true);
+  const add = document.createElement('button'); add.textContent = '+ New';
+  add.title = 'Build a new palette'; add.onclick = () => openPalEditor(false);
+  ink.append(sel, edit, add);
+  const auto = document.createElement('button');
+  auto.className = 'swatch'; auto.title = 'Auto: cycle through the palette, one color per moving piece';
+  auto.style.background = cols.length > 1 ? `conic-gradient(${cols.join(',')},${cols[0]})` : cols[0];
+  const picker = document.createElement('input'); picker.type = 'color'; picker.value = inkPick; picker.title = 'Custom ink color';
+  const setInk = (mode, el) => { inkMode = mode; ink.querySelectorAll('.swatch').forEach(s => s.classList.toggle('on', s === el)); repaintAll(); };
+  auto.onclick = () => setInk('auto', auto);
+  auto.classList.toggle('on', inkMode === 'auto');
+  ink.append(auto);
+  for (const c of cols) {
+    const s = document.createElement('button'); s.className = 'swatch' + (inkMode === c ? ' on' : ''); s.style.background = c; s.title = c;
+    s.onclick = () => { inkPick = picker.value = c; setInk(c, s); }; ink.append(s);
+  }
+  picker.oninput = () => { inkPick = picker.value; setInk(picker.value, null); };
+  ink.append(picker);
+}
+function setPalette(id) {                       // choose a palette and go back to Auto ink
+  palId = id; store.set(PAL_CUR, id); inkMode = 'auto';
+  buildInk(); repaintAll();
+}
+const persistPalettes = () => store.set(PAL_KEY, JSON.stringify(customPalettes));
+
+let draft = null;                               // palette being edited: { id (null = not saved yet), name, colors }
+const randomColor = () => '#' + new THREE.Color().setHSL(Math.random(), 0.6, 0.4).getHexString();
+function openPalEditor(fromCurrent) {
+  const p = palette(), mine = customPalettes.some(c => c.id === p.id);
+  draft = !fromCurrent ? { id: null, name: 'My palette', colors: [randomColor(), randomColor(), randomColor()] }
+    : mine ? { id: p.id, name: p.name, colors: [...p.colors] }
+    : { id: null, name: `${p.name} copy`.slice(0, 40), colors: [...p.colors] };
+  renderPalEditor();
+}
+function closePalEditor() { draft = null; renderPalEditor(); }
+function renderPalEditor() {
+  const box = $('pal-edit'); box.textContent = ''; box.hidden = !draft;
+  if (!draft) return;
+  const name = document.createElement('input'); name.type = 'text'; name.value = draft.name; name.maxLength = 40; name.placeholder = 'Palette name';
+  name.oninput = () => { draft.name = name.value; };
+  box.append(name);
+  draft.colors.forEach((c, i) => {
+    const cell = document.createElement('span'); cell.className = 'pc';
+    const inp = document.createElement('input'); inp.type = 'color'; inp.value = c; inp.title = 'Click to change this color';
+    inp.oninput = () => { draft.colors[i] = inp.value; };
+    const del = document.createElement('button'); del.textContent = '✕'; del.title = 'Remove this color';
+    del.disabled = draft.colors.length < 2;
+    del.onclick = () => { draft.colors.splice(i, 1); renderPalEditor(); };
+    cell.append(inp, del); box.append(cell);
+  });
+  const more = document.createElement('button'); more.textContent = '+ Color'; more.disabled = draft.colors.length >= MAX_PALETTE_COLORS;
+  more.onclick = () => { draft.colors.push(randomColor()); renderPalEditor(); };
+  const save = document.createElement('button'); save.textContent = 'Save palette';
+  save.title = 'Keep this palette in this browser and use it';
+  save.onclick = () => {
+    const p = cleanPalette({ id: draft.id || 'u-' + uid(), name: draft.name.trim() || 'Untitled', colors: draft.colors });
+    const at = customPalettes.findIndex(c => c.id === p.id);
+    if (at >= 0) customPalettes[at] = p; else customPalettes.push(p);
+    persistPalettes(); closePalEditor(); setPalette(p.id);
+  };
+  box.append(more, save);
+  if (draft.id) {
+    const rm = document.createElement('button'); rm.textContent = 'Delete';
+    rm.onclick = () => {
+      if (!confirm(`Delete the palette "${draft.name}"?`)) return;
+      const gone = draft.id;
+      customPalettes = customPalettes.filter(c => c.id !== gone);
+      persistPalettes(); closePalEditor(); setPalette(palId === gone ? 'classic' : palId);
+    };
+    box.append(rm);
+  }
+  const cancel = document.createElement('button'); cancel.textContent = 'Cancel'; cancel.onclick = closePalEditor;
+  box.append(cancel);
 }
 
 function seededShuffle(arr, seed) {
@@ -570,7 +689,7 @@ function material(color) {
   const m = mats.get(color); m.resolution.set(px, px); return m;
 }
 function paint(e) {
-  const p = list[e.i], color = inkMode === 'auto' ? INKS[p.rollerIdx % INKS.length] : inkMode;
+  const p = list[e.i], cols = palette().colors, color = inkMode === 'auto' ? cols[p.rollerIdx % cols.length] : inkMode;
   const geo = new LineGeometry();
   geo.setPositions(trace(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]));
   const line = new Line2(geo, material(color));
@@ -637,7 +756,6 @@ function relayout() {                           // re-flow the grid but stay on 
 window.addEventListener('resize', relayout);
 
 // ---------------------------------------------------------------- compose: overlay several patterns on one centre
-const LAYER_COLORS = ['#1f4fd8', '#c4242b', '#0f8a5f', '#d9730d', '#7a2fb3', '#0aa5b8', '#c43b8f', '#1a1a1a'];
 const layers = new Map();                       // pattern key -> { key, p, color, visible, rot }
 const ovCache = new Map();                      // pattern key -> { geo, maxR } (raw tooth-unit curves)
 let composeOpen = false;
@@ -912,7 +1030,7 @@ function toggleLayer(p) {
   if (layers.has(p.key)) { layers.delete(p.key); ovCache.get(p.key)?.geo.dispose(); ovCache.delete(p.key); }
   else {
     const used = new Set([...layers.values()].map(l => l.color));
-    const color = LAYER_COLORS.find(c => !used.has(c)) || LAYER_COLORS[layers.size % LAYER_COLORS.length];
+    const cols = palette().colors, color = cols.find(c => !used.has(c)) || cols[layers.size % cols.length];
     layers.set(p.key, { key: p.key, p, color, visible: true, rot: 0, size: 100 });
   }
   markTiles(); buildLayerList(); renderOverlay();

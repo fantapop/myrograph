@@ -32,7 +32,17 @@ the fragment so no server sees it). Opening such a URL (or pasting one and trigg
 unknown parts are rejected/skipped with a message. `encodeShare`/`decodeShare` are in CORE and
 node-tested; the URL is not updated live while editing (button only).
 
+Ink palettes: the Ink row has a palette dropdown (9 presets - Classic is the original colors - plus "My palettes"),
+Edit... (a preset is copied first; own palettes edited in place, with delete) and + New. The active palette
+drives the grid's Auto ink (one color per moving piece, cycling) and the color of each newly added Compose
+layer (first palette color not already used). Custom palettes live in localStorage
+(`spirograph.palettes.v1`, active one in `spirograph.palette.current`); presets/validation (`PRESET_PALETTES`,
+`cleanPalette`, `parsePalettes`) are in CORE and node-tested. Choosing a palette does not recolor layers
+already in the overlay or change paper.
+
 Next steps / not done:
+- Palettes: no export/import (browser-local only, like albums), no reordering colors, no per-palette paper color
+  (the "Neon (dark paper)" preset needs the user to set a dark paper by hand).
 - Share links are only useful when the page is hosted; a file:// link works only on the same
   computer (the copy message says so). No deployment set up yet (e.g. GitHub Pages).
 - Albums live per browser profile and per origin (file:// vs http://localhost are separate
@@ -53,6 +63,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-07 — Color palettes
+
+Request: keep the original palette and per-pattern color picking, but add preset palettes and a custom palette
+that persists. Decision: one concept - a palette is an ordered color list - used by both Auto ink and new
+layers, instead of separate ink/layer lists (Classic = the old layer list of 8, so Auto ink now cycles 8 colors
+instead of 6; hues are the same). Save-only editor (no live preview) to keep it simple; localStorage over file
+export since albums already set that precedent. Verified in headless Chrome: select preset, copy+edit+save,
+persisted JSON, new layers take the palette's colors; sanitizing tested in node.
 
 
 ### 2026-11-07 — Handoff prep
