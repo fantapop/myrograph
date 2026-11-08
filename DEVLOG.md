@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Spiral hole fill: a real spiral, not a scatter
+
+Correction to the previous entry: the golden-angle (Vogel) layout I first used spreads holes evenly but looks scattered, not like the set's
+wheels (one visible spiral arm, 0.7 rad per hole). Pen-curve-wise the two are equivalent (each hole has its own distance and direction);
+the real spiral additionally makes neighbouring hole NUMBERS neighbours on the part and looks like the set. `fillHoles(..., 'spiral')` now does
+what the wheels do: `n = round((N/2 - 7) * 2/d)` holes (d = 2 gives the real count, e.g. 25 for a 63; from the PERIMETER N, not the longest radius,
+which overcounted elongated shapes), hole k at angle 0.7k and at (0.9 - 0.68 k/(n-1)) of the way out to the outline along that direction
+(`edge()`: ray / outline intersection, minus the 1-tooth margin), in generation order (hole 1 = outermost), invalid points skipped. 0.7 rad ~ 2pi/9, so
+holes sit on nine spokes. Tests: circle N=60 reproduces the real 60 wheel's hole count with 0.7 rad steps and decreasing distance; N=84 gives 35.
+
 ### 2026-11-08 — Custom parts' holes default to a radial spiral
 
 New parts used to get their holes in a row along the x axis (`fillHoles(..., 'x', 1.5)`), unlike the set's wheels (a spiral, which the icons

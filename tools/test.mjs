@@ -131,11 +131,15 @@ check('the point cap still holds', C.traceRaw(ring96.o, mkp('circle', 83).roller
 check('parts flagged as pitch-circle parts (a removed experiment) are refused, in storage and in links', C.canonPart({ ...oval, pc: 1 }) === null && C.parseParts(JSON.stringify([oval, { ...oval, pc: 1, N: 50 }])).length === 1 && C.decodePart(C.encodePart(oval) + ',1') === null);
 check('presets are all distinct enough from a plain circle to be worth offering (7 of them)', C.PART_PRESETS.length === 7 && !C.PART_PRESETS.some(p => ['star', 'flower', 'square'].includes(p.id)));
 
-// spiral hole fill (the default): valid holes only, rim to centre, within the cap, spread in many directions; a plain row only uses one
-{ const sp = C.fillHoles(o44, 'spiral', 2), row = C.fillHoles(o44, 'x', 2), dirs = new Set(sp.map(([x, y]) => Math.round(Math.atan2(y, x) * 4)));
-  check('spiral fill: valid holes, rim to centre, within the cap, many more than a row and in many directions',
-    sp.length > row.length && sp.length <= C.PART_LIMITS.maxHoles && sp.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && sp.every((q, i) => i === 0 || Math.hypot(q[0], q[1]) <= Math.hypot(sp[i - 1][0], sp[i - 1][1]) + 1e-9) && dirs.size >= sp.length * 0.6,
-    `${sp.length} holes vs ${row.length} in a row, ${dirs.size} directions`); }
+// spiral hole fill (the default): one arm winding in from the rim like the real wheels' holes
+{ const circle = circ(60).roller.o, c60 = C.fillHoles(circle, 'spiral', 2), real = cat.rollers.find(r => r.id === 'w60').holes.length;
+  const ang = c60.map(([x, y]) => Math.atan2(y, x)), step = ang.slice(1).map((a, i) => ((a - ang[i]) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI), dist = c60.map(([x, y]) => Math.hypot(x, y));
+  check('spiral fill on a circle matches a real wheel: the same hole count, rim to centre, 0.7 rad per hole', c60.length === real && dist.every((v, i) => i === 0 || v < dist[i - 1]) && step.every(v => Math.abs(v - 0.7) < 0.1) && C.fillHoles(circ(84).roller.o, 'spiral', 2).length === 35, `${c60.length} holes (a real 60 has ${real})`);
+  const sp = C.fillHoles(o44, 'spiral', 2), row = C.fillHoles(o44, 'x', 2), dirs = new Set(sp.map(([x, y]) => Math.round(Math.atan2(y, x) * 4)));
+  check('spiral fill on an oval: valid holes, within the cap, more than a row, on about nine spokes, outermost first',
+    sp.length > row.length && sp.length <= C.PART_LIMITS.maxHoles && sp.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && dirs.size >= 8 && Math.hypot(...sp[0]) > Math.hypot(...sp.at(-1)),            // 0.7 rad is ~2pi/9: nine spokes, several holes along each, like the real wheels
+    `${sp.length} holes vs ${row.length} in a row, ${dirs.size} directions`);
+  check('a larger spacing gives fewer spiral holes, and the count never exceeds the cap', C.fillHoles(o44, 'spiral', 4).length < sp.length && C.fillHoles(bigP.roller.o, 'spiral', 1).length <= C.PART_LIMITS.maxHoles); }
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

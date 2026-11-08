@@ -708,8 +708,15 @@ function fillHoles(o, mode, d) {                 // candidate pen holes (quarter
   let ext = 0; for (let k = 0; k < o.M; k++) ext = Math.max(ext, Math.hypot(o.p[2 * k], o.p[2 * k + 1]));
   const lim = Math.ceil(ext / d), seen = new Set(), pts = [];
   const add = (x, y) => { const q = [Math.round(x * 4), Math.round(y * 4)], key = q.join(); if (!seen.has(key) && holeFits(o, q[0] / 4, q[1] / 4)) { seen.add(key); pts.push(q); } };
-  if (mode === 'spiral') {                       // like the spiral of holes on the real wheels: golden-angle spiral, evenly spread over the body in every direction
-    const c = d / 1.1; for (let k = 0, n = Math.ceil((ext / c) ** 2); k <= n; k++) add(c * Math.sqrt(k) * Math.cos(k * 2.399963229728653), c * Math.sqrt(k) * Math.sin(k * 2.399963229728653));
+  if (mode === 'spiral') {                       // like the real wheels: one arm winding in from the rim (0.7 rad per hole), following the outline's shape
+    const n = Math.max(3, Math.min(PART_LIMITS.maxHoles, Math.round((o.N / 2 - 7) * 2 / d)));      // from the perimeter, like the real wheels: d = 2 gives round(N/2 - 7)
+    const edge = a => { let t = 0; const c = Math.cos(a), s = Math.sin(a);                                  // where a ray from the centre leaves the outline
+      for (let k = 0, j = o.M - 1; k < o.M; j = k++) { const ax = o.p[2 * j], ay = o.p[2 * j + 1], ex = o.p[2 * k] - ax, ey = o.p[2 * k + 1] - ay, den = c * ey - s * ex;
+        if (Math.abs(den) < 1e-12) continue; const tt = (ax * ey - ay * ex) / den, u = (ax * s - ay * c) / den;
+        if (tt > 0 && u >= 0 && u <= 1) t = Math.max(t, tt); }
+      return t; };
+    for (let k = 0; k < n; k++) { const a = 0.7 * k, r = (0.9 - 0.68 * k / Math.max(1, n - 1)) * Math.max(0, edge(a) - HOLE_MARGIN); add(r * Math.cos(a), r * Math.sin(a)); }
+    return pts;                                  // in spiral order, rim first: hole 1 is the outermost and neighbours in number are neighbours on the part
   } else if (mode === 'grid') for (let i = -lim; i <= lim; i++) for (let j = -lim; j <= lim; j++) add(i * d, j * d);
   else for (let i = 1; i <= lim; i++) { if (mode !== 'y') add(i * d, 0); if (mode !== 'x') add(0, i * d); }
   add(0, 0);
