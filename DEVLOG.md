@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Roll preview timeline (play/pause + scrub slider)
+
+The maker's roll preview has a play/pause button and a slider (0-1000, step 5) above the picture. The slider follows the roll
+while playing; dragging it pauses and jumps to that point of the pattern; Play on a finished roll replays it; at the end it
+still shows the whole pattern for 0.4 s and restarts. State is `pvState = { playing, pos (0-1), hold }`, kept across preview
+rebuilds so editing the shape, partner or pen hole while paused keeps your place; a new editor session resets it. While paused
+nothing is redrawn (frame only draws when the point index changes). Bug found with a fake clock: each loop only checked that *a*
+preview existed, so a stale loop could keep running and double the speed; each loop now retires itself when it is no longer
+the current preview (`pv !== mine`). Test hooks: `__myro.parts.pv()` / `.pvState()`.
+
 ### 2026-11-08 — Roll preview restart pause
 
 The maker's roll preview held the finished pattern for 60 *frames* before restarting: ~1 s at 60 fps but proportionally longer

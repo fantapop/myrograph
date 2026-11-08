@@ -123,6 +123,9 @@
   .pm-tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
   #pm-c:focus { outline: none; }
   #pm-c { display: block; width: 100%; aspect-ratio: 1; background: #1f1f24; border-radius: 6px; touch-action: none; cursor: crosshair; }
+  .tl { max-width: 340px; margin: 0 0 6px !important; flex-wrap: nowrap !important; }
+  .tl input { flex: 1; min-width: 0; }
+  #pm-play { width: 36px; padding: 2px 0; justify-content: center; }
   #pm-v { display: block; width: 100%; max-width: 340px; aspect-ratio: 1; background: var(--paper); border-radius: 6px; }
   .pm-sec { background: #1f1f24; border-radius: 6px; padding: 8px 10px; }
   .pm-sec h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
@@ -289,6 +292,8 @@
         <div id="pm-compat"></div><div id="pm-sum"></div></div>
       <div class="pm-sec"><h4>Roll preview</h4>
         <div class="ctl"><span id="pm-pl"></span><label>pen hole <select id="pm-ph"></select></label></div>
+        <div class="ctl tl"><button id="pm-play" title="Pause / play">⏸</button>
+          <input type="range" id="pm-scrub" min="0" max="1000" step="5" value="0" title="Drag to pause and move to any point of the roll"></div>
         <canvas id="pm-v"></canvas></div>
       <div id="pm-msg"></div>
     </div>
@@ -1493,7 +1498,7 @@ window.addEventListener('hashchange', () => {
 });
 window.__myro = { makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
   encodeShare, decodeShare, readTextChunk, addTextChunk,
-  parts: { open: d => openMaker(d), pv: () => pv, ed: () => ed, library: () => library, registry, CUSTOM: () => CUSTOM, keepPart, edSave, edDraw, edSync, lookup,
+  parts: { open: d => openMaker(d), pv: () => pv, pvState: () => pvState, ed: () => ed, library: () => library, registry, CUSTOM: () => CUSTOM, keepPart, edSave, edDraw, edSync, lookup,
     forget(id) { library = library.filter(d => d.id !== id); registry.delete(id); pieceMemo.delete(id); guestCombos.clear(); libraryChanged(); } } };   // forget: test hook   // test hook
 function markTile(e) {                          // selection outline + badge on a grid tile
   const l = layers.get(list[e.i].key);
@@ -1614,6 +1619,7 @@ function openMaker(def) {
   ed = { orig: def ? def.id : null, name: def ? def.name : 'My part', tab: 'shape', sel: -1, drag: null, partner: { kind: 't', id: 'ring96-in' }, userPicked: false, dirty: false,
     d: { N: base.N, k: base.k, n: base.n, mir: base.mir, r: base.r.slice(), h: def ? def.h.map(q => [...q]) : [] } };
   if (!def) { edPiece = makePart(edDef()); ed.d.h = fillHoles(edPiece.roller.o, 'x', 1.5); }
+  Object.assign(pvState, { playing: true, pos: 0, hold: 0 });
   $('pm-name').value = ed.name; $('pm-N').value = ed.d.N;
   $('pm-del').hidden = !def; $('pm-copy').hidden = !def; $('pm-msg').textContent = '';
   edTab(ed.tab); edSync(true); pm.showModal(); edResize(); edDraw(); ed.dirty = false;
@@ -1813,6 +1819,8 @@ function fillPartnerHoles() {
 }
 $('pm-ph').onchange = e => { ed.phole = +e.target.value; pvStart(); };
 const PV_DRAW = 7, PV_PAUSE = 0.4;               // roll preview: seconds to draw the whole pattern, then to show it finished before it restarts
+const pvState = { playing: true, pos: 0, hold: 0 };   // pos 0..1 along the roll; survives rebuilds (editing the shape keeps your place and a pause)
+const pvButton = () => { $('pm-play').textContent = pvState.playing ? '⏸' : '▶'; $('pm-play').title = pvState.playing ? 'Pause' : 'Play'; };
 function pvStop() { if (pv) cancelAnimationFrame(pv.raf); pv = null; }
 function pvStart() {
   pvStop(); if (!ed || !pm.open) return;
@@ -1822,25 +1830,40 @@ function pvStart() {
   const radius = o => { let m = 0; for (let i = 0; i < o.M; i++) m = Math.max(m, Math.hypot(o.p[2 * i], o.p[2 * i + 1])); return m; };
   const fr = radius(t.body || t.o), gr = radius(r.body), bound = (t.inside ? fr : fr + 2 * gr) * 1.06;
   const w = Math.round(Math.min(340, pmv.getBoundingClientRect().width || 300)); pmv.width = pmv.height = Math.round(w * pr);
-  pv = { t, r, pts, n, bound, w, t0: performance.now(), raf: 0, P: [0, 0, 0, 0] };     // timed in real time, so slow frames do not stretch the pause
+  const mine = pv = { t, r, pts, n, bound, w, raf: 0, P: [0, 0, 0, 0] };      // each loop only runs while it is still the current preview
   const ctx = pmv.getContext('2d'), S = w / (2 * bound), X = x => w / 2 + x * S, Y = y => w / 2 - y * S, ink = palette().colors[0], paper = $('paper').value;
   const poly = (o, tf) => { ctx.beginPath(); for (let i = 0; i < o.M; i++) { const x = o.p[2 * i], y = o.p[2 * i + 1], q = tf ? [tf[2] + tf[0] * x - tf[1] * y, tf[3] + tf[1] * x + tf[0] * y] : [x, y];
     ctx[i ? 'lineTo' : 'moveTo'](X(q[0]), Y(q[1])); } ctx.closePath(); };
+  let last = performance.now(), drawn = -1;
   const frame = () => {
-    if (!pv || !pm.open) return;
+    if (pv !== mine || !pm.open) return;
+    const now = performance.now(), dt = Math.min(0.25, (now - last) / 1000), st = pvState; last = now;     // real time; clamped so a hidden tab does not jump
+    if (st.playing) {
+      if (st.pos >= 1) { st.hold += dt; if (st.hold >= PV_PAUSE) { st.pos = 0; st.hold = 0; } }              // finished: show it briefly, then start over
+      else st.pos = Math.min(1, st.pos + dt / PV_DRAW);
+      $('pm-scrub').value = Math.round(st.pos * 1000);                                                      // the slider follows while playing
+    }
+    const k = Math.min(n, Math.round(st.pos * n));
+    if (k !== drawn) { drawn = k; draw(k); }                                                                // paused: nothing to redraw
+    pv.raf = requestAnimationFrame(frame);
+  };
+  const draw = k => {
     ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.fillStyle = paper; ctx.fillRect(0, 0, w, w);
     ctx.lineWidth = 1.5; ctx.strokeStyle = '#8d8b86'; ctx.fillStyle = 'rgba(0,0,0,.06)';
     if (t.inside) { ctx.beginPath(); ctx.arc(X(0), Y(0), fr * S, 0, TAU); ctx.stroke(); } else { poly(t.body || t.o); ctx.fill(); ctx.stroke(); }
-    const el = (performance.now() - pv.t0) / 1000;
-    if (el > PV_DRAW + PV_PAUSE) pv.t0 = performance.now();                  // finished and paused: start over
-    const k = Math.min(n, Math.floor(el / PV_DRAW * n)); pose(t.o, r.o, t.inside, ss[k], pv.P);
+    pose(t.o, r.o, t.inside, ss[k], pv.P);
     ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.beginPath(); for (let i = 0; i <= k; i++) ctx[i ? 'lineTo' : 'moveTo'](X(pts[3 * i]), Y(pts[3 * i + 1])); ctx.stroke();
     poly(r.body, pv.P); ctx.fillStyle = 'rgba(233,180,76,.25)'; ctx.fill(); ctx.strokeStyle = '#555'; ctx.lineWidth = 1.2; ctx.stroke();
     ctx.beginPath(); ctx.arc(X(pts[3 * k]), Y(pts[3 * k + 1]), 3.5, 0, TAU); ctx.fillStyle = ink; ctx.fill();
-    pv.raf = requestAnimationFrame(frame);
   };
-  frame();
+  pvButton(); $('pm-scrub').value = Math.round(pvState.pos * 1000); frame();
 }
+$('pm-play').onclick = () => {
+  const st = pvState; st.playing = !st.playing;
+  if (st.playing && st.pos >= 1) { st.pos = 0; st.hold = 0; }                // pressing play on a finished roll replays it
+  $('pm-scrub').value = Math.round(st.pos * 1000); pvButton();
+};
+$('pm-scrub').oninput = e => { pvState.playing = false; pvState.pos = e.target.value / 1000; pvState.hold = 0; pvButton(); };   // scrubbing pauses
 
 // -- save / delete / close
 function edSave(asCopy) {
