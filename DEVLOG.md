@@ -81,6 +81,13 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Roll preview restart pause
+
+The maker's roll preview held the finished pattern for 60 *frames* before restarting: ~1 s at 60 fps but proportionally longer
+whenever frames were slow (each frame redraws up to 20,000 path points), reported as a lag of a couple of seconds. It is now timed
+with `performance.now` (`PV_DRAW` = 7 s to draw, `PV_PAUSE` = 0.4 s before restart). Verified with a fake clock: pause 0.40 s at
+60 fps and 0.42 s at 12 fps (would have been 5 s). Test hook: `__myro.parts.pv()`.
+
 ### 2026-11-08 — Stricter collision check for custom parts; denser pen paths
 
 Report: in the part maker an oval "escaped" the ring and the pen line looked disconnected, worse for complicated parts. Two
