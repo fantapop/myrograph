@@ -10,6 +10,11 @@ pen-hole layouts of a Deluxe-style set. No build step, no server: open `index.ht
 - **Save** an overlay as a PNG with its setup embedded, and re-import it later to keep editing.
 - Keep named **albums** in the browser (localStorage), export/import them as files.
 - **Share** an overlay as a link: the data lives in the URL fragment.
+- **Make your own wheel**: the *Custom parts* filter row opens a shape maker. Drag handles (with
+  symmetry and mirror) or start from a preset, set the size in teeth, place pen holes, and watch which
+  pieces of the set it fits with while you edit (green fits, red would overlap) next to an animated roll
+  preview. Custom parts live in their own filter, are saved in your browser, and travel inside saved
+  PNGs, albums and share links, so others can open your overlays without having made the part.
 
 ## Run
 

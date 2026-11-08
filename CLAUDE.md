@@ -14,7 +14,15 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
 - CORE block (`BEGIN CORE` ... `END CORE`): pure math, no DOM: outlines, rolling contact, collision
   check, PNG text chunks, share-link codec. Tested by `tools/test.mjs`.
 - UI below it: filters, virtualized grid, offscreen WebGL -> per-tile 2D canvases, Compose panel
-  (overlay), save/open, albums view, share links.
+  (overlay), save/open, albums view, share links, and the custom part maker (`openMaker`, section
+  "custom parts: library, filter row, maker dialog"; `<dialog id="pm">`).
+- Custom parts (CORE: `canonPart`, `makePart`, `customCombos`, ...): star-shaped outline from radial handles
+  (`k` x `n` handles, optional mirror), perimeter scaled to `N` teeth; holes in quarter-tooth ints.
+  Ids are `c` + hash of the content, so a part is immutable: editing makes a new id and saved things
+  keep their own copy of the definition (`parts` in PNG/album state, `p,...` segments in share links).
+  `library` (localStorage) is what the user made/kept; `registry` also holds guest parts from opened
+  files. Custom combos live in `CUSTOM`, never in `ALL` (own filter row). Part names are sanitized
+  (`cleanName`) because they go into innerHTML.
 
 ## Working here
 - Run: open `index.html`, or `python3 -m http.server` and visit localhost:8000.

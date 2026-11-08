@@ -42,7 +42,22 @@ already in the overlay. A palette can carry an optional `paper` (Neon, Midnight,
 the editor's "Paper" checkbox): choosing it sets the paper; choosing a palette without one restores the default
 light paper only if the previous palette set it (`paperFromPalette`), so a hand-picked paper is never overridden.
 
+Custom parts: the Custom parts filter row ("＋ Make a part…", chips with a ✎ edit button per part) opens a maker
+dialog. Shape = star-shaped outline from radial handles (k-fold symmetry x n handles per section, optional mirror,
+periodic cubic spline) or a preset (circle, oval, lens, egg, rounded square/triangle, pentagon, flower, clover,
+star); Size = tooth count N (perimeter scaled to exactly N). Pen holes: click/drag/right-click, row/grid fill,
+margin 1 tooth from the edge enforced. Live "fits with the set" grid (green/red from the same `fits` simulation,
+computed incrementally so the UI stays responsive) and an animated roll preview. Library: localStorage
+`spirograph.parts.v1` (max 12). Custom combos are in `CUSTOM`, shown only through their own filter row (not the
+main grid). Parts are immutable and content-addressed (`c` + hash), and PNG/album/share-link state carries the
+definitions (`parts`; `p,...` URL segments, ~150 chars for 2 layers + 1 part), so others can open them; a
+"keep part" button in the layer list adds a guest part to the library. Tested in node (CORE) and in headless
+Chrome (editor interaction, save/edit/copy/delete, reload persistence, link/PNG/album round trips).
+
 Next steps / not done:
+- Custom parts: no custom rings/racks (inside tracks must be circles); no undo in the maker; no library-only
+  export (albums/PNGs carry parts); hole numbers are in placement order unless "Number rim -> centre"; only
+  non-overlap is modelled, not whether real teeth would mesh (same as the shaped wheels).
 - Palettes: no export/import (browser-local only, like albums), no reordering colors. Paper isn't persisted
   across reloads; it is re-applied from the saved palette on load, so a hand-picked paper is lost on reload.
 - Share links only work for others when copied from the hosted page (GitHub Pages, below); a file:// or
@@ -65,6 +80,30 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-07 — Custom part maker
+
+Plan (user: exploring on screen, custom parts in their own filter, no custom rings, sharing is the tricky part):
+shape editor + live fit feedback + preview, parts embedded in everything that is shared. Outcome: shipped as
+described in Current state. Decisions and why:
+- Radial-handle model (star-shaped about the origin) instead of free polygons: always a simple closed curve,
+  symmetric by construction, tiny to store/share (n radii as bytes), easy to drag. It cannot make re-entrant
+  shapes (a spiral, a crescent); that was accepted.
+- Size is the tooth count: the outline is scaled so its perimeter is N. That is what "fits the set" means here
+  (same tooth pitch); the real check is the existing `fits` collision simulation, shown live as green/red chips.
+- Content-addressed ids (hash of N, k, n, mirror, radii, holes; not the name). Editing makes a new part, so old
+  PNGs/albums/links can never silently change, and dedupe across devices is free. Cost: parts that arrive via a
+  file/link are "guest" parts (in `registry`, rendered via `guest()` in `lookup`, not in the library).
+- Rollers are NOT re-centred (origin = handle centre, so hole coordinates stay put while dragging); the fixed
+  version of the part IS re-centred (else its pattern is off-centre in the tile).
+- Custom combos get string keys (`track|roller|hole`) instead of ALL indices, so layers survive library edits.
+- Part names go into innerHTML in several places, so `cleanName` strips everything but letters/digits/space/_.,()+-
+  at the CORE boundary (applies to shared links too).
+Dead ends: deep-lobed presets (flower/clover/star at amplitude .3-.5, and the Cross) fit nothing: lobes poke into
+any circular partner. Measured fit counts vs amplitude and kept the presets shallow (~.06-.14); the maker says so
+when few pieces fit. Cross preset dropped (the real Cross needs a pitch circle trick, see the earlier entry).
+Test hooks: `window.__spiro.parts` (open/ed/library/registry/forget...) for headless driving; pointer events can be
+dispatched on `#pm-c` (setPointerCapture is wrapped in try/catch for synthetic pointers).
 
 ### 2026-11-07 — Public, MIT, GitHub Pages
 

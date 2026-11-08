@@ -5,6 +5,7 @@
 //   - rolling math matches closed-form hypo/epitrochoid ranges and the curves close
 //   - the parts catalog (hole counts from the Deluxe set photo, Cross fits in the 96 ring)
 //   - PNG text-chunk and share-link encoders round-trip, and reject malformed input
+//   - custom parts (shape model, ids, validation, hole rules, fit combos, share-link codec)
 //   - ink palettes: presets are well-formed; saved custom palettes are sanitized on load
 // Usage: node tools/test.mjs   (exit code 0 = all passed). Takes a few seconds.
 // If you add exports to CORE, add them to the export list below.
@@ -13,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -51,6 +52,40 @@ const st = { app: 'spirograph-gallery', v: 1, paper: '#faf7f0', baseScale: 'fit'
 check('share link round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(st))) === JSON.stringify(st));
 const rejects = ['v2/faf7f0/t', 'v1/zzzzzz/t', 'v1/faf7f0/t/a,b,x,1f4fd8,1,0,100', 'v1/faf7f0/t/a b,c,1,1f4fd8,1,0,100', 'junk'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } });
 check('malformed share links are rejected', rejects);
+
+// custom parts
+const mkDef = (preset, N0, name = 'T') => { const sh = C.presetShape(C.PART_PRESETS.find(p => p.id === preset)), N = N0 || sh.N; const o = C.makePart({ ...sh, N, h: [[0, 0]] }).roller.o;
+  return C.canonPart({ ...sh, name, N, h: C.fillHoles(o, 'x', 1.5) }); };
+const oval = mkDef('oval', 44, 'My oval');
+check('presets all build into valid parts that roll on most of the box', C.PART_PRESETS.every(p => mkDef(p.id) && mkDef(p.id).h.length >= 3 && cat.tracks.filter(t => C.pairFits(t, C.makePart(mkDef(p.id)).roller, new Map())).length >= 12), C.PART_PRESETS.map(p => mkDef(p.id)?.h.length).join(','));
+const part = C.makePart(oval);
+check('custom outline has exactly N teeth of perimeter', part.roller.o.N === 44 && Math.abs((() => { let t = 0; const o = part.roller.o; for (let i = 0; i < o.M; i++) { const j = (i + 1) % o.M; t += Math.hypot(o.p[2 * j] - o.p[2 * i], o.p[2 * j + 1] - o.p[2 * i + 1]); } return t; })() - 44) < 0.3);
+check('mirrored symmetric shape is centred on its origin', (() => { const o = part.roller.o; let sx = 0, sy = 0; for (let i = 0; i < o.M; i++) { sx += o.p[2 * i]; sy += o.p[2 * i + 1]; } return Math.hypot(sx, sy) / o.M < 0.05; })());
+check('content-addressed id ignores the name but not the shape', C.canonPart({ ...oval, name: 'Other' }).id === oval.id && C.canonPart({ ...oval, N: 45 }).id !== oval.id && /^c[0-9a-f]{8}$/.test(oval.id));
+const bad = [null, 7, { ...oval, N: 5 }, { ...oval, k: 0 }, { ...oval, r: [1, 2] }, { ...oval, r: oval.r.map(() => 300) }, { ...oval, h: [] }, { ...oval, h: [[0.5, 1]] }, { ...oval, k: 8, n: 12 }, { ...oval, h: Array(40).fill([1, 1]) }];
+check('invalid part definitions are rejected', bad.every(b => C.canonPart(b) === null));
+check('part names are stripped of HTML-significant characters', C.canonPart({ ...oval, name: '<img src=x onerror=1>"A\'&' }).name === 'img srcx onerror1A');
+check('corrupt library storage gives an empty list', C.parseParts('{oops').length === 0 && C.parseParts('[1,2]').length === 0 && C.parseParts(JSON.stringify([oval, oval, { ...oval, N: 50 }])).length === 2);
+check('resampling the handle count keeps the outline', (() => { const r2 = C.resampleShape({ ...oval, h: [[0, 0]] }, 4), a = C.partDense({ ...oval }), b = C.partDense(r2);
+  const ra = th => Math.hypot(...a[Math.round(th / (2 * Math.PI) * a.length) % a.length]), rb = th => Math.hypot(...b[Math.round(th / (2 * Math.PI) * b.length) % b.length]);
+  return [0, 1, 2, 3, 4, 5].every(th => Math.abs(ra(th) / ra(0) - rb(th) / rb(0)) < 0.06); })());
+const o44 = part.roller.o;
+check('hole rule: inside the body with a margin', C.holeFits(o44, 0, 0) && !C.holeFits(o44, 100, 0) && !C.holeFits(o44, o44.p[0] - 0.2, o44.p[1]));
+const fx = C.fillHoles(o44, 'x', 1.5);
+check('hole fill gives valid holes, rim to centre, within the cap', fx.length > 2 && fx.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && fx[0][0] > fx.at(-1)[0] && C.fillHoles(o44, 'grid', 1.5).length <= C.PART_LIMITS.maxHoles);
+const sdfs = new Map(), memo = new Map(), pcs = [C.makePart(mkDef('circle', 40, 'Disc')), part];
+const cc = C.customCombos(cat, pcs, memo, sdfs);
+check('custom combos pair each custom piece with the box and with each other', cc.every(c => c.custom && c.key === `${c.track.id}|${c.roller.id}|${c.hole}`) &&
+  cc.some(c => c.track.id === 'ring96-in' && c.roller.id === pcs[0].roller.id) && cc.some(c => c.track.id === pcs[1].fixed.id && c.roller.id === pcs[0].roller.id) &&
+  !cc.some(c => c.track.pieceId === c.roller.id), `${cc.length} combos`);
+check('a 40-tooth disc rolls inside the 96 ring; a long thin oval around a 24 wheel is judged by the real check', cc.find(c => c.track.id === 'ring96-in' && c.roller.id === pcs[0].roller.id).ok === true);
+const wide = C.makePart(C.canonPart({ ...oval, N: 110, h: [[0, 0]] }));
+check('a piece too big for the ring is reported as not fitting', C.pairFits(cat.tracks.find(t => t.id === 'ring96-in'), wide.roller, sdfs) === false);
+const psum = C.PART_PRESETS.map(p => { const q = C.makePart(mkDef(p.id)); return `${p.id}:${cat.tracks.filter(t => C.pairFits(t, q.roller, sdfs)).length}/${cat.tracks.length}`; }).join(' ');
+console.log('     fit counts (tracks each preset at its suggested size rolls on without overlap):', psum);
+const stp = { ...st, parts: [oval, mkDef('flower', 0, 'Flower (5)')] };
+check('share link carries custom parts and round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(stp))) === JSON.stringify(stp), `${C.encodeShare(stp).length} chars`);
+check('share link rejects damaged custom parts', ['v1/faf7f0/t/p,x,44,2,6,1,zz,1_1', 'v1/faf7f0/t/p,x,5,2,6,1,ffffffffffff,1_1', 'v1/faf7f0/t/p,x,44,2,6,1,ffffffffffff,'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } }));
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
