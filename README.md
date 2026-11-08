@@ -9,6 +9,8 @@ pen-hole layouts of a Deluxe-style set. No build step, no server: open `index.ht
 - **Compose** several patterns into one overlay (shared centre; per-layer color, rotation, size).
 - **Save** an overlay as a PNG with its setup embedded, and re-import it later to keep editing.
 - Keep named **albums** in the browser (localStorage), export/import them as files.
+- **Sign** a piece: type your name in a handwriting-style font or draw it by hand, keep a list of signatures, and place one on the overlay
+  (drag it, resize it, recolor it). It is saved with the PNG, album item and share link, and appears in prints.
 - **Print** the overlay with the Print button or Ctrl/Cmd+P (with the Compose panel open): just the picture, scaled to the page.
 - **Share** an overlay as a link: the data lives in the URL fragment.
 - **Make your own wheel**: the *Custom parts* filter row opens a shape maker. Drag handles (with

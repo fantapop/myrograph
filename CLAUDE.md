@@ -24,6 +24,13 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   files. Custom combos live in `CUSTOM`, never in `ALL` (own filter row). Part names are sanitized
   (`cleanName`) because they go into innerHTML.
 
+- Signatures (CORE: `canonSignature`, `canonSigInstance`, `encodeSig`/`decodeSig`; UI section "signature"): a signature is
+  `{kind:'t', text, font}` (font = a key of `SIG_FONTS`, a CSS stack) or `{kind:'i', ar, s: strokes}` (hand-drawn, 0..1000 coordinates),
+  id = hash of its content. `sigInst = { sig, x, y, size, color }` is the one signature on the current overlay (thousandths of the
+  picture; color null = auto black/white by paper). It lives in `overlayState().signature` (so PNG / album / link carry a copy; `g,...`
+  link segment) and is painted by `drawSignature()` onto the live layer `#sigc`, the PNG, the print canvas and album thumbnails.
+  The list is `sigLib` (localStorage `myrograph.signatures.v1`, max 12). Typed text is never put in innerHTML.
+
 ## Working here
 - Run: open `index.html`, or `python3 -m http.server` and visit localhost:8000.
 - Test: `node tools/test.mjs` (extracts CORE, no browser). Visual checks: `tools/shot.sh`.

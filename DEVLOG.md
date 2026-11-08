@@ -81,6 +81,21 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Signatures on overlays
+
+Request: sign a compiled overlay like a piece of art: enter a signature, keep a list, optionally add one, move it around; one per overlay is enough.
+Built: a Signature row in the Compose panel (dropdown of saved signatures + "＋ New…" + Delete; below it Size, color, Auto, Reset when one is
+chosen) and a dialog with two ways to create one: Type (name + handwriting-style font) or Draw (pointer events on a pad; strokes thinned to fit
+`SIG_LIMITS.points`, scaled to 0..1000 across, smoothed with midpoint quadratic curves when drawn). Typed signatures use CSS font stacks
+(Snell Roundhand / Segoe Script / Bradley Hand ... fall back to `cursive`), so the exact look depends on the device's fonts; drawn ones look the same
+everywhere (the reason both exist). A placed signature is `{ sig, x, y, size, color }` in thousandths of the picture; color null = auto (light ink on dark
+paper); it is clamped to stay fully on the picture (`sigKeepInside`). Dragging works on a transparent canvas over the picture (`#sigc`, hit-test on the
+signature's box); new signatures start in the bottom right corner. The overlay's signature is part of `overlayState()` (PNG chunk, album item, link
+segment `g,...`: typed ~120 chars, drawn ~400) and is painted by `drawSignature` onto the live layer, the PNG (the GL image is composited on a 2D canvas first),
+the print canvas and album thumbnails. "Clear" clears layers only (the signature stays). Opening a piece signed with a signature you do not have shows it as
+"(from file)" in the dropdown; choosing another from your list replaces it. Not done: several signatures, rotation, a signature on a layer-less overlay export
+(allowed, but Print needs a visible layer), importing fonts.
+
 ### 2026-11-08 — Smooth hole spiral; resizing no longer scrambles holes
 
 Two reports on the spiral fill. (1) It still looked scattered: 0.7 rad per hole is ~2pi/9, so consecutive holes jumped ~40 degrees around the

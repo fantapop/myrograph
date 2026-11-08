@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -140,6 +140,22 @@ check('presets are all distinct enough from a plain circle to be worth offering 
     sp.length > row.length && sp.length <= C.PART_LIMITS.maxHoles && sp.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && dirs.size >= sp.length * 0.7 && Math.hypot(...sp[0]) > Math.hypot(...sp.at(-1)),
     `${sp.length} holes vs ${row.length} in a row, ${dirs.size} directions`);
   check('a larger spacing gives fewer spiral holes, and the count never exceeds the cap', C.fillHoles(o44, 'spiral', 4).length < sp.length && C.fillHoles(bigP.roller.o, 'spiral', 1).length <= C.PART_LIMITS.maxHoles); }
+
+// signatures: typed or drawn, validated, saved, and carried in share links
+const sigT = C.canonSignature({ kind: 't', text: '  Chris   F. ', font: 'script' });
+const sigI = C.canonSignature({ kind: 'i', ar: 300, s: [[0, 150, 200, 20, 400, 280, 600, 90, 1000, 300], [100, 250, 900, 260]] });
+check('signatures: text and ink are normalised, given content-based ids, and bad ones refused', sigT.text === 'Chris F.' && /^s[0-9a-f]{8}$/.test(sigT.id) && sigT.id === C.canonSignature({ ...sigT }).id && sigI && sigI.id !== sigT.id &&
+  [null, 5, { kind: 't', text: '', font: 'script' }, { kind: 't', text: 'x', font: 'nope' }, { kind: 't', text: 'x', font: '__proto__' }, { kind: 'i', ar: 300, s: [] }, { kind: 'i', ar: 300, s: [[0, 0, 2000, 5]] }, { kind: 'i', ar: 300, s: [[0, 400]] }, { kind: 'i', ar: 300, s: Array(17).fill([1, 1, 2, 2]) },
+   { kind: 'i', ar: 300, s: [Array(1202).fill(5)] }, { kind: 'x' }].every(b => C.canonSignature(b) === null));
+check('signature text cannot carry markup or control characters, and is capped', C.canonSignature({ kind: 't', text: '<img src=x onerror=1>\n\u0007' + 'a'.repeat(100), font: 'plain' }).text.length <= C.SIG_LIMITS.text && !/[<>\u0000-\u001f]/.test(C.canonSignature({ kind: 't', text: '<b>hi</b>\u0001', font: 'plain' }).text));
+check('the saved list drops invalid and duplicate entries and is capped', C.parseSignatures(JSON.stringify([sigT, sigT, { kind: 'x' }, sigI])).length === 2 && C.parseSignatures('{oops').length === 0 && C.parseSignatures(JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ kind: 't', text: 'n' + i, font: 'plain' })))).length === C.SIG_LIMITS.library);
+const inst = C.canonSigInstance({ sig: sigT, x: 700, y: 900, size: 300, color: '#AA3355' });
+check('a placed signature keeps its position, size and colour, with safe defaults', inst.x === 700 && inst.size === 300 && inst.color === '#aa3355' && C.canonSigInstance({ sig: sigT }).color === null && C.canonSigInstance({ sig: sigT, x: 5000, size: 1 }).x === 800 && C.canonSigInstance({ sig: { kind: 'x' } }) === null);
+const stSig = { ...st, signature: C.canonSigInstance({ sig: sigI, x: 123, y: 456, size: 321, color: '#102030' }) }, stSigT = { ...st, signature: inst };
+check('share link carries a drawn or typed signature and round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(stSig))) === JSON.stringify(stSig) && JSON.stringify(C.decodeShare('#' + C.encodeShare(stSigT))) === JSON.stringify(stSigT), `${C.encodeShare(stSig).length} chars (drawn), ${C.encodeShare(stSigT).length} (typed)`);
+check('a signature with unusual text survives the link (spaces, commas, slashes, accents)', (() => { const g = C.canonSigInstance({ sig: { kind: 't', text: 'José, a/b & Co.', font: 'serif' } }); return C.decodeSig(C.encodeSig(g)).sig.text === 'José, a/b & Co.' && !C.encodeSig(g).slice(2).includes('/'); })());
+check('damaged or doubled signature segments are rejected', ['v1/faf7f0/t/g,t,nope,abc,1,2,3,-', 'v1/faf7f0/t/g,i,1,0_0-5_5,1,2,3,-', 'v1/faf7f0/t/g,t,plain,x,1,2,3,xyz', 'v1/faf7f0/t/g,t,plain,x,1,2,3,-/g,t,plain,y,1,2,3,-', 'v1/faf7f0/t/g,t,plain,x,1'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } }));
+check('links without a signature are unchanged (no g segment, no signature key)', !C.encodeShare(st).includes('g,') && !('signature' in C.decodeShare('#' + C.encodeShare(st))));
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
