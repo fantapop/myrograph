@@ -131,6 +131,12 @@ check('the point cap still holds', C.traceRaw(ring96.o, mkp('circle', 83).roller
 check('parts flagged as pitch-circle parts (a removed experiment) are refused, in storage and in links', C.canonPart({ ...oval, pc: 1 }) === null && C.parseParts(JSON.stringify([oval, { ...oval, pc: 1, N: 50 }])).length === 1 && C.decodePart(C.encodePart(oval) + ',1') === null);
 check('presets are all distinct enough from a plain circle to be worth offering (7 of them)', C.PART_PRESETS.length === 7 && !C.PART_PRESETS.some(p => ['star', 'flower', 'square'].includes(p.id)));
 
+// spiral hole fill (the default): valid holes only, rim to centre, within the cap, spread in many directions; a plain row only uses one
+{ const sp = C.fillHoles(o44, 'spiral', 2), row = C.fillHoles(o44, 'x', 2), dirs = new Set(sp.map(([x, y]) => Math.round(Math.atan2(y, x) * 4)));
+  check('spiral fill: valid holes, rim to centre, within the cap, many more than a row and in many directions',
+    sp.length > row.length && sp.length <= C.PART_LIMITS.maxHoles && sp.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && sp.every((q, i) => i === 0 || Math.hypot(q[0], q[1]) <= Math.hypot(sp[i - 1][0], sp[i - 1][1]) + 1e-9) && dirs.size >= sp.length * 0.6,
+    `${sp.length} holes vs ${row.length} in a row, ${dirs.size} directions`); }
+
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
 const saved = [{ id: 'u-1', name: ' Mine ', colors: ['#ABCDEF', 'red', '#123456'], paper: '#101010' }, { id: 'u-4', name: 'Bad paper', colors: ['#000000'], paper: 'black' }, { id: 'bad id', name: 'x', colors: ['#000000'] }, { id: 'u-2', name: '', colors: ['#000000'] }, { id: 'u-3', name: 'none', colors: ['nope'] }, null, 7];

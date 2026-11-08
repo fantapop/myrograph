@@ -81,6 +81,14 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Custom parts' holes default to a radial spiral
+
+New parts used to get their holes in a row along the x axis (`fillHoles(..., 'x', 1.5)`), unlike the set's wheels (a spiral, which the icons
+imitate via `holePoints`). New fill mode `'spiral'` (golden-angle / Vogel spiral, `r = c*sqrt(k)`, angle `k*137.5 deg`, spacing `d/1.1`), now the
+default for a new part, for a preset change that leaves no valid holes, and the first option in the Fill dropdown (default spacing 2 teeth, `DEFAULT_SPACING`).
+It matters beyond looks: on a non-round part hole DIRECTION changes the pen curve, and a row only samples one axis. Oval N=48: row = 4-6 holes /
+curves, spiral = 13 (24 at spacing 1.5), each a distinct curve (a real 48 wheel has 17 holes); N=84: 8 vs 35. Rows along x, both axes and grid remain as options.
+
 ### 2026-11-08 — Ring names include the side
 
 Ring tracks are now named "Ring 96/144 (Inside)", "Ring 96/144 (Outside)", "Ring 105/150 (Inside)", "Ring 105/150 (Outside)" (`track.name`,
