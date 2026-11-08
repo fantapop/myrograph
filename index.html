@@ -18,6 +18,7 @@
   Controls: filter chips with piece pictures (none selected = no filter), ink palette and paper
   color, Shuffle / Reset order. Ink: pick a preset palette (or one of your own) and Auto cycles
   through it per moving piece; newly added Compose layers take the palette's next unused color.
+  Dark-background palettes (Neon, Midnight, Chalkboard, or your own with "Paper" ticked) also set the paper.
   "Edit…" / "+ New" build custom palettes, kept in localStorage (spirograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (shared centre) with per-layer color,
   visibility, rotation and size, and a Base scale switch (True size / Fit each). "Save PNG"
@@ -72,7 +73,8 @@
   #f-ink { align-items: center; }
   #f-ink select, #pal-edit input[type=text] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 6px; }
   #pal-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 2px; padding: 8px 10px; background: #1f1f24; border-radius: 6px; }
-  #pal-edit .pc { display: inline-flex; align-items: center; }
+  #pal-edit .pc, #pal-edit .pp { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--dim); }
+  #pal-edit .pp input[type=color]:disabled { opacity: .35; }
   #pal-edit .pc button { padding: 0 5px; margin-left: 1px; border-radius: 4px; background: none; border: none; color: var(--dim); }
   #pal-edit button:disabled { opacity: .35; cursor: default; }
   :root { --panel-w: min(440px, 92vw); }
@@ -464,7 +466,8 @@ function decodeShare(text) {                    // throws on anything malformed
 
 // ---- ink palettes: ordered color sets. The active one feeds the grid's Auto ink (one color per moving
 // piece, cycling) and the color given to each newly added Compose layer (first color not yet in use).
-// Presets are tuned for the default light paper unless the name says otherwise.
+// A palette may carry a `paper` color (dark-background sets); choosing it also sets the paper.
+// Presets without one are tuned for the default light paper.
 const PRESET_PALETTES = [
   { id: 'classic', name: 'Classic', colors: ['#1f4fd8', '#c4242b', '#0f8a5f', '#d9730d', '#7a2fb3', '#0aa5b8', '#c43b8f', '#1a1a1a'] },
   { id: 'ocean',   name: 'Ocean',   colors: ['#0b3c5d', '#1b6ca8', '#2a9d8f', '#264653', '#5c80bc', '#0f766e', '#7b6fb0', '#3d5a80'] },
@@ -474,14 +477,19 @@ const PRESET_PALETTES = [
   { id: 'autumn',  name: 'Autumn',  colors: ['#8c3b1b', '#c2691f', '#b8860b', '#6b705c', '#5b3a29', '#a44a3f', '#7a5c1e', '#9c4a2f'] },
   { id: 'jewel',   name: 'Jewel',   colors: ['#0f4c81', '#9b1d64', '#0e7c61', '#b8860b', '#5b2a86', '#a3262a', '#1a6b8a', '#2f2f6b'] },
   { id: 'slate',   name: 'Slate',   colors: ['#1a1a1a', '#2b4a6f', '#4a6785', '#6b7b8c', '#0b3c5d', '#444b55'] },
-  { id: 'neon',    name: 'Neon (dark paper)', colors: ['#ff4d6d', '#ffd23f', '#3bf4fb', '#7cff6b', '#c77dff', '#ff9f1c', '#4d9fff', '#ff6ad5'] },
+  { id: 'neon',    name: 'Neon',    paper: '#14141a', colors: ['#ff4d6d', '#ffd23f', '#3bf4fb', '#7cff6b', '#c77dff', '#ff9f1c', '#4d9fff', '#ff6ad5'] },
+  { id: 'midnight', name: 'Midnight', paper: '#1c2233', colors: ['#a5c8ff', '#ffb3c1', '#b8f2c9', '#ffe29a', '#d4b8ff', '#9ae6e0', '#ffc09f', '#f5f5f5'] },
+  { id: 'chalk',   name: 'Chalkboard', paper: '#1f3a2e', colors: ['#f4f1de', '#f2cc8f', '#e07a5f', '#81b29a', '#a8dadc', '#f6bd60', '#f28482', '#c9ada7'] },
 ];
 const MAX_PALETTE_COLORS = 12;
-function cleanPalette(p) {                      // -> { id, name, colors } or null if unusable
+function cleanPalette(p) {                      // -> { id, name, colors, paper? } or null if unusable
   if (!p || typeof p !== 'object') return null;
   const colors = (Array.isArray(p.colors) ? p.colors : []).filter(c => /^#[0-9a-f]{6}$/i.test(c)).map(c => c.toLowerCase()).slice(0, MAX_PALETTE_COLORS);
   const id = String(p.id || ''), name = String(p.name || '').trim().slice(0, 40);
-  return colors.length && /^[\w-]+$/.test(id) && name ? { id, name, colors } : null;
+  if (!colors.length || !/^[\w-]+$/.test(id) || !name) return null;
+  const out = { id, name, colors };
+  if (/^#[0-9a-f]{6}$/i.test(p.paper)) out.paper = p.paper.toLowerCase();
+  return out;
 }
 function parsePalettes(text) {                  // saved custom palettes (JSON); never throws
   try { const a = JSON.parse(text || '[]'); return Array.isArray(a) ? a.map(cleanPalette).filter(Boolean) : []; } catch { return []; }
@@ -557,7 +565,8 @@ function buildFilters() {
   customPalettes = parsePalettes(store.get(PAL_KEY));
   palId = store.get(PAL_CUR) || 'classic';
   buildInk();
-  $('paper').oninput = e => { document.documentElement.style.setProperty('--paper', e.target.value); scene.background.set(e.target.value); repaintAll(); };
+  $('paper').oninput = e => { paperFromPalette = false; setPaper(e.target.value); };
+  if (palette().paper) { paperFromPalette = true; setPaper(palette().paper); }   // paper itself isn't saved, so re-apply on load
 }
 
 // ---- ink: palette picker + Auto / fixed swatches / custom color, and the palette editor
@@ -595,8 +604,18 @@ function buildInk() {
   picker.oninput = () => { inkPick = picker.value; setInk(picker.value, null); };
   ink.append(picker);
 }
-function setPalette(id) {                       // choose a palette and go back to Auto ink
+const DEFAULT_PAPER = '#faf7f0';
+let paperFromPalette = false;                   // true while the paper was set by a palette (not picked by hand)
+function setPaper(c) {
+  $('paper').value = c;
+  document.documentElement.style.setProperty('--paper', c); scene.background.set(c);
+  repaintAll(); renderOverlay();
+}
+function setPalette(id) {                       // choose a palette (and its paper, if it has one); back to Auto ink
   palId = id; store.set(PAL_CUR, id); inkMode = 'auto';
+  const paper = palette().paper;
+  if (paper) { paperFromPalette = true; setPaper(paper); }
+  else if (paperFromPalette) { paperFromPalette = false; setPaper(DEFAULT_PAPER); }   // leave a hand-picked paper alone
   buildInk(); repaintAll();
 }
 const persistPalettes = () => store.set(PAL_KEY, JSON.stringify(customPalettes));
@@ -605,9 +624,9 @@ let draft = null;                               // palette being edited: { id (n
 const randomColor = () => '#' + new THREE.Color().setHSL(Math.random(), 0.6, 0.4).getHexString();
 function openPalEditor(fromCurrent) {
   const p = palette(), mine = customPalettes.some(c => c.id === p.id);
-  draft = !fromCurrent ? { id: null, name: 'My palette', colors: [randomColor(), randomColor(), randomColor()] }
-    : mine ? { id: p.id, name: p.name, colors: [...p.colors] }
-    : { id: null, name: `${p.name} copy`.slice(0, 40), colors: [...p.colors] };
+  draft = !fromCurrent ? { id: null, name: 'My palette', colors: [randomColor(), randomColor(), randomColor()], paper: null }
+    : mine ? { id: p.id, name: p.name, colors: [...p.colors], paper: p.paper || null }
+    : { id: null, name: `${p.name} copy`.slice(0, 40), colors: [...p.colors], paper: p.paper || null };
   renderPalEditor();
 }
 function closePalEditor() { draft = null; renderPalEditor(); }
@@ -631,12 +650,18 @@ function renderPalEditor() {
   const save = document.createElement('button'); save.textContent = 'Save palette';
   save.title = 'Keep this palette in this browser and use it';
   save.onclick = () => {
-    const p = cleanPalette({ id: draft.id || 'u-' + uid(), name: draft.name.trim() || 'Untitled', colors: draft.colors });
+    const p = cleanPalette({ id: draft.id || 'u-' + uid(), name: draft.name.trim() || 'Untitled', colors: draft.colors, paper: draft.paper });
     const at = customPalettes.findIndex(c => c.id === p.id);
     if (at >= 0) customPalettes[at] = p; else customPalettes.push(p);
     persistPalettes(); closePalEditor(); setPalette(p.id);
   };
-  box.append(more, save);
+  const pw = document.createElement('label'); pw.className = 'pp'; pw.title = 'Also set the paper color when this palette is chosen (for dark-background palettes)';
+  const pcb = document.createElement('input'); pcb.type = 'checkbox'; pcb.checked = !!draft.paper;
+  const pin = document.createElement('input'); pin.type = 'color'; pin.value = draft.paper || $('paper').value; pin.disabled = !draft.paper;
+  pcb.onchange = () => { draft.paper = pcb.checked ? pin.value : null; pin.disabled = !pcb.checked; };
+  pin.oninput = () => { draft.paper = pin.value; };
+  pw.append(pcb, ' Paper ', pin);
+  box.append(more, pw, save);
   if (draft.id) {
     const rm = document.createElement('button'); rm.textContent = 'Delete';
     rm.onclick = () => {

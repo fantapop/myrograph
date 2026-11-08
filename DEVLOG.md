@@ -38,11 +38,13 @@ drives the grid's Auto ink (one color per moving piece, cycling) and the color o
 layer (first palette color not already used). Custom palettes live in localStorage
 (`spirograph.palettes.v1`, active one in `spirograph.palette.current`); presets/validation (`PRESET_PALETTES`,
 `cleanPalette`, `parsePalettes`) are in CORE and node-tested. Choosing a palette does not recolor layers
-already in the overlay or change paper.
+already in the overlay. A palette can carry an optional `paper` (Neon, Midnight, Chalkboard, or a custom one via
+the editor's "Paper" checkbox): choosing it sets the paper; choosing a palette without one restores the default
+light paper only if the previous palette set it (`paperFromPalette`), so a hand-picked paper is never overridden.
 
 Next steps / not done:
-- Palettes: no export/import (browser-local only, like albums), no reordering colors, no per-palette paper color
-  (the "Neon (dark paper)" preset needs the user to set a dark paper by hand).
+- Palettes: no export/import (browser-local only, like albums), no reordering colors. Paper isn't persisted
+  across reloads; it is re-applied from the saved palette on load, so a hand-picked paper is lost on reload.
 - Share links are only useful when the page is hosted; a file:// link works only on the same
   computer (the copy message says so). No deployment set up yet (e.g. GitHub Pages).
 - Albums live per browser profile and per origin (file:// vs http://localhost are separate
@@ -63,6 +65,12 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-07 — Dark-paper palettes
+
+Feedback: Neon needed a manual dark paper. Palettes now have an optional `paper`; added Midnight and Chalkboard
+and renamed Neon (dropped "(dark paper)"). Considered always forcing paper on every palette switch - rejected
+because it would clobber a hand-picked paper. Verified in headless Chrome (neon/ocean/chalk/manual cases).
 
 ### 2026-11-07 — Color palettes
 

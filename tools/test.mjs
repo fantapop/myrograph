@@ -54,8 +54,9 @@ check('malformed share links are rejected', rejects);
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
-const saved = [{ id: 'u-1', name: ' Mine ', colors: ['#ABCDEF', 'red', '#123456'] }, { id: 'bad id', name: 'x', colors: ['#000000'] }, { id: 'u-2', name: '', colors: ['#000000'] }, { id: 'u-3', name: 'none', colors: ['nope'] }, null, 7];
-check('custom palettes are sanitized on load', JSON.stringify(C.parsePalettes(JSON.stringify(saved))) === JSON.stringify([{ id: 'u-1', name: 'Mine', colors: ['#abcdef', '#123456'] }]));
+const saved = [{ id: 'u-1', name: ' Mine ', colors: ['#ABCDEF', 'red', '#123456'], paper: '#101010' }, { id: 'u-4', name: 'Bad paper', colors: ['#000000'], paper: 'black' }, { id: 'bad id', name: 'x', colors: ['#000000'] }, { id: 'u-2', name: '', colors: ['#000000'] }, { id: 'u-3', name: 'none', colors: ['nope'] }, null, 7];
+check('custom palettes are sanitized on load', JSON.stringify(C.parsePalettes(JSON.stringify(saved))) === JSON.stringify([{ id: 'u-1', name: 'Mine', colors: ['#abcdef', '#123456'], paper: '#101010' }, { id: 'u-4', name: 'Bad paper', colors: ['#000000'] }]));
+check('dark presets carry a paper color', C.PRESET_PALETTES.filter(p => p.paper).map(p => p.id).join() === 'neon,midnight,chalk');
 check('corrupt palette storage gives an empty list', C.parsePalettes('{oops').length === 0 && C.parsePalettes(null).length === 0 && C.parsePalettes('{"a":1}').length === 0);
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed'); process.exit(failed ? 1 : 0);
