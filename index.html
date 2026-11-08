@@ -29,6 +29,9 @@
   setups in the browser's localStorage (per site/origin; thumbnails are re-rendered from the
   setup, never stored) and exports/imports them as .spiroalbum.json files (importing a saved
   PNG adds it to the album). Opening an album item loads it into the Compose panel.
+  "Print" (button, or Ctrl/Cmd+P while the panel is open) prints just the overlay on a clean page: on beforeprint it is
+  re-rendered at 2400 px into a plain canvas (a WebGL canvas can print blank); with the panel closed or no visible
+  layers the browser prints the page as usual.
   Share links: "Copy link" (panel) / the link button on an album item puts the overlay into the
   URL fragment (#v1/paper/scale/layer/layer..., ~35 chars per layer, never sent to a server);
   opening such a URL restores the overlay in the Compose panel. A file:// link only works on
@@ -117,6 +120,14 @@
   #pm-compat button.ok { border-color: #3f9b62; } #pm-compat button.bad { border-color: #c4553a; opacity: .75; } #pm-compat button.wait { border-style: dotted; }
   #pm-compat button.on { background: #44444e; outline: 2px solid var(--accent); }
   .layer .keep { padding: 0 6px; font-size: 11px; margin-top: 2px; }
+  #print-sheet { display: none; }
+  @media print {
+    @page { margin: 10mm; }
+    body.print-overlay { background: #fff; margin: 0; }
+    body.print-overlay > *:not(#print-sheet) { display: none !important; }
+    body.print-overlay #print-sheet { display: flex; align-items: center; justify-content: center; width: 100%; height: calc(100vh - 2px); }
+    #print-c { display: block; width: 100%; height: 100%; object-fit: contain; }
+  }
   :root { --panel-w: min(440px, 92vw); }
   #compose-btn { position: absolute; right: 16px; top: 6px; }
   #grid { position: relative; margin: 16px; }
@@ -131,7 +142,7 @@
   #compose { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-w); z-index: 4; background: var(--panel);
     border-left: 1px solid #000; display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s; }
   body.compose-open #compose { transform: none; }
-  #compose .ch { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #000; }
+  #compose .ch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 12px; border-bottom: 1px solid #000; }
   #compose .ch .sp { flex: 1; }
   #ovc { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); flex: none; }
   [hidden] { display: none !important; }
@@ -210,6 +221,7 @@
     <select id="ov-px" title="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select>
     <button id="ov-open" title="Load a saved PNG (or drop one anywhere on the page)">Open…</button>
     <button id="ov-link" title="Copy a link that re-creates this overlay (data is in the URL)">🔗 Copy link</button>
+    <button id="ov-print" title="Print the overlay (or press Ctrl/Cmd+P while this panel is open)">🖨 Print</button>
     <input type="file" id="ov-file" accept="image/png" hidden>
     <span class="sp"></span><button id="ov-clear">Clear</button></div>
   <div class="ch tb"><label style="color:var(--dim)">Album</label>
@@ -222,6 +234,7 @@
   </div>
 </aside>
 
+<div id="print-sheet"><canvas id="print-c"></canvas></div>
 <dialog id="pm">
   <div class="pm-head">
     <b>Custom part</b>
@@ -1069,6 +1082,21 @@ async function makePng(px) {
   renderOverlay();
   return addTextChunk(new Uint8Array(await blob.arrayBuffer()), 'SpirographGallery', JSON.stringify(overlayState()));
 }
+// ---- print: while the Compose panel is open, printing (button or Ctrl/Cmd+P) outputs just the overlay. The live canvas
+// is WebGL (often blank in print), so on beforeprint it is re-rendered at print resolution into a plain canvas.
+const PRINT_PX = 2400;
+function printable() { return composeOpen && [...layers.values()].some(l => l.visible); }
+function fillPrintCanvas() {
+  const r = new THREE.WebGLRenderer({ antialias: true }), c = $('print-c');
+  r.setPixelRatio(1); r.setSize(PRINT_PX, PRINT_PX, false);
+  buildOverlay(1.6 * PRINT_PX / (ovCanvas.clientWidth || 440), PRINT_PX);
+  r.render(ovScene, camera);
+  c.width = c.height = PRINT_PX; c.getContext('2d').drawImage(r.domElement, 0, 0);
+  r.dispose(); r.forceContextLoss(); renderOverlay();
+}
+window.addEventListener('beforeprint', () => { if (printable()) { fillPrintCanvas(); document.body.classList.add('print-overlay'); } });
+window.addEventListener('afterprint', () => { document.body.classList.remove('print-overlay'); $('print-c').width = $('print-c').height = 0; });
+$('ov-print').onclick = () => printable() ? window.print() : say('Add at least one visible layer first.');
 async function savePng() {
   if (!layers.size) return say('Add at least one layer first.');
   say('Rendering…', 0);

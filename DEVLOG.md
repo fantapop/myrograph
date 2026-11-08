@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Print the overlay
+
+Print button in the Compose panel plus the normal print shortcut. `beforeprint` (only when the panel is open and a layer
+is visible) renders the overlay at 2400 px with a throwaway WebGL renderer, copies it synchronously into `#print-c`
+(a plain canvas; the live WebGL canvas can print blank) and adds `body.print-overlay`, which `@media print` uses to hide
+everything but `#print-sheet`; `afterprint` undoes it. Otherwise Ctrl/Cmd+P prints the page as before, so the shortcut
+is not hijacked while just browsing. Prints in the paper color (WYSIWYG), so a dark paper prints dark; use Save PNG or
+change the paper for ink-saving. Verified via Chrome's print-to-PDF (one page, overlay only, centered). Dead end: an
+`<img>` with a data URL in `beforeprint` (decode is async, may not be ready when printing starts).
+
 ### 2026-11-08 — Per-layer line width; layer colors match the grid
 
 Feedback: wanted line width per layer in the Compose canvas, and the color of a selected tile on the left should
