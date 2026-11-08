@@ -16,7 +16,7 @@
   Usage: open index.html in a browser (needs network for the three.js CDN import map), or run
   `python3 -m http.server` in this directory and visit http://localhost:8000.
   Controls: filter chips with piece pictures (none selected = no filter), ink palette and paper
-  color, Shuffle / Reset order. Ink: pick a preset palette (or one of your own) and Auto cycles
+  (White / Black buttons or any color), Shuffle / Reset order. Ink: pick a preset palette (or one of your own) and Auto cycles
   through it per moving piece; newly added Compose layers take the palette's next unused color.
   Dark-background palettes (Neon, Midnight, Chalkboard, or your own with "Paper" ticked) also set the paper.
   "Edit…" / "+ New" build custom palettes, kept in localStorage (spirograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
@@ -79,6 +79,7 @@
   button { border-radius: 4px; padding: 3px 10px; }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid #44444e; }
   .swatch.on { border-color: #fff; }
+  .paper-sw.on { border-color: var(--accent); }
   input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid #44444e; background: none; cursor: pointer; }
   #count { margin-left: auto; color: var(--dim); }
   #f-ink { align-items: center; }
@@ -197,7 +198,9 @@
     <div class="row"><span class="label">Ink</span><span class="chips" id="f-ink"></span></div>
     <div id="pal-edit" hidden></div>
     <div class="row"><span class="label">Paper</span>
-      <input type="color" id="paper" value="#faf7f0">
+      <button class="swatch paper-sw" data-c="#ffffff" title="White paper" style="background:#fff"></button>
+      <button class="swatch paper-sw" data-c="#000000" title="Black paper" style="background:#000"></button>
+      <input type="color" id="paper" value="#faf7f0" title="Any paper color">
       <button id="shuffle" style="margin-left:12px">Shuffle</button><button id="reset">Reset order</button>
       <span id="count">Preparing…</span></div>
   </details>
@@ -798,6 +801,7 @@ function buildFilters() {
   palId = store.get(PAL_CUR) || 'classic';
   buildInk();
   $('paper').oninput = e => { paperFromPalette = false; setPaper(e.target.value); };
+  document.querySelectorAll('.paper-sw').forEach(b => { b.onclick = () => { paperFromPalette = false; setPaper(b.dataset.c); }; });
   if (palette().paper) { paperFromPalette = true; setPaper(palette().paper); }   // paper itself isn't saved, so re-apply on load
 }
 
@@ -838,16 +842,18 @@ function buildInk() {
 }
 const DEFAULT_PAPER = '#faf7f0';
 let paperFromPalette = false;                   // true while the paper was set by a palette (not picked by hand)
+let paperBeforePalette = DEFAULT_PAPER;         // the paper to go back to when leaving a palette that set its own
+function markPaperSwatches() { document.querySelectorAll('.paper-sw').forEach(b => b.classList.toggle('on', b.dataset.c === $('paper').value.toLowerCase())); }
 function setPaper(c) {
-  $('paper').value = c;
+  $('paper').value = c; markPaperSwatches();
   document.documentElement.style.setProperty('--paper', c); scene.background.set(c);
   repaintAll(); renderOverlay();
 }
 function setPalette(id) {                       // choose a palette (and its paper, if it has one); back to Auto ink
   palId = id; store.set(PAL_CUR, id); inkMode = 'auto';
   const paper = palette().paper;
-  if (paper) { paperFromPalette = true; setPaper(paper); }
-  else if (paperFromPalette) { paperFromPalette = false; setPaper(DEFAULT_PAPER); }   // leave a hand-picked paper alone
+  if (paper) { if (!paperFromPalette) paperBeforePalette = $('paper').value; paperFromPalette = true; setPaper(paper); }
+  else if (paperFromPalette) { paperFromPalette = false; setPaper(paperBeforePalette); }   // leave a hand-picked paper alone
   buildInk(); repaintAll();
 }
 const persistPalettes = () => store.set(PAL_KEY, JSON.stringify(customPalettes));
@@ -1132,7 +1138,7 @@ function applyState(meta) {                     // replace the overlay with a sa
   const gotParts = registerParts(meta.parts);
   for (const l of [...layers.values()]) { ovCache.get(l.key)?.geo.dispose(); ovCache.delete(l.key); }
   layers.clear();
-  if (meta.paper) { $('paper').value = meta.paper; document.documentElement.style.setProperty('--paper', meta.paper); scene.background.set(meta.paper); }
+  if (meta.paper) { $('paper').value = meta.paper; markPaperSwatches(); document.documentElement.style.setProperty('--paper', meta.paper); scene.background.set(meta.paper); }
   if (meta.baseScale) $('ov-scale').value = meta.baseScale;
   let missing = 0;
   for (const l of meta.layers || []) {

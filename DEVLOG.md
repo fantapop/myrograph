@@ -81,6 +81,13 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — White / Black paper buttons
+
+Paper row now has round White (#ffffff) and Black (#000000) swatches plus the free color picker (the active swatch gets
+an accent ring; the default off-white #faf7f0 matches neither). Choosing one counts as a hand-picked paper. Also fixed:
+a palette that sets its own paper (Neon, Midnight, Chalkboard) now remembers the paper you had (`paperBeforePalette`)
+and restores that, not the default, when you leave it.
+
 ### 2026-11-08 — Print the overlay
 
 Print button in the Compose panel plus the normal print shortcut. `beforeprint` (only when the panel is open and a layer
