@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Compose panel: tabs and compact layers; click-to-toggle pen removed
+
+1. Removed the "Click to start and stop" checkbox in the signature dialog (clicking it drew lines on the pad); Space/Shift-hold and press-and-drag remain.
+2. The Compose panel had grown to ~700px of controls above the layer list (a 440px square picture, two toolbar rows, album row, signature row and a 3-line
+   signature controls row), leaving 0px for layers on a 550-670px-high viewport (77px at 813). Now: the picture is capped at 42vh and centred; under it a tab bar
+   `Layers | Signature | Save & share` (+ Clear on the right) shows ONE pane at a time (`setOvTab`), so the layer list gets all the leftover height (measured
+   229 / 299 / 380px at viewports of 553 / 673 / 813). Adding a layer from the grid switches to Layers. The layer rows were compacted: Rotate / Size / Line sit side
+   by side (`.tune`, 3 columns) so a row is ~88px instead of ~122. The message line (`#ov-msg`) stays directly under the picture on every tab. All element ids are
+   unchanged. Possible next steps if still tight: collapse a layer row to one line until clicked, or make the panel a bottom sheet on narrow screens.
+
 ### 2026-11-08 — Signatures: names, trackpad drawing, direct scaling
 
 Feedback on the first version: (1) no way to name signatures; (2) drawing on a trackpad means click-and-sign at once; (3) wants to scale the signature /

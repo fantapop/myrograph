@@ -143,7 +143,10 @@
   #pm-compat button.ok { border-color: #3f9b62; } #pm-compat button.bad { border-color: #c4553a; opacity: .75; } #pm-compat button.wait { border-style: dotted; }
   #pm-compat button.on { background: #44444e; outline: 2px solid var(--accent); }
   .layer .keep { padding: 0 6px; font-size: 11px; margin-top: 2px; }
-  #ovwrap { position: relative; flex: none; width: 100%; }
+  #ovwrap { position: relative; flex: none; width: min(100%, 42vh); margin: 0 auto; }      /* a shorter picture on short screens, so the lists below keep room */
+  #ov-tabs { display: flex; gap: 4px; padding: 6px 12px; border-top: 1px solid #000; border-bottom: 1px solid #000; flex: none; }
+  #ov-tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  #compose .pane > .ch:first-child { border-top: none; }
   #sigc { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }
   dialog#sg { background: var(--panel); color: var(--ink); border: 1px solid #000; border-radius: 8px; padding: 0; width: min(620px, 96vw); }
   dialog#sg::backdrop { background: rgba(0,0,0,.65); }
@@ -203,8 +206,10 @@
   .layer.off { opacity: .5; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
   .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
-  .layer .rot { grid-column: 2 / 6; width: 100%; display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 11px; }
-  .layer .rot input { flex: 1; }
+  .layer .tune { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }      /* Rotate / Size / Line side by side: a layer row is ~85px, not ~120px */
+  .layer .tune label { display: block; min-width: 0; color: var(--dim); font-size: 11px; }
+  .layer .tune .tl { display: flex; justify-content: space-between; }
+  .layer .tune input { width: 100%; margin: 2px 0 0; display: block; }
   .hint { color: var(--dim); padding: 12px; margin: 0; }
   #compose .tb { border-top: 1px solid #000; }
   #ov-msg { padding: 4px 12px; font-size: 11px; color: var(--accent); min-height: 1px; }
@@ -253,32 +258,37 @@
     <select id="ov-scale" title="True size keeps the patterns' real relative sizes"><option value="true">True size</option><option value="fit">Fit each</option></select>
     <button id="ov-close">✕</button></div>
   <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas></div>
-  <div class="ch tb"><button id="ov-save" title="Save the overlay as a PNG with the layer setup embedded">Save PNG</button>
-    <select id="ov-px" title="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select>
-    <button id="ov-open" title="Load a saved PNG (or drop one anywhere on the page)">Open…</button>
-    <button id="ov-link" title="Copy a link that re-creates this overlay (data is in the URL)">🔗 Copy link</button>
-    <button id="ov-print" title="Print the overlay (or press Ctrl/Cmd+P while this panel is open)">🖨 Print</button>
-    <input type="file" id="ov-file" accept="image/png" hidden>
-    <span class="sp"></span><button id="ov-clear">Clear</button></div>
-  <div class="ch tb"><label style="color:var(--dim)">Album</label>
-    <select id="ov-albumsel" title="Which album the button adds to (same selection as in the Albums view)" style="flex:1;min-width:0"></select>
-    <button id="ov-album" title="Add the current overlay to the selected album">＋ Add to album</button></div>
-  <div class="ch tb"><label style="color:var(--dim)">Signature</label>
-    <select id="sg-sel" title="Sign this piece with one of your saved signatures" style="flex:1;min-width:0"></select>
-    <button id="sg-new" title="Add a signature: type your name or draw it by hand">＋ New…</button>
-    <button id="sg-ren" title="Rename the selected signature in your list">Rename</button>
-    <button id="sg-del" title="Delete the selected signature from your list">Delete</button></div>
-  <div class="ch tb" id="sg-ctl" hidden><label style="color:var(--dim)">Size</label>
-    <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Signature size">
-    <label title="Width of the signature as a percentage of the picture (it scales like a font size)" style="display:inline-flex;align-items:center;gap:2px"><input type="number" id="sg-pct" min="2" max="100" step="1" style="width:3.6em">%</label>
-    <span class="pick" title="Signature colour"><input type="color" id="sg-color"></span>
-    <button id="sg-auto" title="Black or white, whichever suits the paper">Auto</button>
-    <button id="sg-reset" title="Put it back in the bottom right corner">Reset</button>
-    <span style="font-size:11px;color:var(--dim);flex-basis:100%">Drag the signature to move it, drag its corner handle or scroll / pinch over it to resize.</span></div>
   <div id="ov-msg"></div>
+  <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Signature</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
   <div id="tab-layers" class="pane">
     <div id="layers"></div>
     <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre. Drop a saved PNG here to re-open it.</p>
+  </div>
+  <div id="tab-sign" class="pane" hidden>
+    <div class="ch"><label style="color:var(--dim)">Signature</label>
+      <select id="sg-sel" title="Sign this piece with one of your saved signatures" style="flex:1;min-width:0"></select>
+      <button id="sg-new" title="Add a signature: type your name or draw it by hand">＋ New…</button>
+      <button id="sg-ren" title="Rename the selected signature in your list">Rename</button>
+      <button id="sg-del" title="Delete the selected signature from your list">Delete</button></div>
+    <div class="ch" id="sg-ctl" hidden><label style="color:var(--dim)">Size</label>
+      <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Signature size">
+      <label title="Width of the signature as a percentage of the picture (it scales like a font size)" style="display:inline-flex;align-items:center;gap:2px"><input type="number" id="sg-pct" min="2" max="100" step="1" style="width:3.6em">%</label>
+      <span class="pick" title="Signature colour"><input type="color" id="sg-color"></span>
+      <button id="sg-auto" title="Black or white, whichever suits the paper">Auto</button>
+      <button id="sg-reset" title="Put it back in the bottom right corner">Reset</button>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Drag the signature to move it, drag its corner handle or scroll / pinch over it to resize.</span></div>
+    <p class="hint" id="sg-hint">Pick one of your signatures, or make a new one, to sign this piece. You can only have one signature on a piece.</p>
+  </div>
+  <div id="tab-share" class="pane" hidden>
+    <div class="ch"><button id="ov-save" title="Save the overlay as a PNG with the layer setup embedded">Save PNG</button>
+      <select id="ov-px" title="Image size"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select>
+      <button id="ov-open" title="Load a saved PNG (or drop one anywhere on the page)">Open…</button>
+      <button id="ov-link" title="Copy a link that re-creates this overlay (data is in the URL)">🔗 Copy link</button>
+      <button id="ov-print" title="Print the overlay (or press Ctrl/Cmd+P while this panel is open)">🖨 Print</button>
+      <input type="file" id="ov-file" accept="image/png" hidden></div>
+    <div class="ch"><label style="color:var(--dim)">Album</label>
+      <select id="ov-albumsel" title="Which album the button adds to (same selection as in the Albums view)" style="flex:1;min-width:0"></select>
+      <button id="ov-album" title="Add the current overlay to the selected album">＋ Add to album</button></div>
   </div>
 </aside>
 
@@ -291,8 +301,7 @@
     <div class="pm-tabs"><button id="sg-t-type" class="on">Type</button><button id="sg-t-draw">Draw</button></div>
     <div id="sg-p-type" class="ctl"><input type="text" id="sg-text" maxlength="40" placeholder="Your name" size="22">
       <select id="sg-font" title="Handwriting style (uses fonts installed on this device)"></select></div>
-    <div id="sg-p-draw" hidden><div class="ctl"><button id="sg-undo">Undo stroke</button><button id="sg-clear">Clear</button>
-        <label title="For a trackpad: click once to put the pen down, move to draw, click again to lift it. (A touchscreen or pen still draws by dragging.)"><input type="checkbox" id="sg-toggle"> Click to start and stop</label></div>
+    <div id="sg-p-draw" hidden><div class="ctl"><button id="sg-undo">Undo stroke</button><button id="sg-clear">Clear</button></div>
       <div style="font-size:11px;color:var(--dim);margin-bottom:6px">Draw with your mouse, finger or pen. On a trackpad, <b>hold Space or Shift</b> and just move the pointer: the pen is down while the key is held.</div></div>
     <canvas id="sg-c"></canvas>
     <div id="sg-msg"></div>
@@ -1633,6 +1642,7 @@ function toggleLayer(p) {
   if (layers.has(p.key)) { layers.delete(p.key); ovCache.get(p.key)?.geo.dispose(); ovCache.delete(p.key); }
   else {
     layers.set(p.key, { key: p.key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1 });   // same color the tile is drawn in
+    setOvTab('layers');                                                                                    // show the list the new layer went into
   }
   markTiles(); buildLayerList(); renderOverlay();
 }
@@ -1646,20 +1656,25 @@ function buildLayerList() {
       `<span class="ltxt"><b>${l.p.track.name}</b>${l.p.track.kind === 'ring' ? '' : ' · outside'}<br>${l.p.roller.name} · hole ${l.p.hole}` +
       `${keepable(l.p) ? '<br><button class="keep" title="Add this custom part to your library (Custom parts filter)">＋ keep part</button>' : ''}</span>` +
       `<button title="Remove">✕</button>` +
-      `<label class="rot">Rotate <input type="range" data-k="rot" min="0" max="359" value="${l.rot}"><span>${l.rot}°</span></label>` +
-      `<label class="rot">Size <input type="range" data-k="size" min="25" max="200" value="${l.size}"><span>${l.size}%</span></label>` +
-      `<label class="rot" title="Line thickness of this layer">Line <input type="range" data-k="width" min="0.5" max="6" step="0.25" value="${l.width}"><span>${l.width}×</span></label>`;
+      `<div class="tune"><label><span class="tl"><span>Rotate</span><span class="tv">${l.rot}°</span></span><input type="range" data-k="rot" min="0" max="359" value="${l.rot}"></label>` +
+      `<label><span class="tl"><span>Size</span><span class="tv">${l.size}%</span></span><input type="range" data-k="size" min="25" max="200" value="${l.size}"></label>` +
+      `<label title="Line thickness of this layer"><span class="tl"><span>Line</span><span class="tv">${l.width}×</span></span><input type="range" data-k="width" min="0.5" max="6" step="0.25" value="${l.width}"></label></div>`;
     const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
       del = row.querySelector('button');
     vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); };
     col.oninput = () => { l.color = col.value; markTiles(); renderOverlay(); };
     for (const r of row.querySelectorAll('input[type=range]'))
-      r.oninput = () => { l[r.dataset.k] = +r.value; r.nextElementSibling.textContent = r.value + { rot: '°', size: '%', width: '×' }[r.dataset.k]; renderOverlay(); };
+      r.oninput = () => { l[r.dataset.k] = +r.value; r.previousElementSibling.querySelector('.tv').textContent = r.value + { rot: '°', size: '%', width: '×' }[r.dataset.k]; renderOverlay(); };
     del.onclick = () => toggleLayer(l.p);
     row.querySelector('.keep')?.addEventListener('click', () => keepPart(customIdOf(l.p)));
     box.append(row);
   }
 }
+function setOvTab(name) {                       // the panel under the picture shows one tab at a time, so the layer list gets all the leftover height
+  for (const b of document.querySelectorAll('#ov-tabs button')) b.classList.toggle('on', b.dataset.tab === name);
+  for (const id of ['layers', 'sign', 'share']) $('tab-' + id).hidden = id !== name;
+}
+document.querySelectorAll('#ov-tabs button').forEach(b => { b.onclick = () => setOvTab(b.dataset.tab); });
 function setCompose(open) {
   composeOpen = open;
   document.body.classList.toggle('compose-open', open);
@@ -2114,7 +2129,7 @@ function fillSigSelect() {
   for (const d of sigLib) sel.add(new Option(sigLabel(d), d.id));
   if (sigInst && !sigLib.some(d => d.id === sigInst.sig.id)) sel.add(new Option(sigLabel(sigInst.sig) + ' (from file)', sigInst.sig.id));
   sel.value = sigInst ? sigInst.sig.id : '';
-  $('sg-ctl').hidden = !sigInst; $('sg-del').disabled = $('sg-ren').disabled = !sigInst || !sigLib.some(d => d.id === sigInst.sig.id);
+  $('sg-ctl').hidden = !sigInst; $('sg-hint').hidden = !!sigInst; $('sg-del').disabled = $('sg-ren').disabled = !sigInst || !sigLib.some(d => d.id === sigInst.sig.id);
   if (sigInst) {
     const c = sigInk(sigInst, $('paper').value); syncSize(); $('sg-color').value = c;
     $('sg-color').parentElement.style.setProperty('--pc', c); $('sg-auto').classList.toggle('on', !sigInst.color);
@@ -2144,7 +2159,7 @@ $('sg-del').onclick = () => {
 // -- the dialog that creates a signature: type it, or draw it
 const sgd = $('sg'), sgc = $('sg-c');
 let sgMode = 'type', sgStrokes = [], sgCur = null;           // strokes drawn so far, in canvas CSS px; sgCur = the stroke being drawn
-let sgLast = null, sgPen = null, sgKeyHeld = false;          // pointer position over the pad; how the pen went down ('drag' | 'key' | 'toggle'); Space/Shift held
+let sgLast = null, sgPen = null, sgKeyHeld = false;          // pointer position over the pad; how the pen went down ('drag' | 'key'); Space/Shift held
 { const f = $('sg-font'); for (const [k, v] of Object.entries(SIG_FONTS)) f.add(new Option(v.label, k)); }
 const sgMsg = m => { $('sg-msg').textContent = m; };
 function sgResize() { const r = sgc.getBoundingClientRect(), w = Math.max(200, Math.round(r.width)); sgc.width = Math.round(w * pr); sgc.height = Math.round(w / 3.2 * pr); return w; }
@@ -2169,21 +2184,18 @@ function sgTab(mode) {
   sgCur = sgPen = null; sgKeyHeld = false; sgDefaultName(); sgDraw();
 }
 const sgDefaultName = () => { $('sg-name').placeholder = 'Name in your list: ' + (sgMode === 'type' ? (cleanName($('sg-text').value) || 'your text') : `Signature ${sigLib.filter(d => d.kind === 'i').length + 1}`); };
-$('sg-new').onclick = () => { sgStrokes = []; sgCur = sgPen = sgLast = null; $('sg-text').value = ''; $('sg-name').value = ''; $('sg-toggle').checked = false; sgd.showModal(); sgTab('type'); $('sg-text').focus(); };
+$('sg-new').onclick = () => { sgStrokes = []; sgCur = sgPen = sgLast = null; $('sg-text').value = ''; $('sg-name').value = ''; sgd.showModal(); sgTab('type'); $('sg-text').focus(); };
 $('sg-t-type').onclick = () => sgTab('type'); $('sg-t-draw').onclick = () => sgTab('draw');
 $('sg-text').oninput = () => { sgDefaultName(); sgDraw(); }; $('sg-font').onchange = sgDraw;
 $('sg-undo').onclick = e => { sgStrokes.pop(); sgDraw(); e.currentTarget.blur(); }; $('sg-clear').onclick = e => { sgStrokes = []; sgDraw(); e.currentTarget.blur(); };      // blur: Space must draw, not press the focused button
-$('sg-toggle').onchange = e => { e.currentTarget.blur(); sgCur = sgPen = null; sgDraw(); };
 $('sg-x').onclick = () => sgd.close();
 const sgPos = ev => { const r = sgc.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
 const penDown = (p, how) => { sgCur = [p]; sgStrokes.push(sgCur); sgPen = how; sgDraw(); };
 const penUp = () => { sgCur = null; sgPen = null; sgDraw(); };
-// Three ways to put the pen down, so a trackpad is not a chore: press and drag (always); hold Space or Shift and just move; or tick
-// "Click to start and stop" (mouse/trackpad clicks toggle the pen; touch and pen devices still drag).
+// Two ways to put the pen down, so a trackpad is not a chore: press and drag, or hold Space or Shift and just move the pointer.
 sgc.addEventListener('pointerdown', ev => {
   if (sgMode !== 'draw') return;
   const p = sgPos(ev); ev.preventDefault();
-  if ($('sg-toggle').checked && ev.pointerType === 'mouse') { sgPen === 'toggle' ? penUp() : penDown(p, 'toggle'); return; }
   penDown(p, 'drag'); try { sgc.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
 });
 sgc.addEventListener('pointermove', ev => {
@@ -2193,7 +2205,7 @@ sgc.addEventListener('pointermove', ev => {
   sgDraw();
 });
 sgc.addEventListener('pointerup', () => { if (sgPen === 'drag') penUp(); });
-sgc.addEventListener('pointerleave', () => { sgLast = null; if (sgPen === 'key' || sgPen === 'toggle') sgCur = sgPen = null; sgDraw(); });   // moving off the pad lifts the pen
+sgc.addEventListener('pointerleave', () => { sgLast = null; if (sgPen === 'key') sgCur = sgPen = null; sgDraw(); });   // moving off the pad lifts the pen
 sgd.addEventListener('keydown', ev => {
   if (sgMode !== 'draw' || (ev.key !== ' ' && ev.key !== 'Shift') || /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName)) return;
   if (ev.key === ' ') ev.preventDefault();
