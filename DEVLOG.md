@@ -81,6 +81,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — A part that fits nothing cannot be saved
+
+If the fit check finds no piece a part fits with (0 of 24 as the moving piece AND 0 of the wheels rolling around it, other custom parts
+included), the part could never draw anything, so saving is refused. Two layers: (1) once the fit panel finishes (`ed.checked`),
+`edSaveButtons()` disables Save and Save-as-copy with the reason as the tooltip, and the panel's summary says why; (2) `edSave`
+itself calls `fitsSomething()`, which uses the finished result or, if the check has not run yet (Save clicked within ~0.2 s of an edit),
+works it out on the spot, stopping at the first piece that fits. Applies when editing a saved part too. Parts already saved that fit
+nothing are left alone.
+
 ### 2026-11-08 — "Surprise me" removed
 
 The random-shape button mostly produced shapes that do not fit anything (in a test of 400 random hand-shaped parts, most were rejected by the ring check), so it

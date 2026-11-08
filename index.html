@@ -115,6 +115,7 @@
   .pm-head input[type=text], #pm select, #pm input[type=number] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 6px; }
   .pm-head label { color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
   .pm-head output { color: var(--ink); min-width: 2.2em; text-align: right; }
+  #pm button:disabled { opacity: .4; cursor: not-allowed; }
   #pm button.primary { background: var(--accent); color: #1b1b1f; border-color: var(--accent); font-weight: 600; }
   .pm-body { display: flex; flex-wrap: wrap; gap: 16px; padding: 14px; }
   .pm-left { flex: 1 1 400px; max-width: 520px; min-width: 280px; }
@@ -1631,7 +1632,7 @@ function edSync(shapeChanged) {                 // recompute the piece, refresh 
     ? 'Drag a handle in or out. Symmetry repeats the section you edit around the part; Size sets how many teeth long the edge is (the dashed circle is a circle of the same size).'
     : `Click inside the shape to add a pen hole, drag to move it, right-click or press Delete to remove. ${ed.d.h.length} hole${ed.d.h.length === 1 ? '' : 's'}` +
       (bad ? `; ${bad} too close to the edge (red, needs ${HOLE_MARGIN} tooth of margin)` : '') + '.';
-  if (shapeChanged) { ed.checked = false; clearTimeout(edTimer); edTimer = setTimeout(edCheck, 160); }
+  if (shapeChanged) { ed.checked = false; edSaveButtons(); clearTimeout(edTimer); edTimer = setTimeout(edCheck, 160); }
   fillPartnerHoles(); clearTimeout(pvTimer); pvTimer = setTimeout(pvStart, shapeChanged ? 220 : 60);
   edDraw();
 }
@@ -1782,9 +1783,11 @@ function edCheck() {
     if (jobs.length) { edTimer = setTimeout(step, 0); return; }
     const a = [...edFit].filter(([k]) => k[0] === 't'), b = [...edFit].filter(([k]) => k[0] === 'r');
     ed.checked = true;                                       // every pair of this shape is known: edSave can keep the results
+    ed.fitsAny = [...edFit.values()].some(Boolean); edSaveButtons();
     const fitsN = a.filter(x => x[1]).length;
     $('pm-sum').textContent = `Rolls on ${fitsN} of ${a.length} pieces; ${b.filter(x => x[1]).length} of ${b.length} can roll around it. Green fits, red would overlap.` +
-      (fitsN < 6 ? ' Thin or deeply lobed shapes rarely mesh with the round parts: try shallower lobes, a rounder shape, or another size.' : '');
+      (!ed.fitsAny ? ' Nothing fits this part, so it cannot be saved yet: make the shape gentler or rounder, or try another size.'
+        : fitsN < 6 ? ' Thin or deeply lobed shapes rarely mesh with the round parts: try shallower lobes, a rounder shape, or another size.' : '');
     if (!ed.userPicked && !edFit.get(`${ed.partner.kind}:${ed.partner.id}`)) {         // nothing chosen yet: preview something that fits
       const first = [...edFit].find(([, ok]) => ok);
       if (first) { ed.partner = { kind: first[0][0], id: first[0].slice(2) }; box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.key === first[0])); fillPartnerHoles(); pvStart(); }
@@ -1855,11 +1858,24 @@ $('pm-play').onclick = () => {
 $('pm-scrub').oninput = e => { pvState.playing = false; pvState.pos = e.target.value / 1000; pvState.hold = 0; pvButton(); };   // scrubbing pauses
 
 // -- save / delete / close
+const NOTHING_FITS = "This part doesn't fit with any piece of the set, so it couldn't draw anything. Make the shape gentler or rounder, or try another size.";
+function fitsSomething() {                       // from the fit panel once it has finished; otherwise worked out now (stops at the first piece that fits)
+  if (ed.checked) return ed.fitsAny;
+  for (const t of edTracks()) if (pairFits(t, edPiece.roller)) return true;
+  for (const r of edRollers()) if (pairFits(edPiece.fixed, r)) return true;
+  return false;
+}
+function edSaveButtons() {                       // a part that fits nothing cannot be saved: say so on the buttons themselves
+  const blocked = !!ed.checked && !ed.fitsAny;
+  $('pm-save').disabled = $('pm-copy').disabled = blocked;
+  $('pm-save').title = blocked ? NOTHING_FITS : ''; $('pm-copy').title = blocked ? NOTHING_FITS : 'Keep the original and save this as a new part';
+}
 function edSave(asCopy) {
   const d = canonPart({ ...ed.d, name: ed.name });
   if (!d) return edMsg('Add at least one pen hole first (Pen holes tab)');
   const bad = ed.d.h.filter(holeBad).length;
   if (bad) { edTab('holes'); return edMsg(`${bad} pen hole${bad === 1 ? ' is' : 's are'} too close to the edge (shown in red); move or delete ${bad === 1 ? 'it' : 'them'}`, 8000); }
+  if (!fitsSomething()) return edMsg(NOTHING_FITS, 9000);
   const next = []; let placed = false;
   for (const x of library) {
     if (x.id === ed.orig && !asCopy) { next.push(d); placed = true; } else if (x.id !== d.id) next.push(x);
