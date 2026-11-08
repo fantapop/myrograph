@@ -75,6 +75,7 @@
     border-radius: 999px; padding: 1px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   .chip.pic { border-radius: 8px; padding: 3px 7px 3px 4px; }
   .chip svg { width: 28px; height: 28px; flex: none; }
+  .chip.pic svg { width: 34px; height: 34px; }
   .chip.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
   button { border-radius: 4px; padding: 3px 10px; }
   .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid #44444e; }
@@ -741,6 +742,8 @@ const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
 const $ = id => document.getElementById(id);
 const pr = Math.min(window.devicePixelRatio || 1, 2);
 let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', showOverlap = false, okCount = 0;
+let relSizes = true;                            // filter-chip pictures drawn to scale (persisted under SIZE_KEY)
+const SIZE_KEY = 'spirograph.relsize';
 let view = 'patterns', gridStale = false;   // which main view is showing; grid needs re-flow after being hidden
 const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: new Set(), custom: new Set() };   // custom: part ids, or '*' for all
 // custom parts: the library is what the user made or kept (saved in localStorage); the registry also holds
@@ -759,37 +762,44 @@ function outlinePath(o) {
   return { d: d + 'Z', rm };
 }
 const svg = body => `<svg viewBox="-1.15 -1.15 2.3 2.3" fill="none" stroke="currentColor" stroke-width="0.07" stroke-linejoin="round">${body}</svg>`;
-function trackIcon(t) {
-  const key = 't' + t.id;
+// ref (optional): the radius in teeth that fills the whole icon, so pieces drawn with the same ref are to scale
+// (a piece can exceed it, e.g. the rack, and is then cropped). Without ref every piece is normalised to fill its icon.
+const radiusOf = o => { let m = 0; for (let k = 0; k < o.M; k++) m = Math.max(m, Math.hypot(o.p[2 * k], o.p[2 * k + 1])); return m; };
+const trackRadius = t => t.kind === 'ring' ? (t.inside ? t.o.N / t.ratio : t.o.N) / TAU : radiusOf(t.body || t.o);   // a ring's icon shows its outer edge
+const rollerRadius = r => radiusOf(r.body);
+const scaled = (body, s) => s === 1 ? body : `<g transform="scale(${s.toFixed(4)})" stroke-width="${(0.07 / s).toFixed(3)}">${body}</g>`;   // keep line weight
+function trackIcon(t, ref = 0) {
+  const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}`;
   if (!iconCache.has(key)) {
     let body;
     if (t.kind === 'ring') {
-      const hot = 'stroke="var(--accent)" stroke-width="0.13"';
+      const hot = `stroke="var(--accent)" stroke-width="${(0.13 * k).toFixed(3)}"`;
       body = `<circle r="1" fill="currentColor" fill-opacity=".18" ${t.which === 'outer' ? hot : ''}/>` +
              `<circle r="${t.ratio}" fill="var(--panel)" ${t.which === 'inner' ? hot : ''}/>`;
     } else body = `<path d="${outlinePath(t.body || t.o).d}" fill="currentColor" fill-opacity=".18"/>`;
-    iconCache.set(key, svg(body));
+    iconCache.set(key, svg(scaled(body, s)));
   }
   return iconCache.get(key);
 }
-function rollerIcon(r, hole) {                  // hole: 1-based highlighted hole, or 0 for none
-  const key = `r${r.id}:${hole}`;
+function rollerIcon(r, hole, ref = 0) {         // hole: 1-based highlighted hole, or 0 for none
+  const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}`;
   if (!iconCache.has(key)) {
     const { d, rm } = outlinePath(r.body);
     let body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>`;
-    r.holes.forEach(([x, y], k) => {
-      body += k + 1 === hole ? `<circle cx="${x / rm}" cy="${-y / rm}" r=".13" fill="var(--accent)" stroke="none"/>`
-                             : `<circle cx="${x / rm}" cy="${-y / rm}" r=".045" fill="currentColor" stroke="none" opacity=".55"/>`;
+    r.holes.forEach(([x, y], n) => {
+      body += n + 1 === hole ? `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.13 * k).toFixed(3)}" fill="var(--accent)" stroke="none"/>`
+                             : `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.045 * k).toFixed(3)}" fill="currentColor" stroke="none" opacity=".55"/>`;
     });
-    iconCache.set(key, svg(body));
+    iconCache.set(key, svg(scaled(body, s)));
   }
   return iconCache.get(key);
 }
 
 // ---------------------------------------------------------------- filter UI
-function chip(container, set, key, html, pic) {
+function chip(container, set, key, html, pic, title) {   // html: string, or rel => string (re-run when relative sizes are toggled)
   const b = document.createElement('button');
-  b.className = 'chip' + (pic ? ' pic' : ''); b.innerHTML = html;
+  b.className = 'chip' + (pic ? ' pic' : ''); if (title) b.title = title;
+  if (typeof html === 'function') { b._html = html; b.innerHTML = html(relSizes); } else b.innerHTML = html;
   b.onclick = () => { set.has(key) ? set.delete(key) : set.add(key); b.classList.toggle('on'); refilter(); };
   $(container).append(b);
 }
@@ -800,8 +810,15 @@ function buildFilters() {
   ov.textContent = 'Include overlapping combos';
   ov.onclick = () => { showOverlap = !showOverlap; ov.classList.toggle('on', showOverlap); refilter(); };
   $('f-mode').append(ov);
-  for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, `${trackIcon(t)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true);
-  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0)}${r.name.replace(/^Wheel /, '')}`, true);
+  relSizes = store.get(SIZE_KEY) !== '0';
+  const refFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(trackRadius)), refMoving = Math.max(...CAT.rollers.map(rollerRadius));   // largest piece fills its icon
+  const sz = document.createElement('button'); sz.className = 'chip' + (relSizes ? ' on' : ''); sz.textContent = 'Relative sizes';
+  sz.title = 'Draw the fixed and moving piece pictures to scale (a 24 wheel looks small next to a 150 ring), instead of filling each picture';
+  sz.onclick = () => { relSizes = !relSizes; sz.classList.toggle('on', relSizes); store.set(SIZE_KEY, relSizes ? '1' : '0');
+    for (const b of document.querySelectorAll('#f-fixed .chip, #f-roller .chip')) if (b._html) b.innerHTML = b._html(relSizes); };
+  $('f-mode').append(sz);
+  for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, rel => `${trackIcon(t, rel ? refFixed : 0)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
+  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, rel => `${rollerIcon(r, 0, rel ? refMoving : 0)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
   for (let k = 1; k <= maxHoles; k++) chip('f-hole', filters.hole, k, k);
   customPalettes = parsePalettes(store.get(PAL_KEY));

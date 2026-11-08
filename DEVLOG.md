@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Relative sizes in the filter chips
+
+Every piece picture used to fill its icon, so a 24 wheel looked as big as the 150 ring. The Fixed part and Moving piece
+chips are now drawn to scale: `trackIcon(t, ref)` / `rollerIcon(r, hole, ref)` take a reference radius in teeth (largest
+piece of the row, rack excluded so it is cropped instead of shrinking everything) and scale the geometry while keeping
+line weight and hole-dot size (`scaled()`). A "Relative sizes" chip in the Rolling row toggles it (default on, remembered
+under `spirograph.relsize`); chip tooltips now give teeth and hole counts. Deliberately not applied to the tile footers and
+layer rows (they highlight the pen hole, which would vanish at 20% scale) or the Custom parts chips (a custom piece may
+exceed the set's largest radius, which would crop it or rescale everyone else).
+
 ### 2026-11-08 — Pen hole chips follow the other filters
 
 The pen hole chips used to always show 1-35. Now `refilter` first applies every other filter (rolling mode, fixed part,
