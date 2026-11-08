@@ -81,6 +81,18 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Part maker size range 7-300 teeth
+
+Was 24-110 (24 is just the real set's smallest wheel). New range 7-300 (`PART_LIMITS.Nmin/Nmax`, also drives the slider).
+Minimum: a pen hole must stay HOLE_MARGIN (1 tooth) inside the edge, a circle of N teeth has radius N/2pi, so the smallest circle
+that can hold one hole has N = 7 (radius 1.11; 6 gives 0.95); other shapes need more (a thin oval at 7 cannot be saved). Maximum
+300 = twice the largest ring, generous. What had to change for this: (1) `fits()` sampled `S = 48` body points with
+`stride = floor(M/48)`, which is 0 below 12 teeth (every sample = point 0); S is now `min(48, M)`. (2) Fixed-piece distance
+fields were rebuilt for every partner; they are now cached per piece object (`SDF_CACHE` WeakMap), so a 300-tooth fixed piece
+checks against every wheel in ~50 ms instead of ~600 ms (400 teeth was 1.3 s). (3) Icons used one outline point per tooth, which
+makes a 7-tooth wheel a heptagon; pieces under 48 teeth now use all points. (4) The teeth band height is capped at 20% of the
+radius (it was bigger than a 7-tooth wheel itself). Verified a 7-, 9-, 12-, 16-tooth circle and a 300-tooth oval save and render.
+
 ### 2026-11-08 — Ring labels, per-pattern Auto ink, rename of the saved-data names
 
 - Ring chips: a ring has two sets of teeth (96 inner / 144 outer on one ring, 105 inner / 150 outer on the other), so the four

@@ -259,7 +259,7 @@
     <b>Custom part</b>
     <input type="text" id="pm-name" maxlength="24" placeholder="Name" size="16">
     <label title="The shape is scaled so its edge is exactly this many teeth long: that is what makes it mesh with the rest of the set">Size
-      <input type="range" id="pm-N" min="24" max="110"><output id="pm-Nv"></output> teeth</label>
+      <input type="range" id="pm-N"><output id="pm-Nv"></output> teeth</label>
     <span class="sp"></span>
     <button id="pm-save" class="primary">Save part</button><button id="pm-copy" title="Keep the original and save this as a new part">Save as copy</button>
     <button id="pm-del">Delete</button><button id="pm-x" title="Close">✕</button>
@@ -474,7 +474,7 @@ function makeSDF(F) {                          // free-space distance field arou
 // F: fixed outline; for inside tracks it must be a circle (the ring's opening).
 // G is the pitch outline that drives the motion; body is the real silhouette used for collisions.
 function fits(F, G, inside, sdf, body = G, tol = 0.4) {
-  const L = lcm(F.N, G.N), steps = Math.ceil(L / 1.5), S = 48, stride = Math.floor(body.M / S), P = [0, 0, 0, 0], rin = F.N / TAU;
+  const L = lcm(F.N, G.N), steps = Math.ceil(L / 1.5), S = Math.min(48, body.M), stride = Math.floor(body.M / S), P = [0, 0, 0, 0], rin = F.N / TAU;
   for (let st = 0; st < steps; st++) {
     pose(F, G, inside, L * st / steps, P);
     for (let j = 0; j < S; j++) {
@@ -620,7 +620,8 @@ function parsePalettes(text) {                  // saved custom palettes (JSON);
 // def = { id, name, N, k, n, mir, r: [n radii, 8..255], h: [[x, y] pen holes in quarter-tooth ints] }.
 // The id is a hash of the content (not the name), so identical parts share an id on every device: saved
 // PNGs, albums and share links carry the definition and any viewer can draw it without having made it.
-const PART_LIMITS = { Nmin: 24, Nmax: 110, kMax: 8, nMin: 2, nMax: 12, maxHandles: 48, maxHoles: 35, maxLibrary: 12, maxShared: 8 };
+// N: the smallest circle that can hold a pen hole 1 tooth from its edge has radius N/2pi >= 1, i.e. 7 teeth; 300 is twice the largest ring.
+const PART_LIMITS = { Nmin: 7, Nmax: 300, kMax: 8, nMin: 2, nMax: 12, maxHandles: 48, maxHoles: 35, maxLibrary: 12, maxShared: 8 };
 const HOLE_MARGIN = 1;                           // pen holes stay this many teeth inside the edge
 const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 const cleanName = s => String(s ?? '').replace(/[^\p{L}\p{N} _.,()+-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);   // safe to put in HTML
@@ -718,19 +719,21 @@ function resampleShape(d, n2) {                  // same outline with n2 handles
   const r = raw.map(v => Math.max(8, Math.min(255, Math.round(255 * v / mx))));
   return { ...d, n: n2, r: d.mir ? partCanon({ r }) : r };
 }
-// fit tests against the box (and against other custom parts). sdfs caches distance fields of regular fixed pieces.
-function pairFits(t, r, sdfs) {
+// fit tests against the box (and against other custom parts). A fixed piece's distance field is built once per piece object
+// (WeakMap: it goes away with the piece) however many partners are tested against it.
+const SDF_CACHE = new WeakMap();
+function pairFits(t, r) {
   let sdf = null;
-  if (!t.inside) { sdf = sdfs.get(t.id); if (!sdf) { sdf = makeSDF(t.body || t.o); if (!t.custom) sdfs.set(t.id, sdf); } }
+  if (!t.inside) { sdf = SDF_CACHE.get(t); if (!sdf) { sdf = makeSDF(t.body || t.o); SDF_CACHE.set(t, sdf); } }
   return fits(t.o, r.o, t.inside, sdf, r.body);
 }
 // every combination that involves at least one custom piece. pieces: makePart() results; memo: 'trackId|rollerId' -> bool
-function customCombos(CAT, pieces, memo = new Map(), sdfs = new Map()) {
+function customCombos(CAT, pieces, memo = new Map()) {
   const tracks = [...CAT.tracks, ...pieces.map(q => q.fixed)], rollers = [...CAT.rollers, ...pieces.map(q => q.roller)], out = [];
   for (const t of tracks) for (const r of rollers) {
     if (!(t.custom || r.custom) || t.pieceId === r.id) continue;
     const mk = t.id + '|' + r.id;
-    let ok = memo.get(mk); if (ok === undefined) { ok = pairFits(t, r, sdfs); memo.set(mk, ok); }
+    let ok = memo.get(mk); if (ok === undefined) { ok = pairFits(t, r); memo.set(mk, ok); }
     const idx = rollers.indexOf(r);
     for (let k = 0; k < r.holes.length; k++) out.push({ track: t, roller: r, rollerIdx: idx, hole: k + 1, ok, custom: true, key: `${t.id}|${r.id}|${k + 1}` });
   }
@@ -769,7 +772,7 @@ const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: ne
 // "guest" parts that came with an opened PNG, album or link (rendered, but not in the library unless kept)
 const PARTS_KEY = STORAGE_PREFIX + 'parts.v1';
 let library = [], CUSTOM = [];                  // CUSTOM: combos of library parts (kept out of ALL, shown via the Custom parts filter)
-const registry = new Map(), pieceMemo = new Map(), fitMemo = new Map(), sdfMemo = new Map(), guestCombos = new Map();
+const registry = new Map(), pieceMemo = new Map(), fitMemo = new Map(), guestCombos = new Map();
 const piece = id => { let q = pieceMemo.get(id); if (!q && registry.has(id)) pieceMemo.set(id, q = makePart(registry.get(id))); return q; };
 
 // ---------------------------------------------------------------- icons (pictures of the pieces)
@@ -777,7 +780,8 @@ const iconCache = new Map();
 function outlinePath(o) {
   let rm = 0; for (let k = 0; k < o.M; k++) rm = Math.max(rm, Math.hypot(o.p[2 * k], o.p[2 * k + 1]));
   let d = '';
-  for (let k = 0; k < o.N; k++) { const i = 2 * k * PER_TOOTH; d += `${k ? 'L' : 'M'}${(o.p[i] / rm).toFixed(3)} ${(-o.p[i + 1] / rm).toFixed(3)}`; }
+  const step = o.N >= 48 ? PER_TOOTH : 1;        // one point per tooth is plenty for big pieces, but a 7-tooth wheel would look like a heptagon
+  for (let k = 0; k < o.M; k += step) { const i = 2 * k; d += `${k ? 'L' : 'M'}${(o.p[i] / rm).toFixed(3)} ${(-o.p[i + 1] / rm).toFixed(3)}`; }
   return { d: d + 'Z', rm };
 }
 // hx, hy: half the viewBox width / height, in units of the reference radius (1.15 = the standard 56 px square). To-scale rows pass a box
@@ -795,7 +799,7 @@ const scaled = (body, s) => s === 1 ? body : `<g transform="scale(${s.toFixed(4)
 // picture is an illustration, the tooth count is on the chip. px = on-screen size of the icon, ref = the row's reference radius.
 const teeth = (N, R, ref, px, min = 8) => {
   const pitch = px / 2.3 / (ref || R), m = Math.max(1, Math.ceil(2 / pitch)), n = Math.max(min, Math.round(N / m));
-  return `pathLength="${n}" stroke-dasharray=".5 .5" stroke-width="${(1.4 * m / R).toFixed(4)}" stroke-opacity=".8"`;
+  return `pathLength="${n}" stroke-dasharray=".5 .5" stroke-width="${Math.min(1.4 * m / R, 0.2).toFixed(4)}" stroke-opacity=".8"`;   // a tooth is never taller than 20% of the radius (7-tooth wheels)
 };
 // The Cross has teeth only on the four arm ends (on the 60-tooth pitch circle), not in the notches between them: four short toothed arcs.
 // The icon is normalised to the Cross's largest radius, which is that circle, so the arcs have radius 1.
@@ -1518,7 +1522,7 @@ new ResizeObserver(renderOverlay).observe(ovCanvas);
 
 // ---------------------------------------------------------------- custom parts: library, filter row, maker dialog
 const keepable = p => { const id = customIdOf(p); return !!id && !library.some(d => d.id === id); };
-function rebuildCustom() { CUSTOM = customCombos(CAT, library.map(d => piece(d.id)), fitMemo, sdfMemo); byId = null; }
+function rebuildCustom() { CUSTOM = customCombos(CAT, library.map(d => piece(d.id)), fitMemo); byId = null; }
 function saveLibrary() { return store.set(PARTS_KEY, JSON.stringify(library)); }
 function libraryChanged(showId) {               // after add / edit / delete: refresh combos, the row, and the grid if it shows custom parts
   rebuildCustom(); saveLibrary();
@@ -1561,6 +1565,7 @@ function buildCustomRow() {
 
 // ---- the maker dialog
 const pm = $('pm'), pmc = $('pm-c'), pmv = $('pm-v');
+$('pm-N').min = PART_LIMITS.Nmin; $('pm-N').max = PART_LIMITS.Nmax;
 let ed = null;                                  // { orig, name, d: {N,k,n,mir,r,h}, tab, sel, drag, partner, userPicked, dirty }
 let edPiece = null, edGen = 0, edTimer = 0, pvTimer = 0, pv = null;
 const edFit = new Map();                        // compat key -> bool, for the shape being edited
@@ -1741,7 +1746,7 @@ function edCheck() {
     if (gen !== edGen || !pm.open) return;
     const t0 = performance.now();
     while (jobs.length && performance.now() - t0 < 10) {
-      const j = jobs.shift(), ok = pairFits(j.t, j.r, sdfMemo); edFit.set(j.key, ok);
+      const j = jobs.shift(), ok = pairFits(j.t, j.r); edFit.set(j.key, ok);
       j.b.className = (ok ? 'ok' : 'bad') + (j.b.classList.contains('on') ? ' on' : ''); j.b.title = j.b.title.replace(' (checking…)', ok ? ': fits' : ': would overlap');
     }
     if (jobs.length) { edTimer = setTimeout(step, 0); return; }

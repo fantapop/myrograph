@@ -60,7 +60,7 @@ check('malformed share links are rejected', rejects);
 const mkDef = (preset, N0, name = 'T') => { const sh = C.presetShape(C.PART_PRESETS.find(p => p.id === preset)), N = N0 || sh.N; const o = C.makePart({ ...sh, N, h: [[0, 0]] }).roller.o;
   return C.canonPart({ ...sh, name, N, h: C.fillHoles(o, 'x', 1.5) }); };
 const oval = mkDef('oval', 44, 'My oval');
-check('presets all build into valid parts that roll on most of the box', C.PART_PRESETS.every(p => mkDef(p.id) && mkDef(p.id).h.length >= 3 && cat.tracks.filter(t => C.pairFits(t, C.makePart(mkDef(p.id)).roller, new Map())).length >= 12), C.PART_PRESETS.map(p => mkDef(p.id)?.h.length).join(','));
+check('presets all build into valid parts that roll on most of the box', C.PART_PRESETS.every(p => mkDef(p.id) && mkDef(p.id).h.length >= 3 && cat.tracks.filter(t => C.pairFits(t, C.makePart(mkDef(p.id)).roller)).length >= 12), C.PART_PRESETS.map(p => mkDef(p.id)?.h.length).join(','));
 const part = C.makePart(oval);
 check('custom outline has exactly N teeth of perimeter', part.roller.o.N === 44 && Math.abs((() => { let t = 0; const o = part.roller.o; for (let i = 0; i < o.M; i++) { const j = (i + 1) % o.M; t += Math.hypot(o.p[2 * j] - o.p[2 * i], o.p[2 * j + 1] - o.p[2 * i + 1]); } return t; })() - 44) < 0.3);
 check('mirrored symmetric shape is centred on its origin', (() => { const o = part.roller.o; let sx = 0, sy = 0; for (let i = 0; i < o.M; i++) { sx += o.p[2 * i]; sy += o.p[2 * i + 1]; } return Math.hypot(sx, sy) / o.M < 0.05; })());
@@ -76,15 +76,15 @@ const o44 = part.roller.o;
 check('hole rule: inside the body with a margin', C.holeFits(o44, 0, 0) && !C.holeFits(o44, 100, 0) && !C.holeFits(o44, o44.p[0] - 0.2, o44.p[1]));
 const fx = C.fillHoles(o44, 'x', 1.5);
 check('hole fill gives valid holes, rim to centre, within the cap', fx.length > 2 && fx.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && fx[0][0] > fx.at(-1)[0] && C.fillHoles(o44, 'grid', 1.5).length <= C.PART_LIMITS.maxHoles);
-const sdfs = new Map(), memo = new Map(), pcs = [C.makePart(mkDef('circle', 40, 'Disc')), part];
-const cc = C.customCombos(cat, pcs, memo, sdfs);
+const memo = new Map(), pcs = [C.makePart(mkDef('circle', 40, 'Disc')), part];
+const cc = C.customCombos(cat, pcs, memo);
 check('custom combos pair each custom piece with the box and with each other', cc.every(c => c.custom && c.key === `${c.track.id}|${c.roller.id}|${c.hole}`) &&
   cc.some(c => c.track.id === 'ring96-in' && c.roller.id === pcs[0].roller.id) && cc.some(c => c.track.id === pcs[1].fixed.id && c.roller.id === pcs[0].roller.id) &&
   !cc.some(c => c.track.pieceId === c.roller.id), `${cc.length} combos`);
 check('a 40-tooth disc rolls inside the 96 ring; a long thin oval around a 24 wheel is judged by the real check', cc.find(c => c.track.id === 'ring96-in' && c.roller.id === pcs[0].roller.id).ok === true);
 const wide = C.makePart(C.canonPart({ ...oval, N: 110, h: [[0, 0]] }));
-check('a piece too big for the ring is reported as not fitting', C.pairFits(cat.tracks.find(t => t.id === 'ring96-in'), wide.roller, sdfs) === false);
-const psum = C.PART_PRESETS.map(p => { const q = C.makePart(mkDef(p.id)); return `${p.id}:${cat.tracks.filter(t => C.pairFits(t, q.roller, sdfs)).length}/${cat.tracks.length}`; }).join(' ');
+check('a piece too big for the ring is reported as not fitting', C.pairFits(cat.tracks.find(t => t.id === 'ring96-in'), wide.roller) === false);
+const psum = C.PART_PRESETS.map(p => { const q = C.makePart(mkDef(p.id)); return `${p.id}:${cat.tracks.filter(t => C.pairFits(t, q.roller)).length}/${cat.tracks.length}`; }).join(' ');
 console.log('     fit counts (tracks each preset at its suggested size rolls on without overlap):', psum);
 const stp = { ...st, parts: [oval, mkDef('flower', 0, 'Flower (5)')] };
 check('share link carries custom parts and round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(stp))) === JSON.stringify(stp), `${C.encodeShare(stp).length} chars`);
@@ -95,6 +95,16 @@ check('fixed pieces have their twin\'s holes', cat.tracks.filter(t => t.kind ===
 const fixedHoles = pcs[1].fixed.holes, rollerHoles = pcs[1].roller.holes, o1 = pcs[1].roller.o; let mx = 0, my = 0; for (let i = 0; i < o1.M; i++) { mx += o1.p[2 * i]; my += o1.p[2 * i + 1]; }
 check('custom fixed copy keeps holes at the same place on the body', fixedHoles.every(([x, y], i) => Math.abs(x - (rollerHoles[i][0] - mx / o1.M)) < 1e-9 && Math.abs(y - (rollerHoles[i][1] - my / o1.M)) < 1e-9));
 check('Cross arm ends lie on its 60-tooth pitch circle (radius ~ 60 / 2pi)', Math.abs(C.CROSS_ARM.Rt - 60 / (2 * Math.PI)) < 0.05);
+
+// size range: the smallest circle that holds a pen hole (1 tooth from the edge) has radius N/2pi >= 1, so 7 teeth; the maximum is generous
+const circ = N => C.makePart({ id: 'x', name: 'c', ...C.presetShape(C.PART_PRESETS[0]), N, h: [[0, 0]] });
+check('limits: 7 teeth is the smallest circle that can hold a pen hole, 6 cannot', C.PART_LIMITS.Nmin === 7 && C.holeFits(circ(7).roller.o, 0, 0) && !C.holeFits(circ(6).roller.o, 0, 0));
+const edge = N => C.canonPart({ ...oval, N, h: [[0, 0]] });
+check('limits: N from 7 to 300 accepted, 6 and 301 rejected', edge(7) && edge(300) && !edge(6) && !edge(301) && C.PART_LIMITS.Nmax === 300);
+const tinyP = circ(7), bigP = circ(300);
+check('tiny pieces are collision-checked on every sample (7-tooth circle fits inside the 96 ring and around a 24 wheel)', C.pairFits(cat.tracks.find(t => t.id === 'ring96-in'), tinyP.roller) && C.pairFits(cat.tracks.find(t => t.id === 'fix-w24'), tinyP.roller));
+const t0 = Date.now(); const bigFits = cat.rollers.filter(r => C.pairFits(bigP.fixed, r)).length; const bigMs = Date.now() - t0;
+check('a 300-tooth fixed piece is checked against every wheel quickly (distance field built once)', bigFits >= 10 && bigMs < 400, `${bigFits}/${cat.rollers.length} fit, ${bigMs} ms`);
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
