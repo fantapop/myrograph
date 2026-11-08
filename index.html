@@ -38,7 +38,7 @@
   the machine that has the file (same for localhost); the page is hosted at https://fantapop.github.io/myrograph/ (GitHub Pages, from main), so copy links there to share. Combos whose pieces would physically collide while rolling (found by
   simulation) are never listed.
 
-  Custom parts (optionally on a pitch circle, like the real Cross: teeth only on the tips, so deep stars work): the Custom parts filter row ("＋ Make a part…") opens a dialog to design your own shaped
+  Custom parts: the Custom parts filter row ("＋ Make a part…") opens a dialog to design your own shaped
   wheel: drag radial handles (with k-fold symmetry / mirror) or start from a preset, set its size in teeth
   (the edge is scaled to exactly that many teeth, so it meshes at the real tooth pitch), place pen holes
   (kept inside the edge), and see live which pieces of the set it fits with (green/red, from the same
@@ -278,12 +278,10 @@
         <div class="ctl"><label>Start from <select id="pm-preset"></select></label>
           <button id="pm-rand" title="Randomise the handles, keeping symmetry">Surprise me</button></div>
         <div class="ctl"><label title="Repeat the section you edit this many times around the part">Symmetry <select id="pm-k"></select></label>
-          <label title="Handles per section: more handles, more detail"><select id="pm-n"></select> handles per section</label>
           <label title="Also mirror each section"><input type="checkbox" id="pm-mir"> Mirror</label></div>
-        <div class="ctl"><label title="Like the real Cross: the part rolls on a circle with the Size's number of teeth, the shape is only its body (tips touch the circle, notches can be deep), and only the tips have teeth. It always clears rings and wheels, but draws the same curves as a round wheel of that size."><input type="checkbox" id="pm-pc"> Rolls on a pitch circle <small style="color:var(--dim)">(deep notches allowed)</small></label></div>
       </div>
       <div class="pm-sec" id="pm-p-holes" hidden><h4>Pen holes</h4>
-        <div class="ctl"><label>Fill <select id="pm-fill"><option value="x">row along the x axis</option><option value="y">row along the y axis</option>
+        <div class="ctl"><label>Fill <select id="pm-fill"><option value="x">row along the x axis</option>
           <option value="xy">both axes</option><option value="grid">grid</option></select></label>
           <label>every <input type="number" id="pm-sp" min="1" max="8" step="0.5" value="1.5" style="width:4.5em"> teeth</label>
           <button id="pm-dofill">Fill</button><button id="pm-sort" title="Number the holes from the rim to the centre, like the real wheels">Number rim → centre</button>
@@ -643,10 +641,7 @@ function parsePalettes(text) {                  // saved custom palettes (JSON);
 // ---- custom parts: a user-made shaped wheel. The outline is star-shaped about its origin: K = k*n radial
 // handles at equal angles (n per symmetry section, the section repeated k times, optionally mirrored), joined
 // by a periodic cubic spline and scaled so the perimeter is exactly N teeth (N is the size control).
-// def = { id, name, N, k, n, mir, pc?, r: [n radii, 8..255], h: [[x, y] pen holes in quarter-tooth ints] }.
-// pc = 1 (pitch-circle part, like the real Cross): the part rolls on a circle of N teeth, the outline is only its BODY, scaled so its
-// tips touch that circle exactly (nothing sticks out), and teeth are only where the body reaches the circle. Deep notches are fine,
-// so 6- and 8-fold stars work. Its pen curves are those of a round N-tooth wheel; what differs is where the holes can be and the look.
+// def = { id, name, N, k, n, mir, r: [n radii, 8..255], h: [[x, y] pen holes in quarter-tooth ints] }.
 // The id is a hash of the content (not the name), so identical parts share an id on every device: saved
 // PNGs, albums and share links carry the definition and any viewer can draw it without having made it.
 // N: the smallest circle that can hold a pen hole 1 tooth from its edge has radius N/2pi >= 1, i.e. 7 teeth; 300 is twice the largest ring.
@@ -655,9 +650,9 @@ const HOLE_MARGIN = 1;                           // pen holes stay this many tee
 const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 const cleanName = s => String(s ?? '').replace(/[^\p{L}\p{N} _.,()+-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);   // safe to put in HTML
 const partCanon = r => r.r.map((_, j, a) => a[Math.min(j, (a.length - j) % a.length)]);   // mirrored: only the first half is free
-function partId(d) { return 'c' + fnv(`${d.N}|${d.k}|${d.n}|${d.mir}|${d.r.join(',')}|${d.h.map(q => q.join(',')).join(';')}${d.pc ? '|pc' : ''}`); }
+function partId(d) { return 'c' + fnv(`${d.N}|${d.k}|${d.n}|${d.mir}|${d.r.join(',')}|${d.h.map(q => q.join(',')).join(';')}`); }
 function canonPart(raw) {                        // validated, normalised copy with its id recomputed; null if unusable
-  if (!raw || typeof raw !== 'object') return null;
+  if (!raw || typeof raw !== 'object' || raw.pc) return null;   // (pitch-circle parts existed for an afternoon and were removed; refusing them beats drawing them wrongly)
   const L = PART_LIMITS, int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   const { N, k, n } = raw, mir = raw.mir ? 1 : 0;
   if (!int(N, L.Nmin, L.Nmax) || !int(k, 1, L.kMax) || !int(n, L.nMin, L.nMax) || k * n < 3 || k * n > L.maxHandles) return null;
@@ -665,7 +660,6 @@ function canonPart(raw) {                        // validated, normalised copy w
   if (!Array.isArray(raw.h) || !raw.h.length || raw.h.length > L.maxHoles ||
       !raw.h.every(q => Array.isArray(q) && q.length === 2 && int(q[0], -2000, 2000) && int(q[1], -2000, 2000))) return null;
   const d = { name: cleanName(raw.name) || 'Custom part', N, k, n, mir, r: raw.r.slice(), h: raw.h.map(q => [q[0], q[1]]) };
-  if (raw.pc) d.pc = 1;                          // absent when 0, so the ids of parts made before this existed do not change
   if (mir) d.r = partCanon(d);
   return { id: partId(d), ...d };
 }
@@ -692,24 +686,7 @@ function recentredHoles(o, d) {         // the fixed copy is re-centred, so its 
   let cx = 0, cy = 0; for (let k = 0; k < o.M; k++) { cx += o.p[2 * k]; cy += o.p[2 * k + 1]; }
   cx /= o.M; cy /= o.M; return d.h.map(([x, y]) => [x / 4 - cx, y / 4 - cy]);
 }
-function makePitchPart(d, dense) {               // pc = 1: pitch circle of N teeth + a body that stays inside it (see the block comment above)
-  const Rp = d.N / TAU, S = dense.length;
-  let mx = 0; for (const [x, y] of dense) mx = Math.max(mx, Math.hypot(x, y));
-  const sc = Rp / mx, pts = dense.map(([x, y]) => [x * sc, y * sc]);                   // tips exactly on the pitch circle
-  const per = perimeter(pts), Nb = Math.max(8, Math.round(per)), body = makeOutline(pts, Nb, false);
-  for (let i = 0; i < body.p.length; i++) body.p[i] *= per / Nb;                      // makeOutline rescales to a whole number of teeth; undo that, the body keeps its true size
-  const o = makeOutline(circleDense(), d.N, false), teethOn = new Uint8Array(d.N);
-  for (let i = 0; i < d.N; i++) {                                                     // a tooth exists where the body reaches (within 0.6 tooth of) the circle
-    let r = 0; for (let a = Math.floor(S * i / d.N); a <= Math.ceil(S * (i + 1) / d.N); a++) r = Math.max(r, Math.hypot(...pts[a % S]));
-    teethOn[i] = r >= Rp - 0.6 ? 1 : 0;
-  }
-  const holes = d.h.map(([x, y]) => [x / 4, y / 4]);
-  return { def: d, scale: sc,
-    roller: { id: d.id, name: d.name, N: d.N, o, body, holes, custom: true, pc: true, teethOn },
-    fixed: { id: 'fix-' + d.id, name: d.name, kind: 'piece', pieceId: d.id, inside: false, o, body, custom: true, pc: true, teethOn, holes } };
-}
 function makePart(d) {                           // the same part as a moving piece and as a fixed piece (re-centred)
-  if (d.pc) return makePitchPart(d, partDense(d));
   const dense = partDense(d), o = makeOutline(dense, d.N, false), oc = makeOutline(dense, d.N, true);
   return { def: d, scale: d.N / perimeter(dense),
     roller: { id: d.id, name: d.name, N: d.N, o, body: o, holes: d.h.map(([x, y]) => [x / 4, y / 4]), custom: true },
@@ -740,7 +717,8 @@ function fillHoles(o, mode, d) {                 // candidate pen holes (quarter
 }
 // starting shapes: radius as a function of angle, sampled at the handle angles. A piece only rolls on a circle without overlapping it
 // when its sides are convex enough and its lobes shallow (flat sides and deep petals overlap the partner; the fit check is strict
-// and exact enough to see that), so the presets are rounded off: each rolls on 17-24 of the 24 tracks.
+// and exact enough to see that), so the presets are rounded off: each rolls on 17-24 of the 24 tracks. Shapes whose pen curve is within ~10% of a circle's
+// (rounded square, 5-6 lobes) were dropped: they gave nothing the circle preset does not.
 const polyR = s => th => { const w = TAU / s, a = Math.cos(Math.PI / s); return a / Math.cos((((th % w) + w) % w) - Math.PI / s); };
 const superR = (p, a, b) => th => Math.pow(Math.pow(Math.abs(Math.cos(th) / a), p) + Math.pow(Math.abs(Math.sin(th) / b), p), -1 / p);
 const PART_PRESETS = [
@@ -748,21 +726,14 @@ const PART_PRESETS = [
   { id: 'oval',     name: 'Oval',            N: 48, k: 2, n: 6, mir: 1, f: superR(2, 1, .6) },
   { id: 'lens',     name: 'Lens',            N: 56, k: 2, n: 6, mir: 1, f: superR(1.5, 1, .55) },
   { id: 'egg',      name: 'Egg',             N: 48, k: 1, n: 8, mir: 1, f: th => (1 + .22 * Math.cos(th)) * superR(2, 1, .72)(th) },
-  { id: 'square',   name: 'Rounded square',  N: 48, k: 4, n: 3, mir: 1, f: superR(3, 1, 1) },
   { id: 'triangle', name: 'Rounded triangle', N: 54, k: 3, n: 4, mir: 1, f: th => .5 * polyR(3)(th) + .5 * .75 },
   { id: 'pentagon', name: 'Pentagon',        N: 54, k: 5, n: 3, mir: 1, f: th => .7 * polyR(5)(th) + .3 * .9 },
-  { id: 'flower',   name: 'Flower (5)',      N: 66, k: 5, n: 4, mir: 1, f: th => 1 + .05 * Math.cos(5 * th) },
   { id: 'clover',   name: 'Clover (3)',      N: 60, k: 3, n: 6, mir: 1, f: th => 1 + .1 * Math.cos(3 * th) },
-  { id: 'star',     name: 'Star (6)',        N: 84, k: 6, n: 4, mir: 1, f: th => 1 + .04 * Math.cos(6 * th) },
-  { id: 'cross',    name: 'Cross (pitch circle)',      N: 60, k: 4, n: 6, mir: 1, pc: 1, f: th => .5 + .5 * Math.pow((1 + Math.cos(4 * th)) / 2, .7) },
-  { id: 'trefoil',  name: 'Trefoil (pitch circle)',    N: 66, k: 3, n: 8, mir: 1, pc: 1, f: th => .4 + .6 * Math.pow((1 + Math.cos(3 * th)) / 2, 1.3) },
-  { id: 'star6p',   name: 'Star, 6 points (pitch circle)', N: 72, k: 6, n: 6, mir: 1, pc: 1, f: th => .4 + .6 * Math.pow((1 + Math.cos(6 * th)) / 2, 1.5) },
-  { id: 'star8p',   name: 'Star, 8 points (pitch circle)', N: 84, k: 8, n: 6, mir: 1, pc: 1, f: th => .42 + .58 * Math.pow((1 + Math.cos(8 * th)) / 2, 1.6) },
 ];
 function presetShape(pr) {                       // -> { N (suggested size), k, n, mir, r } for a PART_PRESETS entry
   const K = pr.k * pr.n, raw = Array.from({ length: pr.n }, (_, j) => pr.f(TAU * j / K)), mx = Math.max(...raw);
   const r = raw.map(v => Math.max(8, Math.round(255 * v / mx)));
-  return { N: pr.N, k: pr.k, n: pr.n, mir: pr.mir, r: pr.mir ? partCanon({ r }) : r, ...(pr.pc ? { pc: 1 } : {}) };
+  return { N: pr.N, k: pr.k, n: pr.n, mir: pr.mir, r: pr.mir ? partCanon({ r }) : r };
 }
 function resampleShape(d, n2) {                  // same outline with n2 handles per section (radius read off the old curve)
   const dense = partDense(d), S = dense.length, K2 = d.k * n2, raw = Array.from({ length: n2 }, (_, j) => {
@@ -795,12 +766,12 @@ function customCombos(CAT, pieces, memo = new Map()) {
   return out;
 }
 const encodePart = d => ['p', encodeURIComponent(d.name), d.N, d.k, d.n, d.mir, d.r.map(v => v.toString(16).padStart(2, '0')).join(''),
-  d.h.map(([x, y]) => x.toString(36) + '_' + y.toString(36)).join('.'), ...(d.pc ? [1] : [])].join(',');     // a 9th field marks a pitch-circle part
+  d.h.map(([x, y]) => x.toString(36) + '_' + y.toString(36)).join('.')].join(',');
 function decodePart(seg) {                       // null if damaged
   const f = seg.split(',');
-  if ((f.length !== 8 && !(f.length === 9 && f[8] === '1')) || f[0] !== 'p' || !/^(?:[0-9a-f]{2})+$/.test(f[6]) || !/^(?:-?[0-9a-z]+_-?[0-9a-z]+)(?:\.-?[0-9a-z]+_-?[0-9a-z]+)*$/.test(f[7])) return null;
+  if (f.length !== 8 || f[0] !== 'p' || !/^(?:[0-9a-f]{2})+$/.test(f[6]) || !/^(?:-?[0-9a-z]+_-?[0-9a-z]+)(?:\.-?[0-9a-z]+_-?[0-9a-z]+)*$/.test(f[7])) return null;
   let name; try { name = decodeURIComponent(f[1]); } catch { return null; }
-  return canonPart({ name, N: +f[2], k: +f[3], n: +f[4], mir: +f[5], pc: f[8] === '1', r: f[6].match(/../g).map(v => parseInt(v, 16)),
+  return canonPart({ name, N: +f[2], k: +f[3], n: +f[4], mir: +f[5], r: f[6].match(/../g).map(v => parseInt(v, 16)),
     h: f[7].split('.').map(q => q.split('_').map(v => parseInt(v, 36))) });
 }
 // ======================================================= END CORE
@@ -861,24 +832,8 @@ const teeth = (N, R, ref, px, min = 8) => {
 };
 // The Cross has teeth only on the four arm ends (on the 60-tooth pitch circle), not in the notches between them: four short toothed arcs.
 // The icon is normalised to the Cross's largest radius, which is that circle, so the arcs have radius 1.
-const arcPt = a => `${Math.cos(a).toFixed(4)} ${(-Math.sin(a)).toFixed(4)}`;
-function pcTeeth(on, rm, ref, px) {              // a custom pitch-circle part: toothed arcs wherever its body reaches the circle (radius 1 in the icon)
-  const N = on.length, start = [...on].findIndex(v => !v);
-  if (!on.some(Boolean)) return '';
-  if (start < 0) return `<circle r="1" fill="none" ${teeth(N, rm, ref, px)}/>`;
-  let out = '', i = 0;
-  while (i < N) {                                // runs of consecutive teeth, starting just after a gap so none wraps around
-    const idx = j => (start + j) % N;
-    if (!on[idx(i)]) { i++; continue; }
-    let j = i; while (j < N && on[idx(j)]) j++;
-    const a0 = TAU * idx(i) / N, len = j - i;
-    out += `<path d="M${arcPt(a0)}A1 1 0 ${len * 2 > N ? 1 : 0} 0 ${arcPt(a0 + TAU * len / N)}" fill="none" ${teeth(len, rm, ref, px, 2)}/>`;
-    i = j;
-  }
-  return out;
-}
 function crossTeeth(rm, ref, px) {
-  const al = Math.asin(CROSS_ARM.hw / CROSS_ARM.Rt), per = 60 * al / Math.PI, pt = arcPt;
+  const al = Math.asin(CROSS_ARM.hw / CROSS_ARM.Rt), per = 60 * al / Math.PI, pt = a => `${Math.cos(a).toFixed(4)} ${(-Math.sin(a)).toFixed(4)}`;
   let out = '';
   for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; out += `<path d="M${pt(a - al)}A1 1 0 0 0 ${pt(a + al)}" fill="none" ${teeth(per, rm, ref, px, 2)}/>`; }
   return out;
@@ -904,7 +859,7 @@ function trackIcon(t, ref = 0, box = 1.15) {
              `<circle cx="${c}" cy="-${c}" r="${w}" fill="currentColor" fill-opacity=".18"/>`;
     } else {
       const o = t.body || t.o, { d, rm } = outlinePath(o);
-      body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (o === t.o ? `<path d="${d}" fill="none" ${teeth(o.N, rm, ref, px)}/>` : t.teethOn ? pcTeeth(t.teethOn, rm, ref, px) : crossTeeth(rm, ref, px)) +
+      body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (o === t.o ? `<path d="${d}" fill="none" ${teeth(o.N, rm, ref, px)}/>` : crossTeeth(rm, ref, px)) +
              holeDots(holePoints(t), rm, k);              // a fixed piece has the same pen holes as its moving twin
     }
     iconCache.set(key, svg(scaled(body, s), Math.max(box, t.kind === 'rack' ? s + 0.15 : 0), box));   // only the rack is wider than the row's box
@@ -915,7 +870,7 @@ function rollerIcon(r, hole, ref = 0, box = 1.15) {         // hole: 1-based hig
   const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}:${box.toFixed(2)}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     const { d, rm } = outlinePath(r.body);
-    const body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (r.body === r.o ? `<path d="${d}" fill="none" ${teeth(r.o.N, rm, ref, px)}/>` : r.teethOn ? pcTeeth(r.teethOn, rm, ref, px) : crossTeeth(rm, ref, px)) +
+    const body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (r.body === r.o ? `<path d="${d}" fill="none" ${teeth(r.o.N, rm, ref, px)}/>` : crossTeeth(rm, ref, px)) +
                  holeDots(holePoints(r), rm, k, hole);
     iconCache.set(key, svg(scaled(body, s), box, box));
   }
@@ -1654,13 +1609,13 @@ const edFit = new Map();                        // compat key -> bool, for the s
 const edDef = () => ({ id: 'editing', name: ed.name || 'Custom part', ...ed.d });
 const edMsg = (m, ms = 5000) => { $('pm-msg').textContent = m; if (m && ms) setTimeout(() => { if ($('pm-msg').textContent === m) $('pm-msg').textContent = ''; }, ms); };
 const canonIdx = m => { const j = m % ed.d.n; return ed.d.mir ? Math.min(j, (ed.d.n - j) % ed.d.n) : j; };
-const holeBad = q => !holeFits(edPiece.roller.body, q[0] / 4, q[1] / 4);
+const holeBad = q => !holeFits(edPiece.roller.o, q[0] / 4, q[1] / 4);
 
 function openMaker(def) {
   const base = def ? { ...def } : { ...presetShape(PART_PRESETS[1]), name: 'My part' };
   ed = { orig: def ? def.id : null, name: def ? def.name : 'My part', tab: 'shape', sel: -1, drag: null, partner: { kind: 't', id: 'ring96-in' }, userPicked: false, dirty: false,
-    d: { N: base.N, k: base.k, n: base.n, mir: base.mir, pc: base.pc ? 1 : 0, r: base.r.slice(), h: def ? def.h.map(q => [...q]) : [] } };
-  if (!def) { edPiece = makePart(edDef()); ed.d.h = fillHoles(edPiece.roller.body, 'x', 1.5); }
+    d: { N: base.N, k: base.k, n: base.n, mir: base.mir, r: base.r.slice(), h: def ? def.h.map(q => [...q]) : [] } };
+  if (!def) { edPiece = makePart(edDef()); ed.d.h = fillHoles(edPiece.roller.o, 'x', 1.5); }
   Object.assign(pvState, { playing: true, pos: 0, hold: 0 });
   $('pm-name').value = ed.name; $('pm-N').value = ed.d.N;
   $('pm-del').hidden = !def; $('pm-copy').hidden = !def; $('pm-msg').textContent = '';
@@ -1669,15 +1624,12 @@ function openMaker(def) {
 function edSync(shapeChanged) {                 // recompute the piece, refresh controls, redraw, schedule the fit checks
   edPiece = makePart(edDef());
   $('pm-Nv').textContent = ed.d.N;
-  const kSel = $('pm-k'), nSel = $('pm-n');
-  if (!kSel.options.length) for (let k = 1; k <= PART_LIMITS.kMax; k++) kSel.add(new Option(k === 1 ? 'none' : `${k}-fold`, k));
-  kSel.value = ed.d.k; nSel.textContent = '';
-  for (let n = PART_LIMITS.nMin; n <= PART_LIMITS.nMax; n++) if (ed.d.k * n >= 3 && ed.d.k * n <= PART_LIMITS.maxHandles) nSel.add(new Option(n, n));
-  nSel.value = ed.d.n; $('pm-mir').checked = !!ed.d.mir; $('pm-pc').checked = !!ed.d.pc;
+  const kSel = $('pm-k'); kSel.textContent = '';                 // 1- to 5-fold: beyond that the dips between lobes get too sharp for any partner (a part made earlier with more still opens)
+  for (let k = 1; k <= Math.max(5, ed.d.k); k++) kSel.add(new Option(k === 1 ? 'none' : `${k}-fold`, k));
+  kSel.value = ed.d.k; $('pm-mir').checked = !!ed.d.mir;
   const bad = ed.d.h.filter(holeBad).length;
   $('pm-hint').textContent = ed.tab === 'shape'
-    ? (ed.d.pc ? 'Pitch circle: the part rolls on the circle (Size = its teeth, like a round wheel); the shape is its body, scaled so the tips touch the circle, and only the tips have teeth (the ticks). Notches can be deep.'
-               : 'Drag a handle in or out. Symmetry repeats the section you edit around the part; Size sets how many teeth long the edge is (the dashed circle is a circle of the same size).')
+    ? 'Drag a handle in or out. Symmetry repeats the section you edit around the part; Size sets how many teeth long the edge is (the dashed circle is a circle of the same size).'
     : `Click inside the shape to add a pen hole, drag to move it, right-click or press Delete to remove. ${ed.d.h.length} hole${ed.d.h.length === 1 ? '' : 's'}` +
       (bad ? `; ${bad} too close to the edge (red, needs ${HOLE_MARGIN} tooth of margin)` : '') + '.';
   if (shapeChanged) { ed.checked = false; clearTimeout(edTimer); edTimer = setTimeout(edCheck, 160); }
@@ -1705,18 +1657,12 @@ function edDraw() {
   if (!ed || !pm.open) return;
   if (Math.abs(pmc.getBoundingClientRect().width - edView.w) > 1) edResize();
   const ctx = pmc.getContext('2d'), w = edView.w, d = ed.d; edView.H = d.N / 4 + 2;
-  const S = w / (2 * edView.H), X = x => w / 2 + x * S, Y = y => w / 2 - y * S, o = edPiece.roller.body;
+  const S = w / (2 * edView.H), X = x => w / 2 + x * S, Y = y => w / 2 - y * S, o = edPiece.roller.o;
   ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.clearRect(0, 0, w, w);
   ctx.strokeStyle = '#2e2e36'; ctx.lineWidth = 1; ctx.beginPath();
   for (let g = -Math.floor(edView.H / 5) * 5; g <= edView.H; g += 5) { ctx.moveTo(X(g), 0); ctx.lineTo(X(g), w); ctx.moveTo(0, Y(g)); ctx.lineTo(w, Y(g)); }
   ctx.stroke(); ctx.strokeStyle = '#3d3d48'; ctx.beginPath(); ctx.moveTo(X(0), 0); ctx.lineTo(X(0), w); ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0)); ctx.stroke();
-  if (d.pc) {                                                    // the pitch circle the part rolls on, with a tick for every tooth that exists
-    const Rp = d.N / TAU, on = edPiece.roller.teethOn;
-    ctx.strokeStyle = '#7d7d8a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(X(0), Y(0), Rp * S, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = '#e8e6e1'; ctx.lineWidth = 1.6; ctx.beginPath();
-    for (let i = 0; i < d.N; i++) if (on[i]) { const a = TAU * (i + .5) / d.N, c = Math.cos(a), s2 = Math.sin(a); ctx.moveTo(X((Rp - .5) * c), Y((Rp - .5) * s2)); ctx.lineTo(X((Rp + .5) * c), Y((Rp + .5) * s2)); }
-    ctx.stroke();
-  } else { ctx.setLineDash([4, 4]); ctx.strokeStyle = '#4a4a55'; ctx.beginPath(); ctx.arc(X(0), Y(0), d.N / TAU * S, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = '#4a4a55'; ctx.beginPath(); ctx.arc(X(0), Y(0), d.N / TAU * S, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
   ctx.beginPath(); for (let i = 0; i < o.M; i++) ctx[i ? 'lineTo' : 'moveTo'](X(o.p[2 * i]), Y(o.p[2 * i + 1])); ctx.closePath();
   ctx.fillStyle = 'rgba(233,180,76,.16)'; ctx.fill(); ctx.strokeStyle = '#e9b44c'; ctx.lineWidth = 2; ctx.stroke();
   if (ed.tab === 'shape') {
@@ -1749,7 +1695,7 @@ pmc.addEventListener('pointerdown', ev => {
     if (i >= 0) { ed.sel = i; ed.drag = { hole: i }; edDraw(); return; }
     const q = [Math.round(wx * 4), Math.round(wy * 4)];
     if (ed.d.h.length >= PART_LIMITS.maxHoles) return edMsg(`At most ${PART_LIMITS.maxHoles} pen holes`);
-    if (!holeFits(edPiece.roller.body, q[0] / 4, q[1] / 4)) return edMsg(`A pen hole needs to be inside the shape, at least ${HOLE_MARGIN} tooth from the edge`);
+    if (!holeFits(edPiece.roller.o, q[0] / 4, q[1] / 4)) return edMsg(`A pen hole needs to be inside the shape, at least ${HOLE_MARGIN} tooth from the edge`);
     ed.d.h.push(q); ed.sel = ed.d.h.length - 1; ed.dirty = true; edSync(false);
   }
 });
@@ -1758,7 +1704,7 @@ pmc.addEventListener('pointermove', ev => {
   const [wx, wy] = edWorld(ev);
   if (ed.drag.hole !== undefined) { ed.d.h[ed.drag.hole] = [Math.round(wx * 4), Math.round(wy * 4)]; ed.dirty = true; edSync(false); return; }
   const m = ed.drag.m, a = TAU * m / (ed.d.k * ed.d.n), want = Math.max(0.5, wx * Math.cos(a) + wy * Math.sin(a));
-  const j = canonIdx(m), scaleOf = r => ed.d.pc ? (ed.d.N / TAU) / Math.max(...partDense({ ...ed.d, r }).map(([x, y]) => Math.hypot(x, y))) : ed.d.N / perimeter(partDense({ ...ed.d, r }));
+  const j = canonIdx(m), scaleOf = r => ed.d.N / perimeter(partDense({ ...ed.d, r }));
   const setAt = (r, v) => { const out = r.slice(); out[j] = v; return ed.d.mir ? partCanon({ r: out }) : out; };
   let v = want / scaleOf(ed.d.r);
   for (let it = 0; it < 3; it++) v = want / scaleOf(setAt(ed.d.r, v));
@@ -1790,9 +1736,9 @@ $('pm-t-shape').onclick = () => edTab('shape'); $('pm-t-holes').onclick = () => 
   for (const p of PART_PRESETS) sel.add(new Option(p.name, p.id));
   sel.onchange = () => {
     const pr0 = PART_PRESETS.find(p => p.id === sel.value); sel.value = ''; if (!pr0) return;
-    const sh = presetShape(pr0); Object.assign(ed.d, { k: sh.k, n: sh.n, mir: sh.mir, r: sh.r }); if (sh.pc) ed.d.pc = 1; ed.dirty = true;     // the deep presets need the pitch circle
+    const sh = presetShape(pr0); Object.assign(ed.d, { k: sh.k, n: sh.n, mir: sh.mir, r: sh.r }); ed.dirty = true;
     edPiece = makePart(edDef()); const keep = ed.d.h.filter(q => !holeBad(q));
-    ed.d.h = keep.length ? keep : fillHoles(edPiece.roller.body, 'x', 1.5); ed.sel = -1; edSync(true);
+    ed.d.h = keep.length ? keep : fillHoles(edPiece.roller.o, 'x', 1.5); ed.sel = -1; edSync(true);
   };
 }
 $('pm-k').onchange = e => {
@@ -1800,19 +1746,13 @@ $('pm-k').onchange = e => {
   while (k * n > PART_LIMITS.maxHandles) n--; while (k * n < 3) n++;
   ed.d = n === ed.d.n ? { ...ed.d, k } : resampleShape({ ...ed.d, k }, n); ed.dirty = true; edSync(true);
 };
-$('pm-n').onchange = e => { const n = +e.target.value; if (!(n >= PART_LIMITS.nMin && ed.d.k * n <= PART_LIMITS.maxHandles)) return; ed.d = resampleShape(ed.d, n); ed.dirty = true; edSync(true); };
-$('pm-pc').onchange = e => {
-  ed.d.pc = e.target.checked ? 1 : 0; ed.dirty = true;
-  edPiece = makePart(edDef()); const keep = ed.d.h.filter(q => !holeBad(q));      // the body changes size: keep the holes that are still inside it
-  ed.d.h = keep.length ? keep : fillHoles(edPiece.roller.body, 'x', 1.5); ed.sel = -1; edSync(true);
-};
 $('pm-mir').onchange = e => { ed.d.mir = e.target.checked ? 1 : 0; if (ed.d.mir) ed.d.r = partCanon(ed.d); ed.dirty = true; edSync(true); };
 $('pm-rand').onclick = () => {
   const r = Array.from({ length: ed.d.n }, () => 170 + Math.floor(Math.random() * 86));
   ed.d.r = ed.d.mir ? partCanon({ r }) : r; ed.dirty = true; edSync(true);
 };
 $('pm-dofill').onclick = () => {
-  ed.d.h = fillHoles(edPiece.roller.body, $('pm-fill').value, Math.max(1, +$('pm-sp').value || 1.5)); ed.sel = -1; ed.dirty = true;
+  ed.d.h = fillHoles(edPiece.roller.o, $('pm-fill').value, Math.max(1, +$('pm-sp').value || 1.5)); ed.sel = -1; ed.dirty = true;
   if (!ed.d.h.length) edMsg('No pen holes fit with that spacing; try a smaller one or a larger size');
   edSync(false);
 };

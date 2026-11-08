@@ -81,6 +81,25 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Part maker: pitch-circle mode removed again, benefit audit
+
+Prompted by "is it just the circle that drives the result?" (yes, verified): for a pitch-circle part the pen curve depends only on
+the rolling circle (N), the fixed piece and the hole's DISTANCE from the centre. Different bodies gave identical curves (0.0000),
+hole rotation gave the same curve (0.006-0.03 teeth of sampling noise), distance/N changed it. So the mode (added a few hours
+earlier, see the previous entry, whose code is gone) only changed the look and where holes can sit, i.e. no new patterns: removed
+(`git revert` of e88d3cf). `canonPart` now REFUSES `pc` parts (a stored/linked one is skipped, not drawn wrongly); the stored library
+and 9-field share segments of that mode are dropped.
+Tested and rejected, not built: the "middle option" (non-circular pitch curve + a separate body that stays clear of partners).
+For each point of an oval's pitch curve, the worst it pokes out of the 96 ring over a whole roll: for ovals of 60+ teeth 0% of the
+curve is safe (egg 76: 1%), so there is nowhere teeth could sit; where the shape does fit (oval 44: 82% safe) the plain shape
+already fits. A body cannot fix a pitch curve that itself pokes through the partner.
+Audit of what the maker offers vs what it buys (pen-curve difference from a circle of the same size, as % of the pattern's width):
+egg 53, lens 26, oval 21, triangle 15, clover 11, pentagon 10, flower 8, rounded square 6, star 6. Removed: the presets within ~8%
+(flower, star, rounded square: a circle with a wobble), the symmetry choices above 5-fold (the dips between lobes get sharper with
+k squared; 6-8-fold tolerate only 3-6% lobe depth; a part made earlier with more still opens and shows its symmetry), the
+"handles per section" control (presets pick a sensible count; the data field stays), the redundant "row along y" hole fill. Kept
+on purpose: Mirror, Surprise me, grid / both-axes fill, rim-to-centre numbering, the fit grid, the preview and its scrub slider.
+
 ### 2026-11-08 — Pitch-circle custom parts
 
 Why: the fit check showed that k-fold symmetry above ~4 only works for almost-circular parts (the dips between lobes get sharper
