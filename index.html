@@ -275,8 +275,7 @@
     </div>
     <div class="pm-right">
       <div class="pm-sec" id="pm-p-shape"><h4>Shape</h4>
-        <div class="ctl"><label>Start from <select id="pm-preset"></select></label>
-          <button id="pm-rand" title="Randomise the handles, keeping symmetry">Surprise me</button></div>
+        <div class="ctl"><label>Start from <select id="pm-preset"></select></label></div>
         <div class="ctl"><label title="Repeat the section you edit this many times around the part">Symmetry <select id="pm-k"></select></label>
           <label title="Also mirror each section"><input type="checkbox" id="pm-mir"> Mirror</label></div>
       </div>
@@ -1747,10 +1746,6 @@ $('pm-k').onchange = e => {
   ed.d = n === ed.d.n ? { ...ed.d, k } : resampleShape({ ...ed.d, k }, n); ed.dirty = true; edSync(true);
 };
 $('pm-mir').onchange = e => { ed.d.mir = e.target.checked ? 1 : 0; if (ed.d.mir) ed.d.r = partCanon(ed.d); ed.dirty = true; edSync(true); };
-$('pm-rand').onclick = () => {
-  const r = Array.from({ length: ed.d.n }, () => 170 + Math.floor(Math.random() * 86));
-  ed.d.r = ed.d.mir ? partCanon({ r }) : r; ed.dirty = true; edSync(true);
-};
 $('pm-dofill').onclick = () => {
   ed.d.h = fillHoles(edPiece.roller.o, $('pm-fill').value, Math.max(1, +$('pm-sp').value || 1.5)); ed.sel = -1; ed.dirty = true;
   if (!ed.d.h.length) edMsg('No pen holes fit with that spacing; try a smaller one or a larger size');

@@ -81,6 +81,11 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — "Surprise me" removed
+
+The random-shape button mostly produced shapes that do not fit anything (in a test of 400 random hand-shaped parts, most were rejected by the ring check), so it
+was removed. The Shape panel is now: Start from, Symmetry, Mirror.
+
 ### 2026-11-08 — Part maker: pitch-circle mode removed again, benefit audit
 
 Prompted by "is it just the circle that drives the result?" (yes, verified): for a pitch-circle part the pen curve depends only on
