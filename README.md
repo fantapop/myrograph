@@ -24,3 +24,5 @@ estimates measured from a photo, not official specifications.
 
 Not affiliated with or endorsed by the owner of the Spirograph® trademark. Spirograph is a
 registered trademark of its owner; it is mentioned here only to describe what the curves resemble.
+
+Licensed under the MIT License (see `LICENSE`).
