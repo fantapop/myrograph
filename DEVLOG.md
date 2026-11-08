@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Bigger to-scale chips, collapsible rows, unpinned tall header
+
+Feedback: the to-scale pictures were too small (a 24 wheel next to a 150 ring is ~16%). In to-scale mode the Fixed part
+and Moving piece chips are now 56 px pictures with the label underneath (`.chips.rel`). That made the filter header ~590 px,
+so: (1) each of the two rows has a "collapse / show all N" toggle (`rowToggle`, state in `spirograph.rows`) that shows only
+the selected chips (with an "any (none selected)" hint); (2) `fitHeader()` un-pins the header (`header.tall` -> static)
+when its content is taller than half the window, so it scrolls away instead of covering the grid (re-checked on resize,
+view change, toggles, refilter); collapsing the rows brings back the compact sticky header. Considered horizontal-scroll
+single-line rows; rejected as hard to discover.
+
 ### 2026-11-08 — Relative sizes in the filter chips
 
 Every piece picture used to fill its icon, so a 24 wheel looked as big as the 150 ring. The Fixed part and Moving piece
