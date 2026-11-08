@@ -393,8 +393,9 @@ function reuleauxDense(w) {                    // the Triangle: constant-width r
   return smoothClosed(pts, 6);
 }
 const perimeter = pts => pts.reduce((t, p, i) => t + Math.hypot(p[0] - pts[(i + 1) % pts.length][0], p[1] - pts[(i + 1) % pts.length][1]), 0);
+const CROSS_ARM = { Rt: 9.55, hw: 2.75 };      // arm ends lie on a circle of radius Rt (the 60-tooth pitch circle); hw = half arm width
 function crossBodyDense() {                    // real silhouette: curved arm ends, big concave notches
-  const Rt = 9.55, hw = 2.75, rho = 5, yf = hw + rho, yc = Math.sqrt(Rt * Rt - hw * hw), al = Math.asin(hw / Rt), q = [];
+  const { Rt, hw } = CROSS_ARM, rho = 5, yf = hw + rho, yc = Math.sqrt(Rt * Rt - hw * hw), al = Math.asin(hw / Rt), q = [];
   q.push([hw, yf], [hw, (yf + yc) / 2]);
   for (let i = 0; i <= 16; i++) { const a = Math.PI / 2 - al + 2 * al * i / 16; q.push([Rt * Math.cos(a), Rt * Math.sin(a)]); }
   q.push([-hw, (yf + yc) / 2]);
@@ -503,7 +504,7 @@ function buildCatalog() {
     tracks.push({ id: `ring${r.outer}-out`, name: `Ring ${r.outer} outer`, kind: 'ring', inside: false, which: 'outer', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.outer), body: makeOutline(circleDense(), r.outer) });
   }
   tracks.push({ id: 'rack', name: `Rack ${PARTS.rack.N}`, kind: 'rack', inside: false, o: makeOutline(stadiumDense(PARTS.rack.aspect), PARTS.rack.N), body: null });
-  for (const w of rollers) tracks.push({ id: 'fix-' + w.id, name: w.name, kind: 'piece', pieceId: w.id, inside: false, o: w.o, body: w.body, round: w.round });
+  for (const w of rollers) tracks.push({ id: 'fix-' + w.id, name: w.name, kind: 'piece', pieceId: w.id, inside: false, o: w.o, body: w.body, round: w.round, holes: w.holes });
   const combos = [];
   for (const t of tracks) {
     const sdf = t.inside ? null : makeSDF(t.body || t.o);
@@ -655,11 +656,16 @@ function partDense(d, per = 24) {                // closed polar curve through t
   }
   return pts;
 }
+function recentredHoles(o, d) {         // the fixed copy is re-centred, so its holes shift by the same centroid
+  let cx = 0, cy = 0; for (let k = 0; k < o.M; k++) { cx += o.p[2 * k]; cy += o.p[2 * k + 1]; }
+  cx /= o.M; cy /= o.M; return d.h.map(([x, y]) => [x / 4 - cx, y / 4 - cy]);
+}
 function makePart(d) {                           // the same part as a moving piece and as a fixed piece (re-centred)
   const dense = partDense(d), o = makeOutline(dense, d.N, false), oc = makeOutline(dense, d.N, true);
   return { def: d, scale: d.N / perimeter(dense),
     roller: { id: d.id, name: d.name, N: d.N, o, body: o, holes: d.h.map(([x, y]) => [x / 4, y / 4]), custom: true },
-    fixed: { id: 'fix-' + d.id, name: d.name, kind: 'piece', pieceId: d.id, inside: false, o: oc, body: oc, custom: true } };
+    fixed: { id: 'fix-' + d.id, name: d.name, kind: 'piece', pieceId: d.id, inside: false, o: oc, body: oc, custom: true,
+      holes: recentredHoles(o, d) } };
 }
 function polyInfo(o, x, y) {                     // is (x, y) inside the outline, and how far from its edge (teeth)?
   let d2 = Infinity, inside = false;
@@ -780,11 +786,24 @@ const scaled = (body, s) => s === 1 ? body : `<g transform="scale(${s.toFixed(4)
 // half off) whatever the shape; R = the piece's radius in teeth (the icon is normalised to it), so a tooth is 1/R tall.
 // When a tooth would be under ~2 px (small pictures), neighbouring teeth are merged so the cog texture stays visible: the
 // picture is an illustration, the tooth count is on the chip. px = on-screen size of the icon, ref = the row's reference radius.
-const teeth = (N, R, ref, px) => {
-  const pitch = px / 2.3 / (ref || R), m = Math.max(1, Math.ceil(2 / pitch)), n = Math.max(8, Math.round(N / m));
+const teeth = (N, R, ref, px, min = 8) => {
+  const pitch = px / 2.3 / (ref || R), m = Math.max(1, Math.ceil(2 / pitch)), n = Math.max(min, Math.round(N / m));
   return `pathLength="${n}" stroke-dasharray=".5 .5" stroke-width="${(1.4 * m / R).toFixed(4)}" stroke-opacity=".8"`;
 };
+// The Cross has teeth only on the four arm ends (on the 60-tooth pitch circle), not in the notches between them: four short toothed arcs.
+// The icon is normalised to the Cross's largest radius, which is that circle, so the arcs have radius 1.
+function crossTeeth(rm, ref, px) {
+  const al = Math.asin(CROSS_ARM.hw / CROSS_ARM.Rt), per = 60 * al / Math.PI, pt = a => `${Math.cos(a).toFixed(4)} ${(-Math.sin(a)).toFixed(4)}`;
+  let out = '';
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; out += `<path d="M${pt(a - al)}A1 1 0 0 0 ${pt(a + al)}" fill="none" ${teeth(per, rm, ref, px, 2)}/>`; }
+  return out;
+}
+function holeDots(pts, rm, k, hole = 0) {       // pen holes as dots; 1-based `hole` is highlighted
+  return pts.map(([x, y], n) => n + 1 === hole ? `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.13 * k).toFixed(3)}" fill="var(--accent)" stroke="none"/>`
+    : `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.045 * k).toFixed(3)}" fill="currentColor" stroke="none" opacity=".55"/>`).join('');
+}
 function holePoints(r) {                        // where to draw the pen holes: real positions, except round wheels, which are
+  if (!r.holes) return [];                      // the rack has none
   if (!r.round) return r.holes;                 // drawn along a spiral like the real ones (only a hole's distance matters there)
   return r.holes.map(([x], k) => { const d = Math.abs(x), a = 0.7 * k; return [d * Math.cos(a), d * Math.sin(a)]; });
 }
@@ -800,7 +819,8 @@ function trackIcon(t, ref = 0, box = 1.15) {
              `<circle cx="${c}" cy="-${c}" r="${w}" fill="currentColor" fill-opacity=".18"/>`;
     } else {
       const o = t.body || t.o, { d, rm } = outlinePath(o);
-      body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (o === t.o ? `<path d="${d}" fill="none" ${teeth(o.N, rm, ref, px)}/>` : '');   // the Cross's teeth are not along its silhouette
+      body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (o === t.o ? `<path d="${d}" fill="none" ${teeth(o.N, rm, ref, px)}/>` : crossTeeth(rm, ref, px)) +
+             holeDots(holePoints(t), rm, k);              // a fixed piece has the same pen holes as its moving twin
     }
     iconCache.set(key, svg(scaled(body, s), Math.max(box, t.kind === 'rack' ? s + 0.15 : 0), box));   // only the rack is wider than the row's box
   }
@@ -810,11 +830,8 @@ function rollerIcon(r, hole, ref = 0, box = 1.15) {         // hole: 1-based hig
   const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}:${box.toFixed(2)}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     const { d, rm } = outlinePath(r.body);
-    let body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (r.body === r.o ? `<path d="${d}" fill="none" ${teeth(r.o.N, rm, ref, px)}/>` : '');
-    holePoints(r).forEach(([x, y], n) => {
-      body += n + 1 === hole ? `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.13 * k).toFixed(3)}" fill="var(--accent)" stroke="none"/>`
-                             : `<circle cx="${x / rm}" cy="${-y / rm}" r="${(0.045 * k).toFixed(3)}" fill="currentColor" stroke="none" opacity=".55"/>`;
-    });
+    const body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (r.body === r.o ? `<path d="${d}" fill="none" ${teeth(r.o.N, rm, ref, px)}/>` : crossTeeth(rm, ref, px)) +
+                 holeDots(holePoints(r), rm, k, hole);
     iconCache.set(key, svg(scaled(body, s), box, box));
   }
   return iconCache.get(key);

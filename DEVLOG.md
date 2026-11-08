@@ -81,6 +81,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Holes on fixed pieces; Cross teeth only on the arm ends
+
+Fixed pieces now draw their pen holes like their moving twins: the `fix-*` catalog tracks carry `holes` (same array as the
+roller), and a custom part's re-centred fixed copy shifts its holes by the same centroid (`recentredHoles`; node-tested).
+The rack has no holes (`holePoints` returns []; forgetting that crashed the whole Fixed row while building, caught before
+pushing). The Cross's teeth go only on the four arm ends, on the 60-tooth pitch circle it rolls on, not in the notches:
+`crossTeeth()` draws four short toothed arcs of radius 1 (the icon is normalised to the Cross's largest radius, which is that
+circle), spanning +/- asin(hw/Rt) around each axis, ~5.5 teeth per arm (`CROSS_ARM` constants shared with `crossBodyDense`).
+
 ### 2026-11-08 — One scale for the Fixed and Moving rows
 
 Each row used to be scaled so its own largest piece filled the icon (the 150 ring for Fixed, the 84 wheel for Moving), so the same

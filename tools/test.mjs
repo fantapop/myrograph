@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -89,6 +89,12 @@ console.log('     fit counts (tracks each preset at its suggested size rolls on 
 const stp = { ...st, parts: [oval, mkDef('flower', 0, 'Flower (5)')] };
 check('share link carries custom parts and round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(stp))) === JSON.stringify(stp), `${C.encodeShare(stp).length} chars`);
 check('share link rejects damaged custom parts', ['v1/faf7f0/t/p,x,44,2,6,1,zz,1_1', 'v1/faf7f0/t/p,x,5,2,6,1,ffffffffffff,1_1', 'v1/faf7f0/t/p,x,44,2,6,1,ffffffffffff,'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } }));
+
+// fixed pieces carry the same pen holes as their moving twins (the icons draw them); a custom part's fixed copy is re-centred, so its holes shift with it
+check('fixed pieces have their twin\'s holes', cat.tracks.filter(t => t.kind === 'piece').every(t => t.holes === cat.rollers.find(r => r.id === t.pieceId).holes));
+const fixedHoles = pcs[1].fixed.holes, rollerHoles = pcs[1].roller.holes, o1 = pcs[1].roller.o; let mx = 0, my = 0; for (let i = 0; i < o1.M; i++) { mx += o1.p[2 * i]; my += o1.p[2 * i + 1]; }
+check('custom fixed copy keeps holes at the same place on the body', fixedHoles.every(([x, y], i) => Math.abs(x - (rollerHoles[i][0] - mx / o1.M)) < 1e-9 && Math.abs(y - (rollerHoles[i][1] - my / o1.M)) < 1e-9));
+check('Cross arm ends lie on its 60-tooth pitch circle (radius ~ 60 / 2pi)', Math.abs(C.CROSS_ARM.Rt - 60 / (2 * Math.PI)) < 0.05);
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
