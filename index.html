@@ -749,8 +749,7 @@ const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
 const $ = id => document.getElementById(id);
 const pr = Math.min(window.devicePixelRatio || 1, 2);
 let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', showOverlap = false, okCount = 0;
-const collapsed = { 'f-fixed': true, 'f-roller': true };   // rows showing only what fits on one line (persisted under ROWS_KEY)
-const ROWS_KEY = 'spirograph.rows';
+const collapsed = { 'f-fixed': true, 'f-roller': true };   // rows showing only what fits on one line; always starts collapsed (not remembered) so the page lands clean
 let view = 'patterns', gridStale = false;   // which main view is showing; grid needs re-flow after being hidden
 const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: new Set(), custom: new Set() };   // custom: part ids, or '*' for all
 // custom parts: the library is what the user made or kept (saved in localStorage); the registry also holds
@@ -824,7 +823,7 @@ function applyCollapse(id) {                    // collapsed: only what fits on 
 }
 function rowToggle(id) {
   const t = document.createElement('button'); t.className = 'rowtoggle';
-  t.onclick = () => { collapsed[id] = !collapsed[id]; store.set(ROWS_KEY, JSON.stringify(collapsed)); fitHeader(); };
+  t.onclick = () => { collapsed[id] = !collapsed[id]; fitHeader(); };
   $(id).append(t); applyCollapse(id);
 }
 function chip(container, set, key, html, pic, title) {
@@ -844,7 +843,6 @@ function buildFilters() {
   const refFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(trackRadius)), refMoving = Math.max(...CAT.rollers.map(rollerRadius));
   for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, refFixed)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
   for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0, refMoving)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
-  try { Object.assign(collapsed, JSON.parse(store.get(ROWS_KEY) || '{}')); } catch { /* keep defaults */ }
   rowToggle('f-fixed'); rowToggle('f-roller');
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
   for (let k = 1; k <= maxHoles; k++) chip('f-hole', filters.hole, k, k);

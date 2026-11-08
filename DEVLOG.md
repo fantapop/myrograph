@@ -81,6 +81,13 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Rows always start collapsed
+
+The expand/collapse state of the Fixed part / Moving piece rows was persisted (`spirograph.rows`), so anyone who had
+expanded a row once (including under the earlier "selected only" design, which defaulted to expanded) landed on an
+expanded page. It is now in-memory only: every visit starts collapsed to one line, expanding lasts for the visit. The old
+`spirograph.rows` key is ignored.
+
 ### 2026-11-08 — Row labels on the first line; to-scale is the only mode
 
 Row labels were vertically centred on the whole row, which looked wrong once rows wrapped or expanded. They are now
