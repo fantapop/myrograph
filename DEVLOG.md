@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Rack icon uncropped; ring icons show a small wheel
+
+Rack: it is 35 teeth from centre to end, more than the row's reference radius (the 150 ring, 23.9), so at true scale it was
+1.46x wider than its square icon and the curved ends were cropped away (two bare lines). Icons now accept a wider viewBox
+(`svg(body, hw)`; `trackIcon` widens it when `s + .15 > 1.15`, i.e. only the rack) so it is drawn whole, at true scale, in a
+wider chip. Rings: dropped the orange outline on "the circle it rolls on"; instead a small wheel circle is drawn where it
+would sit: inside the opening (touching the inner edge) for inner tracks, against the outer edge for outer tracks, at 45
+degrees up-right so it stays inside the icon box. Applies everywhere `trackIcon` is used (chips, tile footers, layer rows,
+maker compat grid).
+
 ### 2026-11-08 — "+N more" pills line up
 
 The pills followed the last visible chip, so each row's sat at a different x. `.rowtoggle` now has `margin-left: auto` (pushed to
