@@ -84,7 +84,7 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 ### 2026-11-08 — White / Black paper buttons
 
 Paper row now has round White (#ffffff) and Black (#000000) swatches plus the free color picker (the active swatch gets
-an accent ring; the default off-white #faf7f0 matches neither). Choosing one counts as a hand-picked paper. Also fixed:
+an accent ring; the default off-white #faf7f0 matches neither). The free pickers (paper and ink) are drawn as a rainbow ring with a dot of the current custom color (`.pick`, `--pc`) with the real `<input type=color>` invisibly on top; styling the native swatch itself did not work (Chrome paints the chosen color over any background). Choosing one counts as a hand-picked paper. Also fixed:
 a palette that sets its own paper (Neon, Midnight, Chalkboard) now remembers the paper you had (`paperBeforePalette`)
 and restores that, not the default, when you leave it.
 

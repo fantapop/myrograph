@@ -81,6 +81,13 @@
   .swatch.on { border-color: #fff; }
   .paper-sw.on { border-color: var(--accent); }
   input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid #44444e; background: none; cursor: pointer; }
+  /* free-color pickers (ink, paper): a rainbow ring around a dot showing the current custom color (--pc); the real
+     color input sits invisibly on top, so a click still opens the native picker */
+  .pick { position: relative; display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #44444e; flex: none;
+    background: conic-gradient(#f33, #fc3, #6d3, #3dc, #39f, #c3f, #f39, #f33); }
+  .pick::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--pc, #fff); border: 1px solid rgba(0,0,0,.45); pointer-events: none; }
+  .pick input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+  .pick:hover { border-color: #fff; }
   #count { margin-left: auto; color: var(--dim); }
   #f-ink { align-items: center; }
   #f-ink select, #pal-edit input[type=text] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 6px; }
@@ -200,7 +207,7 @@
     <div class="row"><span class="label">Paper</span>
       <button class="swatch paper-sw" data-c="#ffffff" title="White paper" style="background:#fff"></button>
       <button class="swatch paper-sw" data-c="#000000" title="Black paper" style="background:#000"></button>
-      <input type="color" id="paper" value="#faf7f0" title="Any paper color">
+      <span class="pick" title="Any paper color"><input type="color" id="paper" value="#faf7f0"></span>
       <button id="shuffle" style="margin-left:12px">Shuffle</button><button id="reset">Reset order</button>
       <span id="count">Preparing…</span></div>
   </details>
@@ -828,22 +835,27 @@ function buildInk() {
   const auto = document.createElement('button');
   auto.className = 'swatch'; auto.title = 'Auto: cycle through the palette, one color per moving piece';
   auto.style.background = cols.length > 1 ? `conic-gradient(${cols.join(',')},${cols[0]})` : cols[0];
-  const picker = document.createElement('input'); picker.type = 'color'; picker.value = inkPick; picker.title = 'Custom ink color';
+  const picker = document.createElement('input'); picker.type = 'color'; picker.value = inkPick;
+  const wrap = document.createElement('span'); wrap.className = 'pick'; wrap.title = 'Any ink color'; wrap.append(picker);
+  const dot = () => wrap.style.setProperty('--pc', picker.value); dot();
   const setInk = (mode, el) => { inkMode = mode; ink.querySelectorAll('.swatch').forEach(s => s.classList.toggle('on', s === el)); repaintAll(); };
   auto.onclick = () => setInk('auto', auto);
   auto.classList.toggle('on', inkMode === 'auto');
   ink.append(auto);
   for (const c of cols) {
     const s = document.createElement('button'); s.className = 'swatch' + (inkMode === c ? ' on' : ''); s.style.background = c; s.title = c;
-    s.onclick = () => { inkPick = picker.value = c; setInk(c, s); }; ink.append(s);
+    s.onclick = () => { inkPick = picker.value = c; dot(); setInk(c, s); }; ink.append(s);
   }
-  picker.oninput = () => { inkPick = picker.value; setInk(picker.value, null); };
-  ink.append(picker);
+  picker.oninput = () => { inkPick = picker.value; dot(); setInk(picker.value, null); };
+  ink.append(wrap);
 }
 const DEFAULT_PAPER = '#faf7f0';
 let paperFromPalette = false;                   // true while the paper was set by a palette (not picked by hand)
 let paperBeforePalette = DEFAULT_PAPER;         // the paper to go back to when leaving a palette that set its own
-function markPaperSwatches() { document.querySelectorAll('.paper-sw').forEach(b => b.classList.toggle('on', b.dataset.c === $('paper').value.toLowerCase())); }
+function markPaperSwatches() {
+  const c = $('paper').value.toLowerCase(); $('paper').parentElement.style.setProperty('--pc', c);
+  document.querySelectorAll('.paper-sw').forEach(b => b.classList.toggle('on', b.dataset.c === c));
+}
 function setPaper(c) {
   $('paper').value = c; markPaperSwatches();
   document.documentElement.style.setProperty('--paper', c); scene.background.set(c);
