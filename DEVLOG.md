@@ -48,12 +48,19 @@ Next steps / not done:
 - Rack is modelled with outside teeth only and aspect 7.8:1 (from the photo).
 - Possible: click-to-detail, animated drawing, shareable URLs, SVG/PNG export.
 
-Testing the core: extract the BEGIN/END CORE block of `index.html` into a `.mjs` with an
-`export {...}` line and run it with node (analytic hypo/epitrochoid ranges matched; catalog
-builds in ~250 ms).
+Testing: `node tools/test.mjs` extracts the CORE block and checks the rolling math against closed
+forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes headless screenshots.
+`CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
 
+
+### 2026-11-07 — Handoff prep
+
+Added `CLAUDE.md` (orientation, gotchas) and `tools/` (test.mjs, shot.sh) so a new session does
+not depend on scratch scripts that used to live in the old workspace's git-ignored `.context/`.
+History was rewritten once before this to drop the old `misc` root commit (it carried a work
+email); the new repo has only noreply-authored commits.
 
 ### 2026-11-07 — Named myrograph, moved to its own repo
 
