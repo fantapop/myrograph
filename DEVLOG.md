@@ -16,13 +16,13 @@ normalises every layer. Selection is in-memory only (lost on reload).
 
 Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
 (JSON, part ids + color/visible/rotation/size, paper color, base scale) in an iTXt chunk
-"SpirographGallery" right after IHDR. "Open..." or dropping a PNG on the page restores it.
+"Myrograph" right after IHDR. "Open..." or dropping a PNG on the page restores it.
 Round trip verified in headless Chrome (state identical) and the PNG still decodes in sips/Chrome.
 
 Albums: the top-level Albums view (header tabs Patterns | Albums; thumbnails 220 px, count and date per item; the panel just has a "+ Album" button) keeps named collections of overlay setups in localStorage
-(`spirograph.albums.v1`; ~0.5 KB per overlay, thumbnails re-rendered from the setup on demand, not
+(`myrograph.albums.v1`; ~0.5 KB per overlay, thumbnails re-rendered from the setup on demand, not
 stored). Save-to-album, open, rename, replace-with-current, delete; export one/all albums as
-`.spiroalbum.json` and import them (names de-duplicated, fresh ids); importing/dropping a saved
+`.myroalbum.json` and import them (names de-duplicated, fresh ids); importing/dropping a saved
 PNG adds its embedded setup to the current album. Verified in headless Chrome.
 
 Share links: "Copy link" in the panel (and a link button on each album item) copies
@@ -36,7 +36,7 @@ Ink palettes: the Ink row has a palette dropdown (9 presets - Classic is the ori
 Edit... (a preset is copied first; own palettes edited in place, with delete) and + New. The active palette
 drives the grid's Auto ink (one color per moving piece, cycling) and the color of each newly added Compose
 layer (first palette color not already used). Custom palettes live in localStorage
-(`spirograph.palettes.v1`, active one in `spirograph.palette.current`); presets/validation (`PRESET_PALETTES`,
+(`myrograph.palettes.v1`, active one in `myrograph.palette.current`); presets/validation (`PRESET_PALETTES`,
 `cleanPalette`, `parsePalettes`) are in CORE and node-tested. Choosing a palette does not recolor layers
 already in the overlay. A palette can carry an optional `paper` (Neon, Midnight, Chalkboard, or a custom one via
 the editor's "Paper" checkbox): choosing it sets the paper; choosing a palette without one restores the default
@@ -48,7 +48,7 @@ periodic cubic spline) or a preset (circle, oval, lens, egg, rounded square/tria
 star); Size = tooth count N (perimeter scaled to exactly N). Pen holes: click/drag/right-click, row/grid fill,
 margin 1 tooth from the edge enforced. Live "fits with the set" grid (green/red from the same `fits` simulation,
 computed incrementally so the UI stays responsive) and an animated roll preview. Library: localStorage
-`spirograph.parts.v1` (max 12). Custom combos are in `CUSTOM`, shown only through their own filter row (not the
+`myrograph.parts.v1` (max 12). Custom combos are in `CUSTOM`, shown only through their own filter row (not the
 main grid). Parts are immutable and content-addressed (`c` + hash), and PNG/album/share-link state carries the
 definitions (`parts`; `p,...` URL segments, ~150 chars for 2 layers + 1 part), so others can open them; a
 "keep part" button in the layer list adds a guest part to the library. Tested in node (CORE) and in headless
@@ -80,6 +80,25 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-08 — Ring labels, per-pattern Auto ink, rename of the saved-data names
+
+- Ring chips: a ring has two sets of teeth (96 inner / 144 outer on one ring, 105 inner / 150 outer on the other), so the four
+  Fixed-part chips are now labelled by ring and side: "Ring 96/144 inside (96)", "... outside (144)", etc. Track names became
+  "Ring 96/144" (footers show "· inside/outside" after it). There is no "150 inner": 150 is the outer edge of the 105 ring.
+- Relative sizes verified, not changed: every wheel is within 0.1% of N/pi at one px-per-tooth scale in both rows (84 wheel =
+  48.7 px, 24 wheel = 13.9 px), the 144 and 150 rings differ by 4% and many neighbouring wheels by 5-7%, so they look alike
+  because the real parts are.
+- Auto ink: after layers started taking their tile's color, Auto (one color per moving piece) made every layer from the same
+  wheel identical. Auto is now one palette color per *pattern* (`patternSeed(p) % palette.length`, catalog order, so successive
+  holes of a wheel differ, stable under filtering; string-keyed custom patterns are hashed). Tile color still equals layer color.
+- Rename: nothing is written under the old names any more: app id `myrograph`, PNG chunk `Myrograph`, storage keys `myrograph.*`,
+  album files `.myroalbum.json` / `myrograph-albums`, test hook `window.__myro`, error text. The old names live only in `LEGACY`
+  (index.html, UI section) and are READ-only: `isApp()` accepts the old app id, `readSetup()` tries the old PNG chunk name, and
+  `migrateLegacyStorage()` moves old browser data (albums, palettes, parts, current choices) to the new keys once and deletes the
+  old ones and two dead settings. Saved setups are re-tagged with the new app id (`modern()`) on load/import/export. Delete
+  `LEGACY` and its three users when old data no longer matters. Tested: seeded old-style localStorage, old PNG, old album file.
+
 
 ### 2026-11-08 — Holes on fixed pieces; Cross teeth only on the arm ends
 

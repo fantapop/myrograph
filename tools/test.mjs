@@ -46,7 +46,7 @@ check('crc32 check value', C.crc32(new TextEncoder().encode('123456789')) === 0x
 check('PNG text chunk round-trips', C.readTextChunk(withMeta, 'K') === text && C.readTextChunk(png, 'K') === null && C.readTextChunk(withMeta, 'Other') === null);
 
 // share links
-const st = { app: 'spirograph-gallery', v: 1, paper: '#faf7f0', baseScale: 'fit', layers: [
+const st = { app: 'myrograph', v: 1, paper: '#faf7f0', baseScale: 'fit', layers: [
   { track: 'ring96-in', roller: 'cross', hole: 1, color: '#1f4fd8', visible: true, rot: 0, size: 100, width: 1 },
   { track: 'ring144-out', roller: 'eye', hole: 6, color: '#c4242b', visible: false, rot: 40, size: 70, width: 2.5 }] };
 check('share link round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(st))) === JSON.stringify(st));

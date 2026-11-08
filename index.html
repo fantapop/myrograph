@@ -10,8 +10,8 @@
   WebGL canvas, copying the result into a plain 2D canvas inside the tile (so tiles scroll
   natively with their labels). Tiles that scroll away are discarded and redrawn on demand.
 
-  Naming: the saved-file identifiers still say "spirograph" (PNG chunk SpirographGallery, album and
-  share-link app id spirograph-gallery, localStorage keys spirograph.*) so files made earlier keep working.
+  Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
+  myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
 
   Usage: open index.html in a browser (needs network for the three.js CDN import map), or run
   `python3 -m http.server` in this directory and visit http://localhost:8000.
@@ -19,15 +19,15 @@
   (White / Black buttons or any color), Shuffle / Reset order. Ink: pick a preset palette (or one of your own) and Auto cycles
   through it per moving piece; newly added Compose layers take the palette's next unused color.
   Dark-background palettes (Neon, Midnight, Chalkboard, or your own with "Paper" ticked) also set the paper.
-  "Edit…" / "+ New" build custom palettes, kept in localStorage (spirograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
+  "Edit…" / "+ New" build custom palettes, kept in localStorage (myrograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (shared centre) with per-layer color,
   visibility, rotation, size and line width, and a Base scale switch (True size / Fit each). "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
-  ("SpirographGallery", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
+  ("Myrograph", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
   they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
   The top-level Albums view (next to Patterns) keeps named collections of those same small
   setups in the browser's localStorage (per site/origin; thumbnails are re-rendered from the
-  setup, never stored) and exports/imports them as .spiroalbum.json files (importing a saved
+  setup, never stored) and exports/imports them as .myroalbum.json files (importing a saved
   PNG adds it to the album). Opening an album item loads it into the Compose panel.
   "Print" (button, or Ctrl/Cmd+P while the panel is open) prints just the overlay on a clean page: on beforeprint it is
   re-rendered at 2400 px into a plain canvas (a WebGL canvas can print blank); with the panel closed or no visible
@@ -43,7 +43,7 @@
   (the edge is scaled to exactly that many teeth, so it meshes at the real tooth pitch), place pen holes
   (kept inside the edge), and see live which pieces of the set it fits with (green/red, from the same
   collision simulation as the catalog) plus an animated roll preview. Parts are saved in localStorage
-  (spirograph.parts.v1, max 12), appear only behind their own filter (never in the main grid), and are
+  (myrograph.parts.v1, max 12), appear only behind their own filter (never in the main grid), and are
   identified by a hash of their definition, so PNGs, albums and share links carry the definition: anyone
   opening them can draw the part, and "keep part" in the layer list adds it to their library.
   Edit PARTS to change tooth counts, shapes or hole layouts. Tooth and hole counts follow the
@@ -79,6 +79,7 @@
   /* to-scale rows: big pictures with the label underneath */
   .row.big .chip.pic { flex-direction: column; gap: 1px; padding: 4px 6px 3px; font-size: 11px; line-height: 1.2; }
   .row.big .chip.pic svg { width: 56px; height: 56px; }
+  .chip .lbl { text-align: center; }
   header.tall { position: static; max-height: none; }   /* too tall to stay pinned over the grid: scrolls away instead */
   .rowtoggle { font-size: 12px; padding: 4px 0; width: 84px; justify-content: center; margin-left: auto; color: var(--ink); border: 1px dashed #66666f; border-radius: 999px; align-self: center; }   /* pushed to the row's right end: the pills of all rows line up */
   .rowtoggle:hover { border-color: #fff; }
@@ -500,8 +501,8 @@ function buildCatalog() {
   }
   const tracks = [];
   for (const r of PARTS.rings) {
-    tracks.push({ id: `ring${r.inner}-in`, name: `Ring ${r.inner} inner`, kind: 'ring', inside: true, which: 'inner', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.inner), body: makeOutline(circleDense(), r.inner) });
-    tracks.push({ id: `ring${r.outer}-out`, name: `Ring ${r.outer} outer`, kind: 'ring', inside: false, which: 'outer', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.outer), body: makeOutline(circleDense(), r.outer) });
+    tracks.push({ id: `ring${r.inner}-in`, name: `Ring ${r.inner}/${r.outer}`, kind: 'ring', inside: true, which: 'inner', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.inner), body: makeOutline(circleDense(), r.inner) });
+    tracks.push({ id: `ring${r.outer}-out`, name: `Ring ${r.inner}/${r.outer}`, kind: 'ring', inside: false, which: 'outer', ratio: r.inner / r.outer, o: makeOutline(circleDense(), r.outer), body: makeOutline(circleDense(), r.outer) });
   }
   tracks.push({ id: 'rack', name: `Rack ${PARTS.rack.N}`, kind: 'rack', inside: false, o: makeOutline(stadiumDense(PARTS.rack.aspect), PARTS.rack.N), body: null });
   for (const w of rollers) tracks.push({ id: 'fix-' + w.id, name: w.name, kind: 'piece', pieceId: w.id, inside: false, o: w.o, body: w.body, round: w.round, holes: w.holes });
@@ -580,7 +581,7 @@ function decodeShare(text) {                    // throws on anything malformed
       rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(200, Math.max(25, Math.round(+size) || 100)),
       width: Math.min(6, Math.max(0.5, (Math.round(+wd) || 10) / 10)) };
   });
-  return { app: 'spirograph-gallery', v: 1, paper: '#' + parts[1], baseScale: parts[2] === 'f' ? 'fit' : 'true', layers, ...(shared.length ? { parts: shared } : {}) };
+  return { app: 'myrograph', v: 1, paper: '#' + parts[1], baseScale: parts[2] === 'f' ? 'fit' : 'true', layers, ...(shared.length ? { parts: shared } : {}) };
 }
 
 // ---- ink palettes: ordered color sets. The active one feeds the grid's Auto ink (one color per moving
@@ -747,7 +748,13 @@ function decodePart(seg) {                       // null if damaged
 // ======================================================= END CORE
 
 // ---------------------------------------------------------------- UI constants and state
-const PAL_KEY = 'spirograph.palettes.v1', PAL_CUR = 'spirograph.palette.current';
+// Saved files, links and browser data are written under the myrograph names. The project used to carry another name (it is a trademark),
+// so LEGACY lists the old names purely to READ what was saved back then: old PNGs, album files and browser data keep opening. Nothing
+// is ever written under them; delete this block (and the two places that use it) once that old data no longer matters.
+const APP_ID = 'myrograph', CHUNK = 'Myrograph', STORAGE_PREFIX = 'myrograph.';
+const LEGACY = { app: 'spirograph-gallery', chunk: 'SpirographGallery', prefix: 'spirograph.' };
+const isApp = a => a === APP_ID || a === LEGACY.app;
+const PAL_KEY = STORAGE_PREFIX + 'palettes.v1', PAL_CUR = STORAGE_PREFIX + 'palette.current';
 let customPalettes = [], palId = 'classic';     // loaded in buildInk's caller (the storage helper is defined further down)
 const allPalettes = () => [...PRESET_PALETTES, ...customPalettes];
 const palette = () => allPalettes().find(p => p.id === palId) || PRESET_PALETTES[0];
@@ -760,7 +767,7 @@ let view = 'patterns', gridStale = false;   // which main view is showing; grid 
 const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: new Set(), custom: new Set() };   // custom: part ids, or '*' for all
 // custom parts: the library is what the user made or kept (saved in localStorage); the registry also holds
 // "guest" parts that came with an opened PNG, album or link (rendered, but not in the library unless kept)
-const PARTS_KEY = 'spirograph.parts.v1';
+const PARTS_KEY = STORAGE_PREFIX + 'parts.v1';
 let library = [], CUSTOM = [];                  // CUSTOM: combos of library parts (kept out of ALL, shown via the Custom parts filter)
 const registry = new Map(), pieceMemo = new Map(), fitMemo = new Map(), sdfMemo = new Map(), guestCombos = new Map();
 const piece = id => { let q = pieceMemo.get(id); if (!q && registry.has(id)) pieceMemo.set(id, q = makePart(registry.get(id))); return q; };
@@ -875,7 +882,11 @@ function buildFilters() {
   // fixed and moving piece pictures are drawn to scale, with ONE scale for both rows (a 60 wheel is the same size in each): the largest
   // moving piece fills the standard 56 px box; the Fixed row's boxes are taller so the rings fit at that same scale, the rack is wider
   const ref = Math.max(...CAT.rollers.map(rollerRadius)), boxFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(t => trackRadius(t) / ref)) + 0.15;
-  for (const t of CAT.tracks) chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, ref, boxFixed)}${t.name.replace(/^Ring /, '').replace(/^Wheel /, '')}`, true, `${t.name}: ${t.o.N} teeth`);
+  for (const t of CAT.tracks) {                  // a ring has two sets of teeth, so two chips: label them by ring and side
+    const label = t.kind === 'ring' ? `Ring ${t.name.slice(5)}<br>${t.inside ? 'inside' : 'outside'} (${t.o.N})` : t.name.replace(/^Wheel /, '');
+    chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, ref, boxFixed)}<span class="lbl">${label}</span>`, true,
+      t.kind === 'ring' ? `${t.name}: its ${t.inside ? 'inner' : 'outer'} teeth (${t.o.N}); wheels roll ${t.inside ? 'inside it' : 'around the outside'}` : `${t.name}: ${t.o.N} teeth`);
+  }
   for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0, ref)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
   rowToggle('f-fixed'); rowToggle('f-roller');
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
@@ -910,7 +921,7 @@ function buildInk() {
   add.title = 'Build a new palette'; add.onclick = () => openPalEditor(false);
   ink.append(sel, edit, add);
   const auto = document.createElement('button');
-  auto.className = 'swatch'; auto.title = 'Auto: cycle through the palette, one color per moving piece';
+  auto.className = 'swatch'; auto.title = 'Auto: a different palette color for each pattern';
   auto.style.background = cols.length > 1 ? `conic-gradient(${cols.join(',')},${cols[0]})` : cols[0];
   const picker = document.createElement('input'); picker.type = 'color'; picker.value = inkPick;
   const wrap = document.createElement('span'); wrap.className = 'pick'; wrap.title = 'Any ink color'; wrap.append(picker);
@@ -1052,9 +1063,12 @@ function material(color) {
   if (!mats.has(color)) mats.set(color, new LineMaterial({ color: new THREE.Color(color), linewidth: 1.3 * pr }));
   const m = mats.get(color); m.resolution.set(px, px); return m;
 }
+// Auto: every pattern gets its own palette color, cycling in catalog order (so neighbouring holes of one wheel differ) and stable for a
+// given pattern whatever the filters; custom parts have string keys, hashed.
+const patternSeed = p => typeof p.key === 'number' ? p.key : [...p.key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 function inkFor(p) {                            // the color a pattern is drawn in on its grid tile (and given to it as a layer)
   const cols = palette().colors;
-  return inkMode === 'auto' ? cols[p.rollerIdx % cols.length] : inkMode;
+  return inkMode === 'auto' ? cols[patternSeed(p) % cols.length] : inkMode;
 }
 const tileColor = p => layers.get(p.key)?.color || inkFor(p);   // a selected tile is drawn in its layer's color, so left and canvas always agree
 function paint(e) {
@@ -1175,7 +1189,7 @@ function renderOverlay() {
 const say = (msg, ms = 4000) => { $('ov-msg').textContent = msg; if (ms) setTimeout(() => { if ($('ov-msg').textContent === msg) $('ov-msg').textContent = ''; }, ms); };
 function overlayState() {
   const used = new Set([...layers.values()].map(l => customIdOf(l.p)).filter(Boolean));
-  return { app: 'spirograph-gallery', v: 1, paper: $('paper').value, baseScale: $('ov-scale').value,
+  return { app: APP_ID, v: 1, paper: $('paper').value, baseScale: $('ov-scale').value,
     layers: [...layers.values()].map(l => ({ track: l.p.track.id, roller: l.p.roller.id, hole: l.p.hole,
       color: l.color, visible: l.visible, rot: l.rot, size: l.size, width: l.width })),
     ...(used.size ? { parts: [...used].map(id => registry.get(id)).filter(Boolean) } : {}) };     // custom parts travel with the setup
@@ -1188,7 +1202,7 @@ async function makePng(px) {
   const blob = await new Promise(res => r.domElement.toBlob(res, 'image/png'));
   r.dispose(); r.forceContextLoss();
   renderOverlay();
-  return addTextChunk(new Uint8Array(await blob.arrayBuffer()), 'SpirographGallery', JSON.stringify(overlayState()));
+  return addTextChunk(new Uint8Array(await blob.arrayBuffer()), CHUNK, JSON.stringify(overlayState()));
 }
 // ---- print: while the Compose panel is open, printing (button or Ctrl/Cmd+P) outputs just the overlay. The live canvas
 // is WebGL (often blank in print), so on beforeprint it is re-rendered at print resolution into a plain canvas.
@@ -1236,7 +1250,7 @@ function registerParts(defs) {                  // make parts that arrived with 
 }
 const customIdOf = p => p.roller.custom ? p.roller.id : p.track.custom ? p.track.pieceId : null;
 function applyState(meta) {                     // replace the overlay with a saved one
-  if (!meta || meta.app !== 'spirograph-gallery') throw new Error('This PNG has no myrograph data');
+  if (!meta || !isApp(meta.app)) throw new Error('This PNG has no myrograph data');
   const gotParts = registerParts(meta.parts);
   for (const l of [...layers.values()]) { ovCache.get(l.key)?.geo.dispose(); ovCache.delete(l.key); }
   layers.clear();
@@ -1256,7 +1270,7 @@ function applyState(meta) {                     // replace the overlay with a sa
 async function openFile(file) {
   try {
     if (layers.size && !confirm('Replace the current overlay with the one in this file?')) return;
-    const txt = readTextChunk(new Uint8Array(await file.arrayBuffer()), 'SpirographGallery');
+    const txt = readSetup(new Uint8Array(await file.arrayBuffer()));
     if (txt == null) throw new Error('This PNG has no myrograph data');
     applyState(JSON.parse(txt));
   } catch (err) { say(err.message, 6000); }
@@ -1268,12 +1282,27 @@ window.addEventListener('dragover', e => { e.preventDefault(); document.body.cla
 window.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('dragging'); });
 window.addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('dragging'); const f = e.dataTransfer.files[0]; if (f) (/\.json$/i.test(f.name) ? importFile(f) : openFile(f)); });
 
-// ---- albums: named collections of saved setups, kept in localStorage; exportable as .spiroalbum.json
-const STORE_KEY = 'spirograph.albums.v1', CUR_KEY = 'spirograph.album.current';
+// ---- albums: named collections of saved setups, kept in localStorage; exportable as .myroalbum.json
+const STORE_KEY = STORAGE_PREFIX + 'albums.v1', CUR_KEY = STORAGE_PREFIX + 'album.current';
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
                 set: (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { say('Could not write to browser storage: ' + e.message, 8000); return false; } } };
-function loadAlbums() { try { const a = JSON.parse(store.get(STORE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } }
+const modern = st => ({ ...st, app: APP_ID });  // saved setups from before the rename say the old app id; re-tag them so nothing new carries it
+function loadAlbums() {
+  try { const a = JSON.parse(store.get(STORE_KEY) || '[]');
+    return Array.isArray(a) ? a.map(al => ({ ...al, items: (al.items || []).map(i => ({ ...i, state: modern(i.state || {}) })) })) : []; } catch { return []; }
+}
+const readSetup = bytes => readTextChunk(bytes, CHUNK) ?? readTextChunk(bytes, LEGACY.chunk);   // a saved PNG's embedded setup (JSON text) or null
+function migrateLegacyStorage() {               // browser data saved under the old names moves to the new ones, once
+  for (const k of ['relsize', 'rows']) { try { localStorage.removeItem(LEGACY.prefix + k); } catch { /* ignore */ } }   // settings that no longer exist
+  for (const k of ['albums.v1', 'album.current', 'palettes.v1', 'palette.current', 'parts.v1']) {
+    const old = store.get(LEGACY.prefix + k);
+    if (old === null) continue;
+    if (store.get(STORAGE_PREFIX + k) === null && !store.set(STORAGE_PREFIX + k, old)) continue;     // keep the old copy if the move failed
+    try { localStorage.removeItem(LEGACY.prefix + k); } catch { /* ignore */ }
+  }
+}
+migrateLegacyStorage();
 let albums = loadAlbums(), curId = store.get(CUR_KEY);
 const curAlbum = () => albums.find(a => a.id === curId) || albums[0];
 function ensureAlbum() { if (!albums.length) { const a = { id: uid(), name: 'My album', items: [] }; albums.push(a); curId = a.id; } return curAlbum(); }
@@ -1366,35 +1395,35 @@ function setView(v) {
   sync();
 }
 function albumPayload(list) {
-  return { app: 'spirograph-gallery', kind: 'album', v: 1,
-    albums: list.map(a => ({ name: a.name, items: a.items.map(i => ({ name: i.name, created: i.created, state: i.state })) })) };
+  return { app: APP_ID, kind: 'album', v: 1,
+    albums: list.map(a => ({ name: a.name, items: a.items.map(i => ({ name: i.name, created: i.created, state: modern(i.state) })) })) };
 }
 function exportAlbums(all) {
   const list = all ? albums : [curAlbum()].filter(Boolean);
   if (!list.length) return say('No album to export.');
-  const a = document.createElement('a'), name = all ? 'spirograph-albums' : list[0].name.replace(/[^\w.-]+/g, '-');
+  const a = document.createElement('a'), name = all ? 'myrograph-albums' : list[0].name.replace(/[^\w.-]+/g, '-');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(albumPayload(list), null, 1)], { type: 'application/json' }));
-  a.download = `${name}.spiroalbum.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  a.download = `${name}.myroalbum.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   say(`Exported ${list.length} album${list.length > 1 ? 's' : ''}`);
 }
-const validState = st => st && st.app === 'spirograph-gallery' && Array.isArray(st.layers);
+const validState = st => st && isApp(st.app) && Array.isArray(st.layers);
 async function importFile(file) {
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes[0] === 137) {                     // a saved PNG: add its setup to the current album
-      const txt = readTextChunk(bytes, 'SpirographGallery');
+      const txt = readSetup(bytes);
       const st = txt == null ? null : JSON.parse(txt);
       if (!validState(st)) throw new Error('This PNG has no myrograph data');
-      const a = ensureAlbum(); a.items.push({ id: uid(), name: file.name.replace(/\.png$/i, ''), created: Date.now(), state: st });
+      const a = ensureAlbum(); a.items.push({ id: uid(), name: file.name.replace(/\.png$/i, ''), created: Date.now(), state: modern(st) });
       persist(); buildAlbums(); return say(`Added the PNG's overlay to ${a.name}`);
     }
     const data = JSON.parse(new TextDecoder().decode(bytes));
-    if (!data || data.app !== 'spirograph-gallery' || data.kind !== 'album' || !Array.isArray(data.albums)) throw new Error('Not a spirograph album file');
+    if (!data || !isApp(data.app) || data.kind !== 'album' || !Array.isArray(data.albums)) throw new Error('Not a myrograph album file');
     let n = 0, items = 0;
     for (const src of data.albums) {
       const base = String(src.name || 'Imported'); let name = base;
       for (let k = 2; albums.some(a => a.name === name); k++) name = `${base} (${k})`;
-      const its = (src.items || []).filter(i => validState(i.state)).map(i => ({ id: uid(), name: String(i.name || 'Overlay'), created: i.created || Date.now(), state: i.state }));
+      const its = (src.items || []).filter(i => validState(i.state)).map(i => ({ id: uid(), name: String(i.name || 'Overlay'), created: i.created || Date.now(), state: modern(i.state) }));
       albums.push({ id: uid(), name, items: its }); curId = albums[albums.length - 1].id; n++; items += its.length;
     }
     persist(); buildAlbums(); say(`Imported ${n} album${n === 1 ? '' : 's'}, ${items} overlay${items === 1 ? '' : 's'}`);
@@ -1431,8 +1460,8 @@ window.addEventListener('hashchange', () => {
   if (layers.size && !confirm('Open the shared overlay and replace the current one?')) return;
   applyHash();
 });
-window.__spiro = { makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
-  encodeShare, decodeShare, readTextChunk,
+window.__myro = { makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
+  encodeShare, decodeShare, readTextChunk, addTextChunk,
   parts: { open: d => openMaker(d), ed: () => ed, library: () => library, registry, CUSTOM: () => CUSTOM, keepPart, edSave, edDraw, edSync, lookup,
     forget(id) { library = library.filter(d => d.id !== id); registry.delete(id); pieceMemo.delete(id); guestCombos.clear(); libraryChanged(); } } };   // forget: test hook   // test hook
 function markTile(e) {                          // selection outline + badge on a grid tile

@@ -4,7 +4,7 @@ Read `DEVLOG.md` first (Current state + dated log). This file is just the orient
 
 ## What it is
 Single-file static web page, `index.html` (three.js from a CDN import map, no build, no server).
-Gallery of gear-curve patterns from a Deluxe-style Spirograph-type set (see `README.md`), with an
+Gallery of gear-curve patterns from a Deluxe-style spirograph-type gear set (see `README.md`), with an
 overlay composer, PNG save with embedded setup, albums (localStorage + export/import) and
 share-by-URL-fragment. Repo: https://github.com/fantapop/myrograph (public, MIT). Hosted on GitHub Pages from `main`:
 https://fantapop.github.io/myrograph/ (redeploys on every push; share links only work for others when copied from there).
@@ -33,10 +33,10 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   at stopping points, and the cross-project journal at `~/Development/dev-journal/myrograph.md`.
 
 ## Gotchas / decisions worth knowing
-- Name: "Spirograph" is a trademark. Visible strings say myrograph; internal identifiers keep the
-  old names on purpose (PNG chunk `SpirographGallery`, app id `spirograph-gallery`, localStorage
-  `spirograph.*`, `.spiroalbum.json`) so existing files/links work. If renaming them, keep reading
-  the old names. If a takedown arrives, rename the repo/title.
+- Name: "Spirograph" is a trademark, so nothing new is written under it: app id `myrograph`, PNG chunk `Myrograph`, localStorage
+  `myrograph.*`, `.myroalbum.json`. The old names exist only in the `LEGACY` block in index.html and are only READ (old PNGs,
+  album files and browser data still open; browser data is migrated once). Do not write the old names. If a takedown arrives,
+  rename the repo/title (the README's trademark disclaimer stays).
 - Privacy: commit with the GitHub noreply identity (already configured in the original clone).
   Never push commits authored with the user's personal or work email; check `git log --format=%ae`.
 - Shaped-wheel sizes/holes are estimates from a photo (+/-0.5 tooth). The Cross rolls on a 60-tooth
