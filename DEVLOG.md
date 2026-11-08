@@ -81,6 +81,12 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — "+N more" pills line up
+
+The pills followed the last visible chip, so each row's sat at a different x. `.rowtoggle` now has `margin-left: auto` (pushed to
+the end of its line, i.e. the row's right edge) and a fixed 84 px width with centred text, so all rows' pills share both
+edges. The collapse measuring is unchanged (the pill still has to fit on the first line, so about one chip fewer fits).
+
 ### 2026-11-08 — Pen hole row collapses too
 
 The Pen hole row (35 chips, wraps to two lines) uses the same one-line "＋N more" collapse as the piece rows (always starts

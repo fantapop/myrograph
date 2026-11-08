@@ -81,7 +81,7 @@
   .row.big .chip.pic { flex-direction: column; gap: 1px; padding: 4px 6px 3px; font-size: 11px; line-height: 1.2; }
   .row.big .chip.pic svg { width: 56px; height: 56px; }
   header.tall { position: static; max-height: none; }   /* too tall to stay pinned over the grid: scrolls away instead */
-  .rowtoggle { font-size: 12px; padding: 4px 12px; color: var(--ink); border: 1px dashed #66666f; border-radius: 999px; align-self: center; }
+  .rowtoggle { font-size: 12px; padding: 4px 0; width: 84px; justify-content: center; margin-left: auto; color: var(--ink); border: 1px dashed #66666f; border-radius: 999px; align-self: center; }   /* pushed to the row's right end: the pills of all rows line up */
   .rowtoggle:hover { border-color: #fff; }
   .chip.fold { display: none !important; }
   .chip.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
