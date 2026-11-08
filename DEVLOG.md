@@ -81,6 +81,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Rows collapse to one line with a "+N more" pill
+
+Feedback: the "collapse / show all N" text button looked bad. Replaced by measuring: `applyCollapse(id)` shows the chips
+that fit on the first line, keeps selected chips visible even beyond it, and puts a dashed "＋N more" pill right after the
+last visible chip (found by backing off from the first-line count until the pill itself sits on line 1); expanded rows end
+with "▴ fewer". No pill when everything already fits. Default is collapsed (`spirograph.rows`), re-measured on resize,
+compose open/close, view change and the Relative sizes toggle (via `fitHeader`). Supersedes the "selected only" collapse
+from the entry above (and its "any (none selected)" hint, which is gone).
+
 ### 2026-11-08 — Bigger to-scale chips, collapsible rows, unpinned tall header
 
 Feedback: the to-scale pictures were too small (a 24 wheel next to a 150 ring is ~16%). In to-scale mode the Fixed part
