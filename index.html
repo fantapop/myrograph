@@ -266,13 +266,15 @@
   <div class="ch tb"><label style="color:var(--dim)">Signature</label>
     <select id="sg-sel" title="Sign this piece with one of your saved signatures" style="flex:1;min-width:0"></select>
     <button id="sg-new" title="Add a signature: type your name or draw it by hand">＋ New…</button>
+    <button id="sg-ren" title="Rename the selected signature in your list">Rename</button>
     <button id="sg-del" title="Delete the selected signature from your list">Delete</button></div>
   <div class="ch tb" id="sg-ctl" hidden><label style="color:var(--dim)">Size</label>
-    <input type="range" id="sg-size" min="40" max="800" step="5" style="flex:1;min-width:80px" title="Signature size">
+    <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Signature size">
+    <label title="Width of the signature as a percentage of the picture (it scales like a font size)" style="display:inline-flex;align-items:center;gap:2px"><input type="number" id="sg-pct" min="2" max="100" step="1" style="width:3.6em">%</label>
     <span class="pick" title="Signature colour"><input type="color" id="sg-color"></span>
     <button id="sg-auto" title="Black or white, whichever suits the paper">Auto</button>
     <button id="sg-reset" title="Put it back in the bottom right corner">Reset</button>
-    <span style="font-size:11px;color:var(--dim);flex-basis:100%">Drag the signature on the picture to move it.</span></div>
+    <span style="font-size:11px;color:var(--dim);flex-basis:100%">Drag the signature to move it, drag its corner handle or scroll / pinch over it to resize.</span></div>
   <div id="ov-msg"></div>
   <div id="tab-layers" class="pane">
     <div id="layers"></div>
@@ -285,11 +287,13 @@
   <div class="pm-head"><b>New signature</b><span class="sp"></span>
     <button id="sg-save" class="primary">Save signature</button><button id="sg-x" title="Close">✕</button></div>
   <div class="sg-body">
+    <div class="ctl"><label style="color:var(--dim)">Name</label><input type="text" id="sg-name" maxlength="24" size="36" placeholder="Name in your list (optional)"></div>
     <div class="pm-tabs"><button id="sg-t-type" class="on">Type</button><button id="sg-t-draw">Draw</button></div>
     <div id="sg-p-type" class="ctl"><input type="text" id="sg-text" maxlength="40" placeholder="Your name" size="22">
       <select id="sg-font" title="Handwriting style (uses fonts installed on this device)"></select></div>
-    <div id="sg-p-draw" class="ctl" hidden><span style="color:var(--dim)">Sign with your mouse, finger or pen.</span>
-      <button id="sg-undo">Undo stroke</button><button id="sg-clear">Clear</button></div>
+    <div id="sg-p-draw" hidden><div class="ctl"><button id="sg-undo">Undo stroke</button><button id="sg-clear">Clear</button>
+        <label title="For a trackpad: click once to put the pen down, move to draw, click again to lift it. (A touchscreen or pen still draws by dragging.)"><input type="checkbox" id="sg-toggle"> Click to start and stop</label></div>
+      <div style="font-size:11px;color:var(--dim);margin-bottom:6px">Draw with your mouse, finger or pen. On a trackpad, <b>hold Space or Shift</b> and just move the pointer: the pen is down while the key is held.</div></div>
     <canvas id="sg-c"></canvas>
     <div id="sg-msg"></div>
   </div>
@@ -823,8 +827,9 @@ function decodePart(seg) {                       // null if damaged
     h: f[7].split('.').map(q => q.split('_').map(v => parseInt(v, 36))) });
 }
 // ---- signatures: a name typed in a handwriting-style font ('t'), or strokes drawn by hand ('i'), that can be placed on an overlay.
-// text:  { id, kind: 't', text, font }            font is a key of SIG_FONTS (a CSS font stack; the device picks what it has)
-// ink:   { id, kind: 'i', ar, s: [[x0, y0, x1, y1, ...], ...] }   points in 0..1000 across the signature's width, y in 0..ar (height/width x 1000)
+// text:  { id, kind: 't', text, font, name? }    font is a key of SIG_FONTS (a CSS font stack; the device picks what it has)
+// ink:   { id, kind: 'i', ar, s: [[x0, y0, x1, y1, ...], ...], name? }   points in 0..1000 across the signature's width, y in 0..ar (height/width x 1000)
+// name is only a label for the user's list: it is not part of the id and is not carried in share links
 // on an overlay: { sig, x, y, size, color }       x, y = the signature's centre and size = its width, all in thousandths of the picture; color null = auto
 const SIG_FONTS = {
   script:   { label: 'Script',    style: '',      css: "'Snell Roundhand','Apple Chancery','Segoe Script','Lucida Handwriting','Brush Script MT',cursive" },
@@ -836,13 +841,14 @@ const SIG_FONTS = {
 };
 const SIG_LIMITS = { text: 40, strokes: 16, points: 600, library: 12 };
 const sigId = d => 's' + fnv(d.kind === 't' ? `t|${d.font}|${d.text}` : `i|${d.ar}|${d.s.map(q => q.join(',')).join(';')}`);
+const sigName = raw => { const name = cleanName(raw.name); return name ? { name } : {}; };     // the label shown in the list (letters, digits, spaces and . , ( ) + - only)
 function canonSignature(raw) {                   // validated copy with its id recomputed; null if unusable
   if (!raw || typeof raw !== 'object') return null;
   const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   if (raw.kind === 't') {
     const text = String(raw.text ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, SIG_LIMITS.text);
     if (!text || !Object.hasOwn(SIG_FONTS, raw.font)) return null;
-    const d = { kind: 't', text, font: raw.font }; return { id: sigId(d), ...d };
+    const d = { kind: 't', text, font: raw.font }; return { id: sigId(d), ...d, ...sigName(raw) };
   }
   if (raw.kind === 'i') {
     if (!int(raw.ar, 20, 3000) || !Array.isArray(raw.s) || !raw.s.length || raw.s.length > SIG_LIMITS.strokes) return null;
@@ -852,7 +858,7 @@ function canonSignature(raw) {                   // validated copy with its id r
       n += q.length / 2; if (!q.every((v, i) => int(v, 0, i % 2 ? raw.ar : 1000))) return null;
     }
     if (n > SIG_LIMITS.points) return null;
-    const d = { kind: 'i', ar: raw.ar, s: raw.s.map(q => q.slice()) }; return { id: sigId(d), ...d };
+    const d = { kind: 'i', ar: raw.ar, s: raw.s.map(q => q.slice()) }; return { id: sigId(d), ...d, ...sigName(raw) };
   }
   return null;
 }
@@ -860,7 +866,7 @@ function canonSigInstance(raw) {                 // a signature placed on an ove
   if (!raw || typeof raw !== 'object') return null;
   const sig = canonSignature(raw.sig); if (!sig) return null;
   const pick = (v, lo, hi, dflt) => Number.isInteger(v) && v >= lo && v <= hi ? v : dflt;
-  return { sig, x: pick(raw.x, 0, 1000, 800), y: pick(raw.y, 0, 1000, 930), size: pick(raw.size, 40, 900, 240),
+  return { sig, x: pick(raw.x, 0, 1000, 800), y: pick(raw.y, 0, 1000, 930), size: pick(raw.size, 20, 1000, 240),
     color: /^#[0-9a-f]{6}$/i.test(raw.color || '') ? raw.color.toLowerCase() : null };
 }
 function parseSignatures(text) {                 // the saved list (JSON); never throws
@@ -1611,7 +1617,7 @@ window.addEventListener('hashchange', () => {
   if (layers.size && !confirm('Open the shared overlay and replace the current one?')) return;
   applyHash();
 });
-window.__myro = { sig: { inst: () => sigInst, lib: () => sigLib, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
+window.__myro = { sig: { inst: () => sigInst, lib: () => sigLib, box: () => sigHit, strokes: () => sgStrokes, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
   encodeShare, decodeShare, readTextChunk, addTextChunk,
   parts: { open: d => openMaker(d), pv: () => pv, pvState: () => pvState, ed: () => ed, library: () => library, registry, CUSTOM: () => CUSTOM, keepPart, edSave, edDraw, edSync, lookup,
     forget(id) { library = library.filter(d => d.id !== id); registry.delete(id); pieceMemo.delete(id); guestCombos.clear(); libraryChanged(); } } };   // forget: test hook   // test hook
@@ -2026,7 +2032,7 @@ window.addEventListener('resize', () => { if (ed && pm.open) { edResize(); edDra
 const sigLum = hex => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
 const sigInk = (inst, paper) => inst.color || (sigLum(paper) < 0.5 ? '#f2f0ea' : '#1c1c22');      // auto: light ink on dark paper, dark on light
 const sigFont = (s, px) => `${SIG_FONTS[s.font].style}${px}px ${SIG_FONTS[s.font].css}`;
-const sigLabel = d => d.kind === 't' ? d.text : 'Drawn signature';
+const sigLabel = d => d.name || (d.kind === 't' ? d.text : 'Drawn signature');
 function sigBox(inst, ctx, W, H) {               // where the signature sits on a W x H picture (centre, size)
   const w = inst.size / 1000 * W, cx = inst.x / 1000 * W, cy = inst.y / 1000 * H, s = inst.sig;
   if (s.kind === 't') { ctx.save(); ctx.font = sigFont(s, 100); const m = ctx.measureText(s.text).width || 1; ctx.restore(); const px = 100 * w / m; return { cx, cy, w, h: px * 1.2, px }; }
@@ -2050,33 +2056,56 @@ function drawSignature(ctx, inst, W, H, paper) { // paints the signature onto an
 }
 
 // -- the live layer over the picture: shows the signature and lets you drag it
-const sigC = $('sigc'); let sigHit = null, sigDrag = null;      // sigHit: the signature's box on the live picture, in CSS px
+const sigC = $('sigc'); let sigHit = null, sigDrag = null, sigHot = false;      // sigHit: the signature's box on the live picture, in CSS px; sigHot: show its frame and handle
 function drawSigLayer() {
   const css = ovCanvas.clientWidth; sigHit = null;
   if (!css) return;
   if (sigC.width !== Math.round(css * pr)) sigC.width = sigC.height = Math.round(css * pr);
   const ctx = sigC.getContext('2d'); ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.clearRect(0, 0, css, css);
   if (sigInst) sigHit = drawSignature(ctx, sigInst, css, css, $('paper').value);
+  if (sigHit && (sigHot || sigDrag)) {          // a frame and a corner handle while the pointer is on the signature (editing aids: never exported)
+    const b = sigHit, x = b.cx - b.w / 2 - 6, y = b.cy - b.h / 2 - 6;
+    ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = '#e9b44c'; ctx.lineWidth = 1.2; ctx.strokeRect(x, y, b.w + 12, b.h + 12); ctx.setLineDash([]);
+    ctx.fillStyle = '#e9b44c'; ctx.fillRect(x + b.w + 12 - 5, y + b.h + 12 - 5, 10, 10); ctx.restore();
+  }
 }
 const sigPoint = ev => { const r = sigC.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top, w: r.width, h: r.height }; };
 const onSig = ev => { if (!sigHit) return false; const p = sigPoint(ev); return Math.abs(p.x - sigHit.cx) <= sigHit.w / 2 + 10 && Math.abs(p.y - sigHit.cy) <= sigHit.h / 2 + 10; };
+const onHandle = ev => { if (!sigHit) return false; const p = sigPoint(ev); return Math.hypot(p.x - (sigHit.cx + sigHit.w / 2 + 6), p.y - (sigHit.cy + sigHit.h / 2 + 6)) <= 11; };
+const syncSize = () => { $('sg-size').value = sigInst.size; $('sg-pct').value = Math.round(sigInst.size / 10); };
+const sigRedraw = () => { drawSigLayer(); sigKeepInside(); drawSigLayer(); };         // draw, pull back inside the picture if it grew past an edge, draw again
 function sigKeepInside() {                       // the signature stays fully on the picture (centred if it is bigger than the picture)
   if (!sigInst || !sigHit) return;
-  const css = ovCanvas.clientWidth, fit = (v, m) => m >= 500 ? 500 : Math.max(m, Math.min(1000 - m, Math.round(v)));
-  sigInst.x = fit(sigInst.x, sigHit.w / 2 / css * 1000); sigInst.y = fit(sigInst.y, sigHit.h / 2 / css * 1000);
+  const css = ovCanvas.clientWidth, pad = 14, fit = (v, m) => m >= 500 ? 500 : Math.max(m, Math.min(1000 - m, Math.round(v)));      // pad: room for the frame and its corner handle
+  sigInst.x = fit(sigInst.x, (sigHit.w / 2 + pad) / css * 1000); sigInst.y = fit(sigInst.y, (sigHit.h / 2 + pad) / css * 1000);
 }
 sigC.addEventListener('pointerdown', ev => {
-  if (!onSig(ev)) return;
-  const p = sigPoint(ev); sigDrag = { dx: p.x - sigHit.cx, dy: p.y - sigHit.cy };
+  if (!onSig(ev) && !onHandle(ev)) return;
+  const p = sigPoint(ev);
+  sigDrag = onHandle(ev) ? { mode: 'size', left: sigHit.cx - sigHit.w / 2, top: sigHit.cy - sigHit.h / 2, w0: sigHit.w, h0: sigHit.h }     // resize: the top-left corner stays put
+                         : { mode: 'move', dx: p.x - sigHit.cx, dy: p.y - sigHit.cy };
   try { sigC.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
   sigC.style.cursor = 'grabbing'; ev.preventDefault();
 });
 sigC.addEventListener('pointermove', ev => {
   const p = sigPoint(ev);
-  if (sigDrag) { sigInst.x = Math.round((p.x - sigDrag.dx) / p.w * 1000); sigInst.y = Math.round((p.y - sigDrag.dy) / p.h * 1000); sigKeepInside(); drawSigLayer(); }
-  else sigC.style.cursor = onSig(ev) ? 'grab' : 'default';
+  if (sigDrag && sigDrag.mode === 'size') {
+    const d = sigDrag, nw = Math.max(p.w * 0.02, p.x - d.left), nh = d.h0 * nw / d.w0;                // keep the proportions; the pointer is the corner
+    sigInst.size = Math.max(20, Math.min(1000, Math.round(nw / p.w * 1000)));
+    sigInst.x = Math.round((d.left + nw / 2) / p.w * 1000); sigInst.y = Math.round((d.top + nh / 2) / p.h * 1000); syncSize(); sigRedraw();
+  } else if (sigDrag) { sigInst.x = Math.round((p.x - sigDrag.dx) / p.w * 1000); sigInst.y = Math.round((p.y - sigDrag.dy) / p.h * 1000); sigRedraw(); }
+  else {
+    const hot = onSig(ev) || onHandle(ev); sigC.style.cursor = onHandle(ev) ? 'nwse-resize' : onSig(ev) ? 'grab' : 'default';
+    if (hot !== sigHot) { sigHot = hot; drawSigLayer(); }
+  }
 });
-sigC.addEventListener('pointerup', () => { sigDrag = null; sigC.style.cursor = 'grab'; });
+sigC.addEventListener('pointerup', () => { sigDrag = null; sigC.style.cursor = 'grab'; drawSigLayer(); });
+sigC.addEventListener('pointerleave', () => { if (!sigDrag && sigHot) { sigHot = false; drawSigLayer(); } });
+sigC.addEventListener('wheel', ev => {         // scroll (or trackpad pinch) over the signature to resize it
+  if (!sigInst || !(onSig(ev) || onHandle(ev))) return;
+  ev.preventDefault(); sigInst.size = Math.max(20, Math.min(1000, Math.round(sigInst.size * Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)))));
+  syncSize(); sigRedraw();
+}, { passive: false });
 
 // -- the list and the controls in the Compose panel
 const saveSigs = () => store.set(SIG_KEY, JSON.stringify(sigLib));
@@ -2085,9 +2114,9 @@ function fillSigSelect() {
   for (const d of sigLib) sel.add(new Option(sigLabel(d), d.id));
   if (sigInst && !sigLib.some(d => d.id === sigInst.sig.id)) sel.add(new Option(sigLabel(sigInst.sig) + ' (from file)', sigInst.sig.id));
   sel.value = sigInst ? sigInst.sig.id : '';
-  $('sg-ctl').hidden = !sigInst; $('sg-del').disabled = !sigInst || !sigLib.some(d => d.id === sigInst.sig.id);
+  $('sg-ctl').hidden = !sigInst; $('sg-del').disabled = $('sg-ren').disabled = !sigInst || !sigLib.some(d => d.id === sigInst.sig.id);
   if (sigInst) {
-    const c = sigInk(sigInst, $('paper').value); $('sg-size').value = sigInst.size; $('sg-color').value = c;
+    const c = sigInk(sigInst, $('paper').value); syncSize(); $('sg-color').value = c;
     $('sg-color').parentElement.style.setProperty('--pc', c); $('sg-auto').classList.toggle('on', !sigInst.color);
   }
 }
@@ -2096,7 +2125,14 @@ $('sg-sel').onchange = e => {
   const id = e.target.value, d = sigLib.find(x => x.id === id) || (sigInst && sigInst.sig.id === id ? sigInst.sig : null);
   if (!id || !d) { sigInst = null; fillSigSelect(); drawSigLayer(); } else pickSig(d);
 };
-$('sg-size').oninput = e => { sigInst.size = +e.target.value; drawSigLayer(); sigKeepInside(); drawSigLayer(); };
+$('sg-size').oninput = e => { sigInst.size = +e.target.value; $('sg-pct').value = Math.round(sigInst.size / 10); sigRedraw(); };
+$('sg-pct').oninput = e => { const v = +e.target.value; if (!(v >= 2 && v <= 100)) return; sigInst.size = Math.round(v * 10); $('sg-size').value = sigInst.size; sigRedraw(); };
+$('sg-ren').onclick = () => {
+  const d = sigInst && sigLib.find(x => x.id === sigInst.sig.id); if (!d) return;
+  const n = prompt('Name for this signature', sigLabel(d)); if (n === null) return;
+  const name = cleanName(n); if (name) d.name = name; else delete d.name;               // a blank name goes back to the default label
+  sigInst.sig = canonSignature({ ...d }); saveSigs(); fillSigSelect();
+};
 $('sg-color').oninput = e => { sigInst.color = e.target.value; $('sg-color').parentElement.style.setProperty('--pc', sigInst.color); $('sg-auto').classList.remove('on'); drawSigLayer(); };
 $('sg-auto').onclick = () => { sigInst.color = null; fillSigSelect(); drawSigLayer(); };
 $('sg-reset').onclick = () => { sigInst.x = 1000; sigInst.y = 1000; sigKeepInside(); sigInst.x -= 30; sigInst.y -= 20; sigKeepInside(); drawSigLayer(); };     // bottom right corner with a margin
@@ -2107,7 +2143,8 @@ $('sg-del').onclick = () => {
 
 // -- the dialog that creates a signature: type it, or draw it
 const sgd = $('sg'), sgc = $('sg-c');
-let sgMode = 'type', sgStrokes = [], sgCur = null;           // strokes drawn so far, in canvas CSS px
+let sgMode = 'type', sgStrokes = [], sgCur = null;           // strokes drawn so far, in canvas CSS px; sgCur = the stroke being drawn
+let sgLast = null, sgPen = null, sgKeyHeld = false;          // pointer position over the pad; how the pen went down ('drag' | 'key' | 'toggle'); Space/Shift held
 { const f = $('sg-font'); for (const [k, v] of Object.entries(SIG_FONTS)) f.add(new Option(v.label, k)); }
 const sgMsg = m => { $('sg-msg').textContent = m; };
 function sgResize() { const r = sgc.getBoundingClientRect(), w = Math.max(200, Math.round(r.width)); sgc.width = Math.round(w * pr); sgc.height = Math.round(w / 3.2 * pr); return w; }
@@ -2121,28 +2158,54 @@ function sgDraw() {
   } else {
     ctx.strokeStyle = ctx.fillStyle = '#1c1c22'; ctx.lineWidth = 3; ctx.lineCap = ctx.lineJoin = 'round';
     for (const st of sgStrokes) smoothStroke(ctx, st);
+    if (sgLast) {                                // a pen marker: a ring while it is up, a filled dot while ink is going down
+      ctx.beginPath(); ctx.arc(sgLast.x, sgLast.y, sgCur ? 3.5 : 6, 0, TAU); ctx.strokeStyle = ctx.fillStyle = '#c4553a'; ctx.lineWidth = 1.5; sgCur ? ctx.fill() : ctx.stroke();
+    }
   }
 }
 function sgTab(mode) {
   sgMode = mode; $('sg-t-type').classList.toggle('on', mode === 'type'); $('sg-t-draw').classList.toggle('on', mode === 'draw');
-  $('sg-p-type').hidden = mode !== 'type'; $('sg-p-draw').hidden = mode !== 'draw'; sgc.style.cursor = mode === 'draw' ? 'crosshair' : 'text'; sgMsg(''); sgDraw();
+  $('sg-p-type').hidden = mode !== 'type'; $('sg-p-draw').hidden = mode !== 'draw'; sgc.style.cursor = mode === 'draw' ? 'crosshair' : 'text'; sgMsg('');
+  sgCur = sgPen = null; sgKeyHeld = false; sgDefaultName(); sgDraw();
 }
-$('sg-new').onclick = () => { sgStrokes = []; sgCur = null; $('sg-text').value = ''; sgd.showModal(); sgTab('type'); $('sg-text').focus(); };
+const sgDefaultName = () => { $('sg-name').placeholder = 'Name in your list: ' + (sgMode === 'type' ? (cleanName($('sg-text').value) || 'your text') : `Signature ${sigLib.filter(d => d.kind === 'i').length + 1}`); };
+$('sg-new').onclick = () => { sgStrokes = []; sgCur = sgPen = sgLast = null; $('sg-text').value = ''; $('sg-name').value = ''; $('sg-toggle').checked = false; sgd.showModal(); sgTab('type'); $('sg-text').focus(); };
 $('sg-t-type').onclick = () => sgTab('type'); $('sg-t-draw').onclick = () => sgTab('draw');
-$('sg-text').oninput = sgDraw; $('sg-font').onchange = sgDraw;
-$('sg-undo').onclick = () => { sgStrokes.pop(); sgDraw(); }; $('sg-clear').onclick = () => { sgStrokes = []; sgDraw(); };
+$('sg-text').oninput = () => { sgDefaultName(); sgDraw(); }; $('sg-font').onchange = sgDraw;
+$('sg-undo').onclick = e => { sgStrokes.pop(); sgDraw(); e.currentTarget.blur(); }; $('sg-clear').onclick = e => { sgStrokes = []; sgDraw(); e.currentTarget.blur(); };      // blur: Space must draw, not press the focused button
+$('sg-toggle').onchange = e => { e.currentTarget.blur(); sgCur = sgPen = null; sgDraw(); };
 $('sg-x').onclick = () => sgd.close();
+const sgPos = ev => { const r = sgc.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+const penDown = (p, how) => { sgCur = [p]; sgStrokes.push(sgCur); sgPen = how; sgDraw(); };
+const penUp = () => { sgCur = null; sgPen = null; sgDraw(); };
+// Three ways to put the pen down, so a trackpad is not a chore: press and drag (always); hold Space or Shift and just move; or tick
+// "Click to start and stop" (mouse/trackpad clicks toggle the pen; touch and pen devices still drag).
 sgc.addEventListener('pointerdown', ev => {
   if (sgMode !== 'draw') return;
-  const r = sgc.getBoundingClientRect(); sgCur = [{ x: ev.clientX - r.left, y: ev.clientY - r.top }]; sgStrokes.push(sgCur);
-  try { sgc.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ } sgDraw(); ev.preventDefault();
+  const p = sgPos(ev); ev.preventDefault();
+  if ($('sg-toggle').checked && ev.pointerType === 'mouse') { sgPen === 'toggle' ? penUp() : penDown(p, 'toggle'); return; }
+  penDown(p, 'drag'); try { sgc.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
 });
 sgc.addEventListener('pointermove', ev => {
-  if (!sgCur) return;
-  const r = sgc.getBoundingClientRect(), q = { x: ev.clientX - r.left, y: ev.clientY - r.top }, l = sgCur.at(-1);
-  if (Math.hypot(q.x - l.x, q.y - l.y) >= 1.2) { sgCur.push(q); sgDraw(); }
+  sgLast = sgPos(ev);
+  if (sgMode === 'draw' && !sgCur && sgKeyHeld) penDown(sgLast, 'key');                  // the key went down before the pointer got here
+  else if (sgCur) { const l = sgCur.at(-1); if (Math.hypot(sgLast.x - l.x, sgLast.y - l.y) >= 1.2) sgCur.push({ ...sgLast }); }
+  sgDraw();
 });
-sgc.addEventListener('pointerup', () => { sgCur = null; });
+sgc.addEventListener('pointerup', () => { if (sgPen === 'drag') penUp(); });
+sgc.addEventListener('pointerleave', () => { sgLast = null; if (sgPen === 'key' || sgPen === 'toggle') sgCur = sgPen = null; sgDraw(); });   // moving off the pad lifts the pen
+sgd.addEventListener('keydown', ev => {
+  if (sgMode !== 'draw' || (ev.key !== ' ' && ev.key !== 'Shift') || /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName)) return;
+  if (ev.key === ' ') ev.preventDefault();
+  if (ev.repeat) return;
+  sgKeyHeld = true; if (sgLast && !sgCur) penDown({ ...sgLast }, 'key');
+});
+sgd.addEventListener('keyup', ev => {
+  if (ev.key !== ' ' && ev.key !== 'Shift') return;
+  if (ev.key === ' ' && ev.target.tagName === 'BUTTON') ev.preventDefault();
+  sgKeyHeld = false; if (sgPen === 'key') penUp();
+});
+window.addEventListener('blur', () => { sgKeyHeld = false; if (sgPen === 'key') penUp(); });
 function strokesToInk(strokes) {                 // canvas strokes -> a compact signature: thinned, scaled to 0..1000 across, y in 0..ar
   let gap = 2, thin;
   do {                                           // drop points closer than `gap` px; widen the gap until the whole signature is small enough
@@ -2161,11 +2224,14 @@ $('sg-save').onclick = () => {
     if (!sgStrokes.length) return sgMsg('Draw your signature first.');
     def = canonSignature(strokesToInk(sgStrokes)); if (!def) return sgMsg('That signature is too small or too narrow; draw it larger.');
   }
-  if (!sigLib.some(d => d.id === def.id)) {
+  const typed = cleanName($('sg-name').value), old = sigLib.find(d => d.id === def.id);
+  def = canonSignature({ ...def, name: typed || old?.name || (def.kind === 't' ? def.text : `Signature ${sigLib.filter(d => d.kind === 'i').length + 1}`) });     // set name, else the old one, else a default
+  if (old) Object.assign(old, def);                                                                                                                              // saving the same signature again just updates its name
+  else {
     if (sigLib.length >= SIG_LIMITS.library) return sgMsg(`Your list is full (${SIG_LIMITS.library} signatures): delete one first.`);
-    sigLib.push(def); saveSigs();
+    sigLib.push(def);
   }
-  sgd.close(); pickSig(def);                     // and sign the current piece with it
+  saveSigs(); sgd.close(); pickSig(old || def);  // and sign the current piece with it
 };
 sgd.addEventListener('close', () => { sgCur = null; });
 window.addEventListener('resize', sgDraw);

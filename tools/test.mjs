@@ -157,6 +157,12 @@ check('a signature with unusual text survives the link (spaces, commas, slashes,
 check('damaged or doubled signature segments are rejected', ['v1/faf7f0/t/g,t,nope,abc,1,2,3,-', 'v1/faf7f0/t/g,i,1,0_0-5_5,1,2,3,-', 'v1/faf7f0/t/g,t,plain,x,1,2,3,xyz', 'v1/faf7f0/t/g,t,plain,x,1,2,3,-/g,t,plain,y,1,2,3,-', 'v1/faf7f0/t/g,t,plain,x,1'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } }));
 check('links without a signature are unchanged (no g segment, no signature key)', !C.encodeShare(st).includes('g,') && !('signature' in C.decodeShare('#' + C.encodeShare(st))));
 
+// signature names: a label for the list, never part of the identity, always safe
+{ const named = C.canonSignature({ ...sigT, name: '  My <b>formal</b>   one ' });
+  check('a signature can be named: the name is cleaned, kept by the list, and does not change the signature\'s id', named.name === 'My bformalb one' && named.id === sigT.id && !('name' in C.canonSignature({ ...sigT, name: '<>' })) && C.parseSignatures(JSON.stringify([named]))[0].name === 'My bformalb one' && C.canonSignature({ ...sigI, name: 'Drawn 1' }).name === 'Drawn 1');
+  check('names are not carried in share links (and a named signature still round-trips by content)', !C.encodeSig(C.canonSigInstance({ sig: named })).includes('formal') && C.decodeSig(C.encodeSig(C.canonSigInstance({ sig: named }))).sig.id === sigT.id);
+  check('a placed signature can be scaled from 2% to 100% of the picture width', C.canonSigInstance({ sig: sigT, size: 20 }).size === 20 && C.canonSigInstance({ sig: sigT, size: 1000 }).size === 1000 && C.canonSigInstance({ sig: sigT, size: 19 }).size === 240 && C.canonSigInstance({ sig: sigT, size: 1001 }).size === 240); }
+
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
 const saved = [{ id: 'u-1', name: ' Mine ', colors: ['#ABCDEF', 'red', '#123456'], paper: '#101010' }, { id: 'u-4', name: 'Bad paper', colors: ['#000000'], paper: 'black' }, { id: 'bad id', name: 'x', colors: ['#000000'] }, { id: 'u-2', name: '', colors: ['#000000'] }, { id: 'u-3', name: 'none', colors: ['nope'] }, null, 7];

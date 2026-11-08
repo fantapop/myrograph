@@ -81,6 +81,19 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Signatures: names, trackpad drawing, direct scaling
+
+Feedback on the first version: (1) no way to name signatures; (2) drawing on a trackpad means click-and-sign at once; (3) wants to scale the signature /
+change its font size. Names: a signature may carry `name` (label only: `sigName` cleans it with `cleanName`, it is NOT in the id and NOT in share links);
+the dialog has a Name field (blank = the typed text, or "Signature N" for drawn ones), a Rename button edits it later (blank goes back to the default),
+and saving the same content again renames the existing entry instead of duplicating it. Trackpad: three ways to put the pen down in the Draw tab: press
+and drag (always), HOLD SPACE OR SHIFT and just move the pointer (pen down while the key is held; moving off the pad lifts it; a red ring/dot marks the
+pen), or tick "Click to start and stop" (mouse clicks toggle the pen; touch/pen still drag). Gotchas handled: Space must not press a focused button or
+toggle the checkbox (they are blurred after clicks; Space is swallowed in the draw tab), window blur releases the key. Scaling: the size slider is now
+2-100% of the picture width with a % box beside it, hovering the signature shows a dashed frame and a corner handle (drag it to resize, top-left corner stays
+fixed), and scroll / trackpad pinch (ctrl+wheel) over it resizes; a typed signature scales like a font size (its width is fixed, the font follows).
+`sigKeepInside` now also leaves room for the frame and handle so the handle can never end up off the canvas. Not done: separate font-size vs width, line thickness for drawn signatures.
+
 ### 2026-11-08 — Signatures on overlays
 
 Request: sign a compiled overlay like a piece of art: enter a signature, keep a list, optionally add one, move it around; one per overlay is enough.
