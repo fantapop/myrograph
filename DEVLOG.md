@@ -81,6 +81,16 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Smooth hole spiral; resizing no longer scrambles holes
+
+Two reports on the spiral fill. (1) It still looked scattered: 0.7 rad per hole is ~2pi/9, so consecutive holes jumped ~40 degrees around the
+part (fine at icon size, a starburst at full size). The spiral is now one smooth arm over `SPIRAL_TURNS` = 1.4 turns (angle `2pi*1.4*k/(n-1)`, still
+rim to centre, radius fraction 0.9 -> 0.22), used by both `fillHoles('spiral')` and the icons' `holePoints` for the set's round wheels (cosmetic: only a
+round wheel's hole distance matters). (2) Resizing the part jumbled the holes: the Size slider rescaled the already-rounded quarter-tooth holes at every
+step, so errors compounded (measured: shrink to 24 and back to 63 left holes up to 12.7 teeth from their start, two on the same spot). Now every size is
+scaled from the layout before the first resize (`ed.nBase`, replaced only when the holes were edited since: it is compared with `stamp`), so going back
+restores the layout exactly (0.00 teeth). Resizing far down can still push holes out of the shape; they turn red, nothing is lost.
+
 ### 2026-11-08 — Spiral hole fill: a real spiral, not a scatter
 
 Correction to the previous entry: the golden-angle (Vogel) layout I first used spreads holes evenly but looks scattered, not like the set's

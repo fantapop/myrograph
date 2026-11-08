@@ -646,6 +646,7 @@ function parsePalettes(text) {                  // saved custom palettes (JSON);
 // PNGs, albums and share links carry the definition and any viewer can draw it without having made it.
 // N: the smallest circle that can hold a pen hole 1 tooth from its edge has radius N/2pi >= 1, i.e. 7 teeth; 300 is twice the largest ring.
 const PART_LIMITS = { Nmin: 7, Nmax: 300, kMax: 8, nMin: 2, nMax: 12, maxHandles: 48, maxHoles: 35, maxLibrary: 12, maxShared: 8 };
+const SPIRAL_TURNS = 1.4;                        // a hole spiral winds in over this many turns (smooth arm; the real wheels' holes are one arm, not a starburst)
 const HOLE_MARGIN = 1;                           // pen holes stay this many teeth inside the edge
 const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 const cleanName = s => String(s ?? '').replace(/[^\p{L}\p{N} _.,()+-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);   // safe to put in HTML
@@ -708,14 +709,14 @@ function fillHoles(o, mode, d) {                 // candidate pen holes (quarter
   let ext = 0; for (let k = 0; k < o.M; k++) ext = Math.max(ext, Math.hypot(o.p[2 * k], o.p[2 * k + 1]));
   const lim = Math.ceil(ext / d), seen = new Set(), pts = [];
   const add = (x, y) => { const q = [Math.round(x * 4), Math.round(y * 4)], key = q.join(); if (!seen.has(key) && holeFits(o, q[0] / 4, q[1] / 4)) { seen.add(key); pts.push(q); } };
-  if (mode === 'spiral') {                       // like the real wheels: one arm winding in from the rim (0.7 rad per hole), following the outline's shape
+  if (mode === 'spiral') {                       // like the real wheels: one arm winding in from the rim over SPIRAL_TURNS turns, following the outline's shape
     const n = Math.max(3, Math.min(PART_LIMITS.maxHoles, Math.round((o.N / 2 - 7) * 2 / d)));      // from the perimeter, like the real wheels: d = 2 gives round(N/2 - 7)
     const edge = a => { let t = 0; const c = Math.cos(a), s = Math.sin(a);                                  // where a ray from the centre leaves the outline
       for (let k = 0, j = o.M - 1; k < o.M; j = k++) { const ax = o.p[2 * j], ay = o.p[2 * j + 1], ex = o.p[2 * k] - ax, ey = o.p[2 * k + 1] - ay, den = c * ey - s * ex;
         if (Math.abs(den) < 1e-12) continue; const tt = (ax * ey - ay * ex) / den, u = (ax * s - ay * c) / den;
         if (tt > 0 && u >= 0 && u <= 1) t = Math.max(t, tt); }
       return t; };
-    for (let k = 0; k < n; k++) { const a = 0.7 * k, r = (0.9 - 0.68 * k / Math.max(1, n - 1)) * Math.max(0, edge(a) - HOLE_MARGIN); add(r * Math.cos(a), r * Math.sin(a)); }
+    for (let k = 0; k < n; k++) { const a = TAU * SPIRAL_TURNS * k / Math.max(1, n - 1), r = (0.9 - 0.68 * k / Math.max(1, n - 1)) * Math.max(0, edge(a) - HOLE_MARGIN); add(r * Math.cos(a), r * Math.sin(a)); }
     return pts;                                  // in spiral order, rim first: hole 1 is the outermost and neighbours in number are neighbours on the part
   } else if (mode === 'grid') for (let i = -lim; i <= lim; i++) for (let j = -lim; j <= lim; j++) add(i * d, j * d);
   else for (let i = 1; i <= lim; i++) { if (mode !== 'y') add(i * d, 0); if (mode !== 'x') add(0, i * d); }
@@ -854,7 +855,8 @@ function holeDots(pts, rm, k, hole = 0) {       // pen holes as dots; 1-based `h
 function holePoints(r) {                        // where to draw the pen holes: real positions, except round wheels, which are
   if (!r.holes) return [];                      // the rack has none
   if (!r.round) return r.holes;                 // drawn along a spiral like the real ones (only a hole's distance matters there)
-  return r.holes.map(([x], k) => { const d = Math.abs(x), a = 0.7 * k; return [d * Math.cos(a), d * Math.sin(a)]; });
+  const n = r.holes.length;
+  return r.holes.map(([x], k) => { const d = Math.abs(x), a = TAU * SPIRAL_TURNS * k / Math.max(1, n - 1); return [d * Math.cos(a), d * Math.sin(a)]; });
 }
 function trackIcon(t, ref = 0, box = 1.15) {
   const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}:${box.toFixed(2)}`, px = ref ? 56 : 28;
@@ -1736,8 +1738,14 @@ pm.addEventListener('keydown', ev => {
 // -- controls
 $('pm-name').oninput = e => { ed.name = e.target.value; ed.dirty = true; };
 $('pm-N').oninput = e => {
-  const N2 = +e.target.value, f = N2 / ed.d.N;
-  ed.d.h = ed.d.h.map(q => [Math.round(q[0] * f), Math.round(q[1] * f)]); ed.d.N = N2; ed.dirty = true; edSync(true);
+  // Holes are stored to a quarter tooth, so scaling the already-rounded holes at every slider step compounds the rounding error (shrink
+  // and grow back and they end up elsewhere, or on top of each other). Instead every size is scaled from the layout as it was before
+  // the first resize; the base is replaced only when the holes have been edited since (they no longer match the last scaled result).
+  const N2 = +e.target.value, now = JSON.stringify(ed.d.h);
+  if (!ed.nBase || ed.nBase.stamp !== now) ed.nBase = { N: ed.d.N, h: ed.d.h.map(q => q.slice()) };
+  const f = N2 / ed.nBase.N;
+  ed.d.h = ed.nBase.h.map(q => [Math.round(q[0] * f), Math.round(q[1] * f)]); ed.nBase.stamp = JSON.stringify(ed.d.h);
+  ed.d.N = N2; ed.dirty = true; edSync(true);
 };
 $('pm-t-shape').onclick = () => edTab('shape'); $('pm-t-holes').onclick = () => edTab('holes');
 {

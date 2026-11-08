@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -134,10 +134,10 @@ check('presets are all distinct enough from a plain circle to be worth offering 
 // spiral hole fill (the default): one arm winding in from the rim like the real wheels' holes
 { const circle = circ(60).roller.o, c60 = C.fillHoles(circle, 'spiral', 2), real = cat.rollers.find(r => r.id === 'w60').holes.length;
   const ang = c60.map(([x, y]) => Math.atan2(y, x)), step = ang.slice(1).map((a, i) => ((a - ang[i]) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI), dist = c60.map(([x, y]) => Math.hypot(x, y));
-  check('spiral fill on a circle matches a real wheel: the same hole count, rim to centre, 0.7 rad per hole', c60.length === real && dist.every((v, i) => i === 0 || v < dist[i - 1]) && step.every(v => Math.abs(v - 0.7) < 0.1) && C.fillHoles(circ(84).roller.o, 'spiral', 2).length === 35, `${c60.length} holes (a real 60 has ${real})`);
+  check('spiral fill on a circle matches a real wheel: the same hole count, rim to centre, an even turn per hole', c60.length === real && dist.every((v, i) => i === 0 || v < dist[i - 1]) && step.every(v => Math.abs(v - 2 * Math.PI * C.SPIRAL_TURNS / (c60.length - 1)) < 0.12)   /* holes sit on a quarter-tooth grid, so angles are only that exact */ && C.fillHoles(circ(84).roller.o, 'spiral', 2).length === 35, `${c60.length} holes (a real 60 has ${real})`);
   const sp = C.fillHoles(o44, 'spiral', 2), row = C.fillHoles(o44, 'x', 2), dirs = new Set(sp.map(([x, y]) => Math.round(Math.atan2(y, x) * 4)));
-  check('spiral fill on an oval: valid holes, within the cap, more than a row, on about nine spokes, outermost first',
-    sp.length > row.length && sp.length <= C.PART_LIMITS.maxHoles && sp.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && dirs.size >= 8 && Math.hypot(...sp[0]) > Math.hypot(...sp.at(-1)),            // 0.7 rad is ~2pi/9: nine spokes, several holes along each, like the real wheels
+  check('spiral fill on an oval: valid holes, within the cap, more than a row, all in different directions, outermost first',
+    sp.length > row.length && sp.length <= C.PART_LIMITS.maxHoles && sp.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && dirs.size >= sp.length * 0.7 && Math.hypot(...sp[0]) > Math.hypot(...sp.at(-1)),
     `${sp.length} holes vs ${row.length} in a row, ${dirs.size} directions`);
   check('a larger spacing gives fewer spiral holes, and the count never exceeds the cap', C.fillHoles(o44, 'spiral', 4).length < sp.length && C.fillHoles(bigP.roller.o, 'spiral', 1).length <= C.PART_LIMITS.maxHoles); }
 
