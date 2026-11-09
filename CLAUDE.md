@@ -35,7 +35,7 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
 
 ## Working here
 - Run: open `index.html`, or `python3 -m http.server` and visit localhost:8000.
-- Test: `node tools/test.mjs` (extracts CORE, no browser). Visual checks: `tools/shot.sh`.
+- Test: `node tools/test.mjs` (extracts CORE, no browser). Visual checks: `tools/shot.sh`; phone-sized checks (real device emulation with touch): `node tools/mobile.mjs <driver.js> <out.png> [w h dpr]`.
 - Git: commit directly to `main` - no feature branches or PRs. In a Conductor workspace (which starts on
   a placeholder branch) commit there, then land it with `git push origin HEAD:main`.
 - Follow the user's global rules: header comment block on every source file, update `DEVLOG.md`
@@ -84,4 +84,7 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   (a = w/h): `ovCam` / `camFor(a)` (the grid tiles keep the square `camera`), layers fit the shorter side (`0.92 * min(1, a)`), a layer's X / Y shift is thousandths of the WIDTH on both axes
   (`position = dx * a / 500`), text / signature x / y are shares of width / height. `exportDims(canvas, longEdge)` gives pixel sizes (PNG / GIF / SVG / print / thumbnails; "Exact" export only for a typed
   Custom size >= 100 px). #ovwrap's CSS aspect-ratio (`--ar`) sets the live shape; #ovc is absolutely positioned so its own size can't override it. Don't assume a square picture.
+- Phone layout (`@media (max-width: 760px)` + `phoneMQ` / `isPhone()`): Compose is a 100vw x 100dvh editor (Back = `#ov-close`'s `.bk`); with it closed and layers present on the Patterns view the preview bar `#pip` shows
+  (`pipSync`, `pipDraw` copies the live `#ovc` + `#sigc` canvases; `overlayLive()` = editor open OR bar showing, so rendering / animation run for both); a tile tap adds a layer (desktop: also opens the overlay). `minTile()` gives
+  two columns; the filters start folded and show a count; only the active layer row shows X/Y and sliders; `(pointer: coarse)` also gets 40 px controls and `!important` 16 px inputs (iOS focus zoom).
 

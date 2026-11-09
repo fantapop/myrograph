@@ -79,6 +79,21 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Phone layout (phase 1)
+
+- Feedback: full-screen overlay mode with an easy way back, plus a PIP-style preview while browsing patterns; the part maker should be its own full window (and is wanted on phones). Chrome's --window-size floors at
+  ~500 px, so phone checks now use real DevTools device emulation (`tools/mobile.mjs`: 390x844 mobile viewport + touch events + dpr).
+- Before: no mobile layout at all. The fixed 440 px side panel left the gallery ~28 px wide behind it, the filters took two thirds of the first screen, 39 controls were under 32 px.
+- Now (width <= 760 px): Compose is a full-screen editor ("‹ Patterns" button first in its header, 100dvh, safe-area padding, picture capped at 36dvh); the gallery is two columns with the foot icons hidden; filters start
+  folded and the label shows "(n on)"; tapping a pattern adds a layer WITHOUT opening the editor and shows the **preview bar** at the bottom (live canvas copy incl. spin / draw animation and text, "N layers", **Undo** = remove the last added,
+  **Edit ›** or tap the picture = open the editor; hidden in Albums). In the editor only the selected layer row shows X/Y and its five sliders (3 columns), other rows are one compact line (tap to open). Part maker and signature
+  dialogs are full-screen. Finger-sized controls (40 px) and 16 px inputs for narrow windows AND coarse pointers (tablets too); part maker hole hit radius 20 px for touch.
+- Rendering: `overlayLive()` (editor open OR bar showing) now gates renderOverlay / animTick / animSync, so the hidden (off-screen) editor still renders for the bar. Desktop is unchanged (checked with the earlier drivers).
+- Tested at 390x844: 2 columns, no bar before adding, add / add / bar text, ink pixels in the bar, bar at the bottom (81 px), Undo, a spinning layer moving in the bar, Edit -> full-screen 390x844, Back, selected-row
+  expansion, filters count, Albums hides the bar, no control under 36 px (outside the dialogs), 16 px inputs.
+- Not done yet (phase 2, ideas): pinch to resize / two-finger rotate on the picture, tap a slider value to type it, Web Share sheet for PNG / GIF / links, iOS canvas limits (cap PNG at 2048, warn before GIF), bigger part-maker handles
+  beyond the hit radius, safe-area for the header notch in landscape, PWA install. Real iPhone Safari is untested (emulation only): please try it and report anything odd.
+
 ### 2026-11-09 — Canvas shape: wide, tall, Letter / A4, or custom pixel size
 
 - New select in the Compose header (next to "Overlay"): Square (default), Landscape 4:3 / 3:2, Wide 16:9, Portrait 3:4 / 2:3, Tall 9:16, Letter / A4 portrait + landscape, and **Custom size…**

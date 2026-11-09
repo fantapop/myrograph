@@ -16,6 +16,10 @@
   Canvas: the picture's shape is chosen in the Compose panel header (square, screen shapes, Letter / A4, or a custom pixel size); layers fit the shorter side, X / Y shifts are
   thousandths of the width, text / signatures are positioned by x / y shares. PNG, print (landscape page for a wide canvas), GIF, SVG, albums and links all follow the shape.
 
+  Phones (width <= 760 px, `phoneMQ`): the Compose panel is a full-screen editor with a "‹ Patterns" back button; while browsing patterns a small live preview bar (the PIP, `pipSync`)
+  shows the overlay at the bottom, a tap on a pattern adds a layer without leaving the gallery, Undo takes off the last one and Edit opens the editor. Two columns of patterns,
+  filters folded away at first, only the selected layer shows its sliders, 16 px inputs and finger-sized controls (also on any coarse pointer), part maker / signature dialogs full-screen.
+
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
 
@@ -69,7 +73,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>myrograph</title>
 <script>   /* UI theme before first paint: the saved choice (myrograph.theme), else the system setting */
   (() => { let t = null; try { t = localStorage.getItem('myrograph.theme'); } catch { /* private mode */ }
@@ -276,6 +280,39 @@
   .foot svg { width: 30px; height: 30px; flex: none; color: var(--dim); }
   .foot .txt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .foot .txt b { font-weight: 600; }
+
+  /* ---- phones (and narrow windows): the overlay is a full-screen editor; while browsing patterns a small preview bar (PIP) shows it and a tap adds a layer */
+  #pip { display: none; }
+  #ov-close .bk { display: none; }
+  @media (max-width: 760px) {
+    :root { --panel-w: 100vw; }
+    body.compose-open { overflow: hidden; }
+    body.compose-open header, body.compose-open #grid, body.compose-open #albumview { margin-right: 0; }
+    header { padding: 6px 10px; }
+    #grid, #albumview { margin: 10px; }
+    #compose { width: 100vw; height: 100dvh; border-left: 0; padding-bottom: env(safe-area-inset-bottom); }
+    #ovwrap { width: min(100%, calc(36dvh * var(--ar))); }
+    #ov-close { order: -1; } #ov-close .x { display: none; } #ov-close .bk { display: inline; } #compose .ch .sp { display: none; }
+    .foot svg { display: none; }
+    body.pip #pip { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--edge); box-shadow: 0 -4px 16px rgba(0,0,0,.25); }
+    body.pip #grid { margin-bottom: calc(96px + env(safe-area-inset-bottom)); }
+    #pip-c { height: 64px; border-radius: 4px; background: var(--paper); flex: none; cursor: pointer; }
+    #pip .pip-t { flex: 1; min-width: 0; font-size: 11px; color: var(--dim); line-height: 1.3; } #pip .pip-t b { display: block; font-size: 14px; color: var(--ink); }
+    .layer { grid-template-columns: auto auto auto auto 1fr auto; }                  /* grip, show, color, pictures, name, remove / X Y / sliders on their own lines */
+    .layer > :nth-child(-n+5) { grid-row: 1; } .layer > button[title=Remove] { grid-column: 6; grid-row: 1; }
+    .layer .xy { grid-column: 1 / -1; grid-row: 2; } .layer .xy input { width: 64px; } .layer .tune { grid-row: 3; grid-template-columns: repeat(3, 1fr); gap: 2px 14px; }
+    .layer:not(.active) .xy, .layer:not(.active) .tune { display: none; }        /* only the selected layer shows its position and sliders: tap a row to open it */
+    .layer { cursor: pointer; }
+    dialog#pm, dialog#sg { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+    .pm-body { padding: 10px; } .pm-left, .pm-right { min-width: 0; }
+  }
+  @media (max-width: 760px), (pointer: coarse) {                                       /* finger-sized controls; 16 px text so iPhone Safari doesn't zoom into a focused box */
+    button, select, input[type=text], input[type=number] { min-height: 40px; touch-action: manipulation; }
+    input, select, textarea { font-size: 16px !important; }
+    .chip { min-height: 40px; } .swatch { width: 32px; height: 32px; } .pick { width: 30px; height: 30px; }
+    input[type=range] { height: 28px; }
+    .layer button[title=Remove] { padding: 2px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -284,7 +321,7 @@
   <button id="theme-btn" title="Switch between light and dark"></button>
   <button id="compose-btn">Compose</button>
   <details open>
-    <summary>Filters</summary>
+    <summary>Filters<span id="f-count"></span></summary>
     <div class="row"><span class="label">Rolling</span><span class="chips" id="f-mode"></span></div>
     <div class="row big"><span class="label">Fixed part</span><span class="chips" id="f-fixed"></span></div>
     <div class="row big"><span class="label">Moving piece</span><span class="chips" id="f-roller"></span></div>
@@ -315,7 +352,7 @@
         <optgroup label="Paper"><option value="17:22">Letter portrait</option><option value="22:17">Letter landscape</option><option value="210:297">A4 portrait</option><option value="297:210">A4 landscape</option></optgroup><option value="custom">Custom size…</option></select>
       <span id="cv-custom" hidden title="A size in pixels: the picture takes this shape, and Save PNG can export exactly this size"><input type="number" id="cv-w" min="1" max="9999" step="1"> × <input type="number" id="cv-h" min="1" max="9999" step="1"> px</span><span id="ov-anim" hidden><button id="ov-play" title="Pause / play the animation"></button>
       <label title="The time one full loop of the animation takes (each layer's Spin is whole turns per loop)" style="color:var(--dim)">Loop <input type="number" id="an-loop" min="2" max="60" step="1" value="8" style="width:3.6em"> s</label></span><span class="sp"></span>
-    <button id="ov-close">✕</button></div>
+    <button id="ov-close" title="Back to the patterns"><span class="x">✕</span><span class="bk">‹ Patterns</span></button></div>
   <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas></div>
   <div id="ov-msg"></div>
   <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Text &amp; signature</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
@@ -371,6 +408,9 @@
 </aside>
 
 <style id="page-style"></style>
+<div id="pip"><canvas id="pip-c" title="Open the overlay"></canvas>
+  <div class="pip-t"><b id="pip-n">1 layer</b><span>Keep tapping patterns to add more</span></div>
+  <button id="pip-undo" title="Take off the last pattern you added">Undo</button><button id="pip-edit" class="chip on" style="font-weight:600">Edit ›</button></div>
 <div id="print-sheet"><canvas id="print-c"></canvas></div>
 <dialog id="pr">
   <p><b>We recommend you print in white to save ink.</b></p>
@@ -1068,6 +1108,8 @@ let customPalettes = [], palId = 'classic';     // loaded in buildInk's caller (
 const allPalettes = () => [...PRESET_PALETTES, ...customPalettes];
 const palette = () => allPalettes().find(p => p.id === palId) || PRESET_PALETTES[0];
 const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
+const phoneMQ = matchMedia('(max-width: 760px)'), isPhone = () => phoneMQ.matches;      // phone layout: full-screen overlay editor + a preview bar (PIP) while browsing
+const minTile = () => isPhone() ? 150 : MIN_TILE;      // two columns of patterns on a phone
 const $ = id => document.getElementById(id);
 const pr = Math.min(window.devicePixelRatio || 1, 2);
 let CAT, ALL, list = [], shuffled = false, inkMode = 'auto', okCount = 0;
@@ -1364,6 +1406,7 @@ function refilter() {
   const total = custom ? src.filter(p => p.ok).length : okCount;
   $('count').textContent = `${list.length.toLocaleString()} of ${total.toLocaleString()} ${custom ? 'custom ' : ''}patterns` +
     (custom && !total ? ' - make a custom part to see patterns here' : '');
+  $('f-count').textContent = (n => n ? ` (${n} on)` : '')(Object.values(filters).reduce((a, st) => a + st.size, 0));
   fitHeader(); layout(); window.scrollTo(0, 0); sync();
 }
 $('shuffle').onclick = () => { shuffled = (Math.random() * 2 ** 31) | 1; refilter(); };
@@ -1421,7 +1464,7 @@ let cols = 1, tile = MIN_TILE, pitch = MIN_TILE + FOOT + GAP;
 function dropTile(e) { e.alive = false; e.el.remove(); tiles.delete(e.i); }
 function layout() {
   const w = grid.clientWidth;
-  cols = Math.max(1, Math.floor((w + GAP) / (MIN_TILE + GAP)));
+  cols = Math.max(1, Math.floor((w + GAP) / (minTile() + GAP)));
   tile = (w - GAP * (cols - 1)) / cols;
   pitch = tile + FOOT + GAP;
   px = Math.round(tile * pr);
@@ -1439,7 +1482,7 @@ function makeTile(i) {
   el.append(canvas, foot); grid.append(el);
   const e = { i, el, canvas, alive: true }; tiles.set(i, e); enqueue(e);
   el.onclick = () => {                          // every click adds a layer (the same pattern can be added again); with the overlay closed, it opens with this pattern
-    if (!composeOpen) setCompose(true);
+    if (!composeOpen && !isPhone()) setCompose(true);      // (on a phone the preview bar shows it instead, so you can keep browsing)
     addLayer(list[i]);
     const t = tiles.get(i)?.el; if (t) { t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); }      // (the grid may have been re-flowed by opening the panel)
   };
@@ -1549,23 +1592,24 @@ let loopSec = LOOP_SEC.def, playing = true, animPhase = 0, animRaf = 0, animT0 =
 const spinLabel = v => v ? (v > 0 ? '↻' : '↺') + Math.abs(v).toFixed(Number.isInteger(v) ? 0 : 1) : '0';
 const drawLabel = v => v ? '×' + v.toFixed(Number.isInteger(v) ? 0 : 1) : 'off';
 const anyMotion = () => [...layers.values()].some(l => l.visible && isMoving(l));
+const overlayLive = () => composeOpen || document.body.classList.contains('pip');      // the picture is being shown: in the editor, or in the phone preview bar
 function setLoop(v) {                           // a loop length from a file / link / the box; keeps the picture where it is
   loopSec = Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, Math.round(+v) || LOOP_SEC.def)); $('an-loop').value = loopSec;
   animT0 = performance.now() - animPhase * loopSec * 1000;
 }
 function animTick(now) {
   animRaf = 0;
-  if (!composeOpen || !playing || exporting || !anyMotion()) return animSync();
+  if (!overlayLive() || !playing || exporting || !anyMotion()) return animSync();
   animPhase = Math.max(0, (now - animT0) / 1000 / loopSec);             // loops since the start: it never wraps, so decimal speeds have no seam (a frame's timestamp can precede the anchor)
   const vis = [...layers.values()].filter(l => l.visible);
   if (ovScene.children.length === vis.length) {
     vis.forEach((l, i) => setLineFrame(ovScene.children[i], l, animPhase));
-    ov.render(ovScene, ovCam);
+    ov.render(ovScene, ovCam); pipDraw();
   }
   animRaf = requestAnimationFrame(animTick);
 }
 function animSync() {                           // start / stop the frame loop to match the state, and show the play button only when something spins
-  const spin = anyMotion(), run = composeOpen && playing && spin && !exporting;
+  const spin = anyMotion(), run = overlayLive() && playing && spin && !exporting;
   $('ov-anim').hidden = !composeOpen || !spin;
   const mode = playing ? 'pause' : 'play';                      // the button offers the action (it shows what a click does)
   if ($('ov-play').dataset.mode !== mode) { $('ov-play').dataset.mode = mode; $('ov-play').innerHTML = (playing ? ICON_PAUSE : ICON_PLAY) + (playing ? 'Pause' : 'Play'); }
@@ -1577,11 +1621,11 @@ $('an-loop').oninput = e => { if (e.target.value !== '') setLoop(e.target.value)
 $('an-loop').onchange = () => setLoop($('an-loop').value);
 function renderOverlay() {
   const css = ovCanvas.clientWidth, cssH = ovCanvas.clientHeight;
-  if (!composeOpen || !css || !cssH) return;
+  if (!overlayLive() || !css || !cssH) return;
   ov.setPixelRatio(1); ov.setSize(css * pr, cssH * pr, false);   // size in device px (ratio 1): LineMaterial reads its resolution from the viewport in CSS px, so a ratio of 2 drew lines twice as thick as the PNG / print
   buildOverlay(1.6 * pr, css * pr);
   ov.render(ovScene, ovCam);
-  drawSigLayer();
+  drawSigLayer(); pipDraw();
 }
 
 // ---- the canvas: its shape is chosen in the panel header (presets, or Custom pixel size). The scene is 2 units tall and 2a wide (a = w / h), layers fit the shorter side, X / Y
@@ -1979,7 +2023,7 @@ function setView(v) {
   if (v === 'albums') buildAlbums();
   else if (gridStale) { gridStale = false; layout(); }
   window.scrollTo(0, scrollMem[v]);
-  sync(); thAnimSync();
+  sync(); thAnimSync(); pipSync();
 }
 function albumPayload(list) {
   return { app: APP_ID, kind: 'album', v: 1,
@@ -2141,8 +2185,26 @@ function buildLayerList() {
     row.querySelector('.keep')?.addEventListener('click', () => keepPart(customIdOf(l.p)));
     box.append(row);
   }
-  syncPos();
+  syncPos(); pipSync();
 }
+// ---- phone preview bar (PIP): while you browse patterns with the overlay closed, a small live copy of it sits at the bottom (tap it, or Edit, to open the editor).
+function pipSync() {
+  const on = isPhone() && !composeOpen && layers.size > 0 && view === 'patterns';
+  document.body.classList.toggle('pip', on);
+  if (!on) return;
+  const c = $('pip-c'), h = 64, w = Math.round(h * canvasAR());
+  if (c.width !== Math.round(w * pr) || c.height !== Math.round(h * pr)) { c.width = Math.round(w * pr); c.height = Math.round(h * pr); c.style.width = w + 'px'; }
+  $('pip-n').textContent = `${layers.size} layer${layers.size === 1 ? '' : 's'}`;
+  renderOverlay(); animSync();
+}
+function pipDraw() {
+  if (!document.body.classList.contains('pip')) return;
+  const c = $('pip-c'), g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height);
+  g.drawImage(ovCanvas, 0, 0, c.width, c.height); g.drawImage(sigC, 0, 0, c.width, c.height);      // the picture, and the texts / signatures over it
+}
+$('pip-c').onclick = $('pip-edit').onclick = () => setCompose(true);
+$('pip-undo').onclick = () => { const k = [...layers.keys()].at(-1); if (k) removeLayer(k); };
+phoneMQ.addEventListener('change', () => { pipSync(); relayout(); });
 let ovTab = 'layers';
 function setOvTab(name) {                       // the panel under the picture shows one tab at a time, so the layer list gets all the leftover height
   for (const b of document.querySelectorAll('#ov-tabs button')) b.classList.toggle('on', b.dataset.tab === name);
@@ -2154,7 +2216,8 @@ function setCompose(open) {
   composeOpen = open;
   document.body.classList.toggle('compose-open', open);
   $('compose-btn').classList.toggle('on', open);
-  relayout(); renderOverlay(); animSync();
+  pipSync(); relayout(); renderOverlay(); animSync();
+  if (open) document.querySelector('#layers .layer.active')?.scrollIntoView({ block: 'nearest' });
 }
 $('compose-btn').onclick = () => setCompose(!composeOpen);
 $('ov-close').onclick = () => setCompose(false);
@@ -2306,7 +2369,7 @@ pmc.addEventListener('pointerdown', ev => {
     for (let m = 0; m < K; m++) { const [hx, hy] = handleXY(m), dd = Math.hypot(hx - wx, hy - wy) * S; if (dd < bd) { bd = dd; best = m; } }
     if (best >= 0 && bd <= 18) { ed.drag = { m: best }; edDraw(); }
   } else {
-    const i = ed.d.h.findIndex(q => near(q[0] / 4, q[1] / 4, 11));
+    const i = ed.d.h.findIndex(q => near(q[0] / 4, q[1] / 4, ev.pointerType === 'touch' ? 20 : 11));
     if (i >= 0) { ed.sel = i; ed.drag = { hole: i }; edDraw(); return; }
     const q = [Math.round(wx * 4), Math.round(wy * 4)];
     if (ed.d.h.length >= PART_LIMITS.maxHoles) return edMsg(`At most ${PART_LIMITS.maxHoles} pen holes`);
@@ -2807,6 +2870,7 @@ setTimeout(() => {                              // let "Preparing…" paint befo
   sigLib = parseSignatures(store.get(SIG_KEY)); fillSigSelect();
   library = parseParts(store.get(PARTS_KEY)); library.forEach(d => registry.set(d.id, d)); loadFits(); rebuildCustom();
   if (library.length) console.log(`custom parts: ${library.length} in library, ${CUSTOM.length} combos, ${Math.round(performance.now() - t1)} ms`);
+  if (isPhone()) document.querySelector('header details').open = false;      // phones start with the filters folded away
   buildFilters(); buildCustomRow(); refilter(); applyHash();
 }, 30);
 </script>
