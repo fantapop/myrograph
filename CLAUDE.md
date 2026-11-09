@@ -57,10 +57,12 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   (`track|roller|hole`) instead, so files survive PARTS edits.
 - Headless Chrome screenshots taken after scrolling come out blank; verify scroll behaviour via DOM.
 
-- Animation: a layer has `spin` (whole turns per loop, +/-10, positive = clockwise); `loopSec` (2-60 s, default 8) is global. The picture is a function of the
-  loop phase (`layerAngle(l, phase)` in CORE): playing (`animTick`, rAF) only updates each existing line's rotation; edits rebuild the scene at `animPhase`.
-  Save PNG captures the frame on screen (`bakeRot` -> whole-degree angles, spin kept); links/albums store phase 0. Save GIF (`makeGif`) renders offscreen from
-  a snapshot with its own scene; the encoder (gifenc) is imported from the CDN only on export. Share link: layer field `s<b36>`, segment `loop,<s>`.
+- Animation: a layer has `spin` (turns per loop, tenths, limit +/-10, slider +/-5, positive = clockwise); `loopSec` (2-60 s, default 8) is global. The picture is a function of the
+  loop phase = loops since the start (`layerAngle(l, phase)` in CORE): live playback (`animTick`, rAF) never wraps the phase, so decimal speeds have no seam; it only updates
+  each existing line's rotation; edits rebuild the scene at `animPhase`. Save PNG captures the frame on screen (`bakeRot` -> whole-degree angles, spin kept); links/albums store
+  phase 0. GIF (`makeGif`): one loop, or `loopMultiple(layers)` loops (1/2/5/10, so every layer is back where it started) when that is <= 600 frames, else one loop + a warning; the
+  encoder (gifenc) is imported from the CDN only on export. SVG: every layer repeats on its own period (loop / |speed|), so any speed is seamless. Share link: layer field `s<speed>`
+  (integers base 36 as before, tenths as decimals like `s1.5`), segment `loop,<s>`.
 - Albums animate: `thumbRig` builds a saved setup's lines once, `thumbDraw` draws it at a loop phase; `thAnimTick` redraws the on-screen spinning thumbnails
   round-robin within a ~12 ms/frame budget (only in the albums view, not with prefers-reduced-motion); `renderThumb` is the static phase-0 draw.
 - Theme: all UI colours are CSS variables (`:root` dark, `:root[data-theme=light]`); a <head> script sets `data-theme` before first paint (saved `myrograph.theme`,
@@ -70,8 +72,7 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   AND the drawing order (later draws on top; makeLines creates materials in that order). Tiles have no selected state; a click adds a layer (and flashes the tile).
 - Export formats: PNG (static, embeds the setup), GIF (`makeGif`, gifenc from the CDN), animated SVG (`makeSvg`: one scaled path per layer, `<animateTransform>` rotate,
   SVG angles are the negative of three.js's). Collapsible filter rows (`applyCollapse`) work on a row's direct children; give one the class `nofold` to keep it visible.
-- Draw: a layer's `draw` (0..`LAYER_DRAW`=10) = pen draws per loop; `drawFraction(l, phase)` (CORE) is the cycle: complete for the first `DRAW_HOLD` (20%) of each cycle, then clears and
-  draws out, so phase 0 is always the finished shape (thumbnails / links / a freshly opened file never show a blank layer). The pen is constant speed by ARC LENGTH (`cumLengths` /
-  `drawCount` -> `instanceCount` of the Line2 geometry, set per line in an `onBeforeRender` override because duplicate layers share one geometry). `setLineFrame` is the one place that
-  moves a built line to a phase (live tick, GIF frames, album thumbnails). SVG: `pathLength="1"` + dash offset `<animate>` (`drawAttrs`). Link field `d<b36>`.
-
+- Draw: a layer's `draw` (tenths, limit 10, slider 0..5) = pen draws per loop; `drawFraction(l, phase)` (CORE) is the cycle: 0 -> finished over each cycle, then the next starts instantly (no hold);
+  at exact whole cycles (phase 0) it is the finished shape, so static views never show an empty layer. The pen is constant speed by ARC LENGTH (`cumLengths` / `drawCount` -> `instanceCount`
+  of the Line2 geometry, set per line in an `onBeforeRender` override because duplicate layers share one geometry). `setLineFrame` is the one place that moves a built line to a phase
+  (live tick, GIF frames, album thumbnails). SVG: `pathLength="1"` + dash offset `<animate>` (`drawAttrs`). Link field `d<speed>`.

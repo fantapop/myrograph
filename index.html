@@ -25,8 +25,8 @@
   "Edit…" / "+ New" build custom palettes, kept in localStorage (myrograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (a pattern can be added more than once; they start on a shared centre; drag a layer's grip to
   reorder, later = on top) with per-layer color,
-  visibility, rotation, size (10-500%), line width, X / Y shift (drag the picture or type %; the highlighted layer moves) Spin (whole turns per loop,
-  + clockwise: the layer rotates about its own centre while the picture animates) and Draw (a pen draws the curve out N times per loop, then holds the finished shape; "Animate" tab: loop length, Save GIF via gifenc (fetched from the CDN on demand) or Save animated SVG (the curves with <animateTransform>, tiny and sharp)); layers keep their real sizes relative to each other. "Save PNG"
+  visibility, rotation, size (10-500%), line width, X / Y shift (drag the picture or type %; the highlighted layer moves) Spin (turns per loop in tenths, up to 5,
+  + clockwise: the layer rotates about its own centre while the picture animates) and Draw (a pen draws the curve out N times per loop, then restarts at once; "Animate" tab: loop length, Save GIF via gifenc (fetched from the CDN on demand) or Save animated SVG (the curves with <animateTransform>, tiny and sharp)); layers keep their real sizes relative to each other. "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
   ("Myrograph", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
   they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
@@ -339,9 +339,9 @@
     <div class="ch"><button id="an-save" title="Render one loop as an animated GIF (a few seconds of work)">Save GIF</button>
       <select id="an-px" title="Picture size"><option value="480">480 px</option><option value="640" selected>640 px</option><option value="800">800 px</option></select>
       <select id="an-fps" title="Frames per second"><option value="10">10 fps</option><option value="20" selected>20 fps</option><option value="25">25 fps</option></select>
-      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Plays everywhere (chat, social) but is large and limited to 256 colours; repeats forever.</span></div>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Plays everywhere (chat, social) but is large and limited to 256 colours; repeats forever. Decimal speeds can make it 2, 5 or 10 loops long so it repeats exactly.</span></div>
     <div class="ch"><button id="an-svg" title="Save the animation as an animated SVG image">Save animated SVG</button>
-      <span style="font-size:11px;color:var(--dim);flex-basis:100%">The real curves: tiny, razor sharp at any size, repeats forever. Plays in web browsers but not in most chat apps or image editors.</span></div>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">The real curves: tiny, razor sharp at any size, every layer repeats on its own, so any speed is seamless. Plays in web browsers but not in most chat apps or image editors.</span></div>
     <div class="ch"><span style="font-size:11px;color:var(--dim)">Save PNG and Print capture the frame you see; Copy link and albums keep the spin settings.</span></div>
   </div>
 </aside>
@@ -692,11 +692,13 @@ function readTextChunk(png, keyword) {          // text of the first uncompresse
 // (the t|f segment and an optional layer field `1` are only
 // READ, from links made when layers could stretch to fit: the app converts them to sizes, see bakeLegacyFit)
 // then optionally one p,... segment per custom part the layers use (see encodePart), and one g,... segment per text / signature (see encodeSig)
+const speedTok = v => Number.isInteger(v) ? v.toString(36) : v.toFixed(1);       // whole numbers in base 36 as always; tenths as decimals ("1.5"), which old links never had
+const parseSpeedTok = t => /\./.test(t) ? parseFloat(t) : parseInt(t, 36);
 function encodeShare(st) {
   return ['v1', st.paper.replace('#', ''), 't',
     ...st.layers.map(l => [l.track, l.roller, l.hole, l.color.replace('#', ''), l.visible === false ? 0 : 1,
       Math.round(l.rot || 0), Math.round(l.size || 100), ...(Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)]),
-      ...(l.dx ? ['x' + Math.round(l.dx).toString(36)] : []), ...(l.dy ? ['y' + Math.round(l.dy).toString(36)] : []), ...(l.spin ? ['s' + Math.round(l.spin).toString(36)] : []), ...(l.draw ? ['d' + Math.round(l.draw).toString(36)] : [])].join(',')),
+      ...(l.dx ? ['x' + Math.round(l.dx).toString(36)] : []), ...(l.dy ? ['y' + Math.round(l.dy).toString(36)] : []), ...(l.spin ? ['s' + speedTok(l.spin)] : []), ...(l.draw ? ['d' + speedTok(l.draw)] : [])].join(',')),
     ...(st.loop && Math.round(st.loop) !== LOOP_SEC.def ? ['loop,' + Math.round(st.loop)] : []),
     ...(st.parts || []).map(encodePart), ...canonSigInstances(st).map(encodeSig)].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
 }
@@ -716,7 +718,7 @@ function decodeShare(text) {                    // throws on anything malformed
     if (/^\d+$/.test(f[i] || '')) wd = +f[i++];                              // optional line width (tenths)
     for (; i < f.length; i++) {                                              // then flags, in any order: "1" = stretch (old links), x<shift>, y<shift>; unknown ones are ignored
       const t = f[i], num = () => Math.max(-LAYER_SHIFT, Math.min(LAYER_SHIFT, parseInt(t.slice(1), 36) || 0));
-      if (t === '1') fit = true; else if (/^x-?[0-9a-z]+$/.test(t)) dx = num(); else if (/^y-?[0-9a-z]+$/.test(t)) dy = num(); else if (/^s-?[0-9a-z]+$/.test(t)) spin = Math.max(-LAYER_SPIN, Math.min(LAYER_SPIN, parseInt(t.slice(1), 36) || 0)); else if (/^d[0-9a-z]+$/.test(t)) draw = Math.max(0, Math.min(LAYER_DRAW, parseInt(t.slice(1), 36) || 0));
+      if (t === '1') fit = true; else if (/^x-?[0-9a-z]+$/.test(t)) dx = num(); else if (/^y-?[0-9a-z]+$/.test(t)) dy = num(); else if (/^s-?(?:[0-9a-z]+|\d+\.\d)$/.test(t)) spin = cleanSpeed(parseSpeedTok(t.slice(1)), LAYER_SPIN); else if (/^d(?:[0-9a-z]+|\d+\.\d)$/.test(t)) draw = Math.max(0, cleanSpeed(parseSpeedTok(t.slice(1)), LAYER_DRAW));
     }
     return { track, roller, hole: +hole, color: '#' + color, visible: vis !== '0',
       rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(LAYER_SIZE.max, Math.max(LAYER_SIZE.min, Math.round(+size) || 100)),
@@ -917,20 +919,28 @@ const SIG_FONTS = {
 const LAYER_SIZE = { min: 10, max: 500 };         // a layer's Size, in percent
 const LAYER_WIDTH = { min: 0.5, max: 20 };        // a layer's Line width, as a multiple of the base line (kept to 0.25 steps; the link stores tenths)
 const LAYER_SHIFT = 1000;                        // a layer's X / Y shift is limited to +/- this many thousandths of the picture's width (x: right, y: down)
-const LAYER_SPIN = 10;                           // a layer's Spin: whole turns per loop, +/- this many (positive = clockwise)
+const LAYER_SPIN = 10;                           // a layer's Spin: turns per loop (tenths allowed), +/- this many (positive = clockwise); the slider offers +/-5
+const cleanSpeed = (v, max) => Math.max(-max, Math.min(max, Math.round(+v * 10) / 10 || 0));      // a Spin / Draw value as stored: tenths, within the limit
 const LOOP_SEC = { min: 2, max: 60, def: 8 };    // how long one animation loop lasts, in seconds
-// A layer's angle at `phase` (0..1 through the loop) in degrees, counter-clockwise on screen as three.js draws it (a positive Spin turns clockwise).
-// Whole turns per loop make phase 1 look like phase 0, so the animation repeats seamlessly. bakeRot: the same, as a whole 0..359 for saving.
+// A layer's angle at `phase` (loops since the start: it keeps counting past 1, so live playback never has a seam) in degrees, counter-clockwise on screen as three.js
+// draws it (a positive Spin turns clockwise). Whole turns per loop make phase 1 look like phase 0 (see loopMultiple for GIFs). bakeRot: as a whole 0..359 for saving.
 const layerAngle = (l, phase) => (l.rot || 0) - 360 * (l.spin || 0) * phase;
 const bakeRot = (l, phase) => ((Math.round(layerAngle(l, phase)) % 360) + 360) % 360;
-// A layer's Draw: how many times per loop its curve is drawn out by a pen (0 = off, always complete). Each cycle starts complete and holds for DRAW_HOLD of the
-// cycle, then clears and draws over the rest, so phase 0 (links, albums, a paused or freshly opened picture) is always the finished shape, and whole numbers of
-// cycles per loop repeat seamlessly. The pen moves at constant speed along the curve (by arc length, not by sample).
-const LAYER_DRAW = 10, DRAW_HOLD = 0.2;
+// A layer's Draw: how many times per loop its curve is drawn out by a pen (tenths allowed; 0 = off, always complete). Each cycle draws from nothing to the
+// finished curve, then the next one starts instantly. At exact whole cycles (phase 0, a freshly opened or still picture) it is the finished shape, so static views
+// never show an empty layer. The pen moves at constant speed along the curve (by arc length, not by sample).
+const LAYER_DRAW = 10;                           // limit; the slider offers 0..5
 const drawFraction = (l, phase) => {            // 0..1: how much of the curve is drawn at loop phase `phase`
   const n = l.draw || 0; if (!n) return 1;
-  const c = (n * phase) % 1; return c < DRAW_HOLD ? 1 : (c - DRAW_HOLD) / (1 - DRAW_HOLD);
+  const c = (n * phase) % 1; return c === 0 ? 1 : c;
 };
+// A GIF is one loop long. Speeds in tenths make a layer come back to where it started only after 10 / gcd(tenths, 10) loops (1, 2, 5 or 10); this is how many loops
+// every moving layer needs for the picture to repeat exactly (1 when all speeds are whole numbers).
+function loopMultiple(layers) {
+  const gcd = (a, b) => b ? gcd(b, a % b) : a; let k = 1;
+  for (const l of layers) for (const v of [l.spin, l.draw]) { const m = Math.round(Math.abs(v || 0) * 10); if (m) { const q = 10 / gcd(m, 10); k = k * q / gcd(k, q); } }
+  return k;
+}
 const isMoving = l => !!(l.spin || l.draw);
 function cumLengths(pts) {                      // running length along a polyline given as flat x,y,z triples: cum[i] = length from point 0 to point i
   const n = pts.length / 3, cum = new Float64Array(n);
@@ -1479,8 +1489,8 @@ themeIcon();
 // (the scene is rebuilt only when something is edited); the picture is a function of the loop phase, so Save PNG / Print can capture any frame.
 const ICON_PLAY = '<svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor"><path d="M2.5 1v10L11 6z"/></svg>', ICON_PAUSE = '<svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor"><rect x="2" y="1" width="3" height="10" rx=".7"/><rect x="7" y="1" width="3" height="10" rx=".7"/></svg>';
 let loopSec = LOOP_SEC.def, playing = true, animPhase = 0, animRaf = 0, animT0 = 0, exporting = false;
-const spinLabel = v => v ? (v > 0 ? '↻' : '↺') + Math.abs(v) : '0';
-const drawLabel = v => v ? '×' + v : 'off';
+const spinLabel = v => v ? (v > 0 ? '↻' : '↺') + Math.abs(v).toFixed(Number.isInteger(v) ? 0 : 1) : '0';
+const drawLabel = v => v ? '×' + v.toFixed(Number.isInteger(v) ? 0 : 1) : 'off';
 const anyMotion = () => [...layers.values()].some(l => l.visible && isMoving(l));
 function setLoop(v) {                           // a loop length from a file / link / the box; keeps the picture where it is
   loopSec = Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, Math.round(+v) || LOOP_SEC.def)); $('an-loop').value = loopSec;
@@ -1489,7 +1499,7 @@ function setLoop(v) {                           // a loop length from a file / l
 function animTick(now) {
   animRaf = 0;
   if (!composeOpen || !playing || exporting || !anyMotion()) return animSync();
-  animPhase = ((((now - animT0) / 1000 / loopSec) % 1) + 1) % 1;      // (a frame's timestamp can precede the performance.now() the loop was anchored with)
+  animPhase = Math.max(0, (now - animT0) / 1000 / loopSec);             // loops since the start: it never wraps, so decimal speeds have no seam (a frame's timestamp can precede the anchor)
   const vis = [...layers.values()].filter(l => l.visible);
   if (ovScene.children.length === vis.length) {
     vis.forEach((l, i) => setLineFrame(ovScene.children[i], l, animPhase));
@@ -1560,7 +1570,11 @@ function fillPrintCanvas() {
 const GIFENC_URL = 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
 async function makeGif(px, fps, onProgress = () => {}) {
   const { GIFEncoder, quantize, applyPalette } = await import(GIFENC_URL);
-  const n = Math.max(2, Math.round(loopSec * fps)), delay = Math.round(1000 / fps);
+  const delay = Math.round(1000 / fps), vis0 = [...layers.values()].filter(l => l.visible);
+  // A GIF is one loop long and repeats seamlessly only if every layer is back where it started. Whole-number speeds do that every loop; speeds in tenths need 2, 5 or 10 loops
+  // (loopMultiple). That is rendered when it stays under MAX_GIF_FRAMES; otherwise one loop is rendered, and the picture jumps a little where the GIF repeats.
+  const MAX_GIF_FRAMES = 600, want = loopMultiple(vis0), mult = want * loopSec * fps <= MAX_GIF_FRAMES ? want : 1, seamless = mult === want;
+  const n = Math.max(2, Math.round(loopSec * mult * fps));
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }), sc = new THREE.Scene(), enc = GIFEncoder();
   r.setPixelRatio(1); r.setSize(px, px, false); sc.background = new THREE.Color($('paper').value);
   const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l })), sigList = sigs.map(g => ({ ...g })), paper = $('paper').value;
@@ -1569,7 +1583,7 @@ async function makeGif(px, fps, onProgress = () => {}) {
   const g2 = flat.getContext('2d', { willReadFrequently: true });
   try {
     for (let i = 0; i < n; i++) {
-      vis.forEach((l, k) => setLineFrame(lines[k], l, i / n));
+      vis.forEach((l, k) => setLineFrame(lines[k], l, (i + 0.5) / n * mult));      // (half a frame in: a draw never lands exactly on its restart)
       r.render(sc, camera); g2.drawImage(r.domElement, 0, 0);
       drawAllSignatures(g2, sigList, px, px, paper);
       const { data } = g2.getImageData(0, 0, px, px), palette = quantize(data, 256);
@@ -1578,17 +1592,17 @@ async function makeGif(px, fps, onProgress = () => {}) {
     }
     enc.finish();
   } finally { for (const l of lines) l.material.dispose(); r.dispose(); r.forceContextLoss(); }
-  return { bytes: enc.bytes(), frames: n };
+  return { bytes: enc.bytes(), frames: n, loops: mult, seamless };
 }
 async function saveGif() {
   if (!anyMotion()) return say('Give at least one visible layer a Spin or Draw first (Layers tab).');
   const btn = $('an-save'); btn.disabled = true; exporting = true; animSync();
   try {
-    const { bytes, frames } = await makeGif(+$('an-px').value, +$('an-fps').value, (i, n) => say(`Rendering GIF… ${i} / ${n}`, 0));
+    const { bytes, frames, loops, seamless } = await makeGif(+$('an-px').value, +$('an-fps').value, (i, n) => say(`Rendering GIF… ${i} / ${n}`, 0));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' })); a.download = `myrograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.gif`;
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    say(`Saved ${a.download} (${frames} frames, ${(bytes.length / 1048576).toFixed(1)} MB)`, 8000);
+    say(`Saved ${a.download} (${frames} frames, ${(bytes.length / 1048576).toFixed(1)} MB)` + (!seamless ? ' - decimal speeds need a longer loop to repeat exactly than a GIF can hold here, so it jumps a little where it repeats: use whole numbers, or shorter fps / loop' : loops > 1 ? ` - ${loops} loops long (${loops * loopSec} s) so every layer repeats exactly` : ''), seamless ? 8000 : 14000);
   } catch (err) { say('Could not make the GIF: ' + err.message, 8000); }
   finally { btn.disabled = false; exporting = false; renderOverlay(); animSync(); }
 }
@@ -1600,7 +1614,7 @@ function drawAttrs(l, phase) {
   if (!l.draw) return '/>';
   const base = ' pathLength="1" stroke-dasharray="1 1"';
   if (phase != null) return `${base} stroke-dashoffset="${+(1 - drawFraction(l, phase)).toFixed(5)}"/>`;
-  return `${base} stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="0;0;1;0" keyTimes="0;${DRAW_HOLD};${DRAW_HOLD + 0.0001};1" dur="${+(loopSec / l.draw).toFixed(4)}s" repeatCount="indefinite"/></path>`;
+  return `${base} stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="1;0" dur="${+(loopSec / l.draw).toFixed(4)}s" repeatCount="indefinite"/></path>`;
 }
 function makeSvg({ px = 800, phase = null } = {}) {
   const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l, c: ovCurve(l.p) }));
@@ -1610,7 +1624,7 @@ function makeSvg({ px = 800, phase = null } = {}) {
     const sc = 0.92 / maxAll * l.size / 100, p = l.c.pts, d = [];
     for (let i = 0; i < p.length; i += 3) d.push((i ? 'L' : 'M') + f(p[i] * sc) + ' ' + f(-p[i + 1] * sc));
     const sw = +(2 * 1.6 * (l.width || 1) / css).toFixed(5), a0 = -(phase == null ? l.rot : layerAngle(l, phase));
-    const anim = phase == null && l.spin ? `<animateTransform attributeName="transform" type="rotate" from="${f(a0)} 0 0" to="${f(a0 + 360 * l.spin)} 0 0" dur="${loopSec}s" repeatCount="indefinite"/>` : '';
+    const anim = phase == null && l.spin ? `<animateTransform attributeName="transform" type="rotate" from="${f(a0)} 0 0" to="${f(a0 + 360 * Math.sign(l.spin))} 0 0" dur="${+(loopSec / Math.abs(l.spin)).toFixed(4)}s" repeatCount="indefinite"/>` : '';     // one turn per period, each layer on its own, so any speed repeats
     out.push(`<g transform="translate(${f((l.dx || 0) / 500)} ${f((l.dy || 0) / 500)})"><g transform="rotate(${f(a0)} 0 0)">${anim}` +
       `<path d="${d.join('')}" fill="none" stroke="${l.color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${drawAttrs(l, phase)}</g></g>`);
   }
@@ -1675,7 +1689,7 @@ function applyState(meta) {                     // replace the overlay with a sa
     if (!p) { missing++; continue; }
     const key = newLayerKey();
     layers.set(key, { key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0,
-      spin: Math.max(-LAYER_SPIN, Math.min(LAYER_SPIN, Math.round(+l.spin) || 0)), draw: Math.max(0, Math.min(LAYER_DRAW, Math.round(+l.draw) || 0)) });
+      spin: cleanSpeed(l.spin, LAYER_SPIN), draw: Math.max(0, cleanSpeed(l.draw, LAYER_DRAW)) });
     legacyFlags.push(!!(l.fit ?? legacyFit));
   }
   sigs = canonSigInstances(meta); sigInst = sigs.at(-1) ?? null; fillSigSelect();      // the texts / signatures a saved piece carries (none if unsigned)
@@ -1735,7 +1749,7 @@ const thQueue = []; let thPumping = false;
 function thumbRig(item) {
   const st = item.state, geos = [], T = Math.round(220 * pr);
   registerParts(st.parts);
-  const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0, spin: Math.max(-LAYER_SPIN, Math.min(LAYER_SPIN, Math.round(+l.spin) || 0)), draw: Math.max(0, Math.min(LAYER_DRAW, Math.round(+l.draw) || 0)), fit: !!(l.fit ?? st.baseScale === 'fit') })).filter(l => l.p);
+  const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0, spin: cleanSpeed(l.spin, LAYER_SPIN), draw: Math.max(0, cleanSpeed(l.draw, LAYER_DRAW)), fit: !!(l.fit ?? st.baseScale === 'fit') })).filter(l => l.p);
   const curve = p => { const { pts, maxR } = traceRaw(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]);
     const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR, pts }; };
   bakeLegacyFit(ls, ls.map(l => l.fit), curve);
@@ -1762,7 +1776,7 @@ function renderThumb(item, canvas) {
 // the animation down rather than the page). Not with prefers-reduced-motion. Rigs are kept only while the albums view shows.
 const thRigs = new Map(); let thAnimRaf = 0, thAnimT0 = 0, thRR = 0;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const stateSpins = st => (st.layers || []).some(l => l.visible !== false && (Math.round(+l.spin) || Math.round(+l.draw)));
+const stateSpins = st => (st.layers || []).some(l => l.visible !== false && (cleanSpeed(l.spin, LAYER_SPIN) || cleanSpeed(l.draw, LAYER_DRAW) > 0));
 function thAnimClear() { for (const r of thRigs.values()) thumbDispose(r); thRigs.clear(); }
 function thAnimTick(now) {
   thAnimRaf = 0;
@@ -1778,7 +1792,7 @@ function thAnimTick(now) {
       if (!thRigs.has(id)) thRigs.set(id, thumbRig(c._item));
       const rig = thRigs.get(id);
       if (rig.T !== T) { T = rig.T; gl.setSize(T, T, false); }
-      thumbDraw(rig, c, ((now - thAnimT0) / 1000 / rig.loop) % 1);
+      thumbDraw(rig, c, Math.max(0, (now - thAnimT0) / 1000 / rig.loop));
       if (performance.now() - t0 > 12) { thRR = (thRR + k + 1) % cs.length; break; }
     }
     if (T) gl.setSize(px, px, false);
@@ -1988,14 +2002,14 @@ function buildLayerList() {
       `<div class="tune"><label><span class="tl"><span>Rotate</span><span class="tv">${l.rot}°</span></span><input type="range" data-k="rot" min="0" max="359" value="${l.rot}"></label>` +
       `<label><span class="tl"><span>Size</span><span class="tv">${l.size}%</span></span><input type="range" data-k="size" min="0" max="1000" value="${sizeToPos(l.size)}"></label>` +
       `<label title="Line thickness of this layer"><span class="tl"><span>Line</span><span class="tv">${l.width}×</span></span><input type="range" data-k="width" min="0" max="1000" value="${widthToPos(l.width)}"></label>` +
-      `<label title="Whole turns per loop: right of the middle turns clockwise, left counter-clockwise (see the Animate tab)"><span class="tl"><span>Spin</span><span class="tv">${spinLabel(l.spin)}</span></span><input type="range" data-k="spin" min="${-LAYER_SPIN}" max="${LAYER_SPIN}" step="1" value="${l.spin || 0}"></label>` +
-      `<label title="A pen draws the curve out this many times per loop (off = always complete): right = faster. Each draw ends with a short hold on the finished shape."><span class="tl"><span>Draw</span><span class="tv">${drawLabel(l.draw)}</span></span><input type="range" data-k="draw" min="0" max="${LAYER_DRAW}" step="1" value="${l.draw || 0}"></label></div>`;
+      `<label title="Turns per loop (tenths allowed, 1.5 = one and a half): right of the middle turns clockwise, left counter-clockwise. The loop length is next to Pause above."><span class="tl"><span>Spin</span><span class="tv">${spinLabel(l.spin)}</span></span><input type="range" data-k="spin" min="-5" max="5" step="0.1" value="${l.spin || 0}"></label>` +
+      `<label title="A pen draws the curve out this many times per loop (tenths allowed; off = always complete): right = faster. When it finishes, the next draw starts at once."><span class="tl"><span>Draw</span><span class="tv">${drawLabel(l.draw)}</span></span><input type="range" data-k="draw" min="0" max="5" step="0.1" value="${l.draw || 0}"></label></div>`;
     const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
       del = row.querySelector('button[title=Remove]');           // (not the first button: a layer can also carry a "keep part" button)
     vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); animSync(); };
     col.oninput = () => { l.color = col.value; syncPos(); renderOverlay(); };
     for (const r of row.querySelectorAll('input[type=range]'))
-      r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : k === 'width' ? posToWidth(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = k === 'spin' ? spinLabel(l.spin) : k === 'draw' ? drawLabel(l.draw) : l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); animSync(); };
+      r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : k === 'width' ? posToWidth(+r.value) : k === 'spin' || k === 'draw' ? cleanSpeed(r.value, LAYER_SPIN) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = k === 'spin' ? spinLabel(l.spin) : k === 'draw' ? drawLabel(l.draw) : l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); animSync(); };
     for (const r of row.querySelectorAll('.xy input'))
       r.oninput = () => { if (r.value !== '') { l[r.dataset.k] = shiftClamp(+r.value * 10); syncPos(); renderOverlay(); } };
     del.onclick = () => removeLayer(l.key);

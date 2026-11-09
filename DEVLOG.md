@@ -79,6 +79,22 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Finer Spin / Draw speeds; the draw restarts instantly
+
+- Feedback: the integer 1x / 2x steps were too coarse, and the 20% hold on the finished shape was a visible gap. Now **Spin** and **Draw** step by 0.1 (sliders +/-5 and 0..5; the stored
+  limit stays 10 so older files are untouched; values are rounded to tenths by `cleanSpeed`). Draw has no hold: it draws 0 -> complete, then the next draw starts at once. Phase 0
+  is still the finished shape (`drawFraction` returns 1 at exact whole cycles), so thumbnails, links and a freshly opened file never show an empty layer; GIF frames are sampled half a
+  frame in so a draw never lands exactly on its restart.
+- The catch with decimals: a layer only repeats after a loop if its speed is a whole number, so a single wrapping 0..1 phase would jump at the loop end. Fixes per output:
+  live playback uses an unwrapped phase (loops since the start) - no seam at all; SVG gives every layer its own period (loop / speed), so every speed repeats exactly;
+  GIF is one loop long, so it is rendered `loopMultiple(...)` loops long (1, 2, 5 or 10, from the speeds' tenths) when that fits in 600 frames (e.g. spin 1.5 -> 2 loops; 1.1 -> 10
+  loops, fine at a 2 s loop / 10 fps, too long at 8 s / 20 fps), otherwise one loop with a message saying it will jump a little where it repeats (use whole numbers).
+- Share links: whole speeds keep the old base-36 token (`s2`, `d3`) so old links read the same; tenths are decimals (`s1.5`, `d0.3`). PNG / albums store plain numbers.
+- Tested: node (cleanSpeed, drawFraction, loopMultiple, decimal link round trips and clamps); Chrome: 0.1 sliders and labels, draw ~0.25 / 0.75 / 0.5 at those phases and 0.999 -> 1.0005 is full -> blank,
+  live phase passes 1 without wrapping, SVG periods (loop/speed) and stills vs WebGL (IoU 0.95 at phases 0.37 and 1.61), GIF lengths (40, 200, fallback 160 frames), and the 10-loop GIF's
+  last -> first change is a normal step (531 vs 500 px). Old drivers asserting the 20% hold / one 8 s SVG period are stale.
+- Not done: no way to type an exact speed (slider + arrow keys only); the slider range is 5 (use a shorter loop for faster).
+
 ### 2026-11-09 — Per-layer Draw (a pen draws the curve out)
 
 - New 5th slider per layer row, **Draw**: 0 = off, 1..10 = how many times per loop the curve is drawn out (right = faster; loop length / N seconds per draw). Same idea
