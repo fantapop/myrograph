@@ -20,8 +20,8 @@
   through it per moving piece; newly added Compose layers take the palette's next unused color.
   Dark-background palettes (Neon, Midnight, Chalkboard, or your own with "Paper" ticked) also set the paper.
   "Edit…" / "+ New" build custom palettes, kept in localStorage (myrograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
-  click patterns to add them as layers of one overlay (shared centre) with per-layer color,
-  visibility, rotation, size (10-500%) and line width; layers keep their real sizes relative to each other. "Save PNG"
+  click patterns to add them as layers of one overlay (they start on a shared centre) with per-layer color,
+  visibility, rotation, size (10-500%), line width and X / Y shift (drag the picture or type %; the highlighted layer moves); layers keep their real sizes relative to each other. "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
   ("Myrograph", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
   they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
@@ -202,8 +202,12 @@
   .card .meta { padding: 0 8px 7px; font-size: 11px; color: var(--dim); }
   .card .nm button { padding: 0 5px; border-radius: 4px; background: none; border: none; color: var(--dim); }
   .card .nm button:hover { color: var(--ink); }
-  .layer { padding: 8px 0; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 6px 8px; align-items: center; }
+  .layer { padding: 8px 4px 8px 6px; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 6px 8px; align-items: center; }
   .layer.off { opacity: .5; }
+  .layer.active { box-shadow: inset 3px 0 0 var(--accent); background: rgba(233,180,76,.07); }
+  #pos-row { padding: 6px 12px; gap: 4px 10px; }
+  #pos-row input[type=number] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 4px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff4; display: inline-block; flex: none; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
   .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
   .layer .tune { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }      /* Rotate / Size / Line side by side: a layer row is ~85px, not ~120px */
@@ -259,8 +263,13 @@
   <div id="ov-msg"></div>
   <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Signature</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
   <div id="tab-layers" class="pane">
+    <div class="ch" id="pos-row" hidden><span style="color:var(--dim)">Move</span><span id="pos-dot" class="dot" title="The highlighted layer"></span>
+      <label title="Shift the highlighted layer right (+) or left (-), in percent of the picture's width. You can also drag the picture." style="display:inline-flex;align-items:center;gap:3px">X <input type="number" id="pos-x" step="0.5" min="-100" max="100" style="width:4.8em">%</label>
+      <label title="Shift the highlighted layer down (+) or up (-), in percent of the picture's width. You can also drag the picture." style="display:inline-flex;align-items:center;gap:3px">Y <input type="number" id="pos-y" step="0.5" min="-100" max="100" style="width:4.8em">%</label>
+      <button id="pos-reset" title="Put the highlighted layer back in the centre">Center</button>
+      <span style="font-size:11px;color:var(--dim)">or drag the picture</span></div>
     <div id="layers"></div>
-    <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. All layers share one centre. Drop a saved PNG here to re-open it.</p>
+    <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. Layers start on one centre; drag the picture (or use X / Y) to move the highlighted layer. Drop a saved PNG here to re-open it.</p>
   </div>
   <div id="tab-sign" class="pane" hidden>
     <div class="ch"><label style="color:var(--dim)">Signature</label>
@@ -631,13 +640,15 @@ function readTextChunk(png, keyword) {          // text of the first uncompresse
 }
 
 // ---- share links: overlay setup <-> compact URL-fragment text
-// v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size[,width x10 if not 1.0]>/...   (the t|f segment and an optional 9th layer field `1` are only
+// v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size[,width x10 if not 1.0][,x<shift>][,y<shift>]>/...   shifts in thousandths of the picture, base 36, only if not 0
+// (the t|f segment and an optional layer field `1` are only
 // READ, from links made when layers could stretch to fit: the app converts them to sizes, see bakeLegacyFit)
 // then optionally one p,... segment per custom part the layers use (see encodePart), and one g,... segment for the signature (see encodeSig)
 function encodeShare(st) {
   return ['v1', st.paper.replace('#', ''), 't',
     ...st.layers.map(l => [l.track, l.roller, l.hole, l.color.replace('#', ''), l.visible === false ? 0 : 1,
-      Math.round(l.rot || 0), Math.round(l.size || 100), ...(Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)])].join(',')),
+      Math.round(l.rot || 0), Math.round(l.size || 100), ...(Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)]),
+      ...(l.dx ? ['x' + Math.round(l.dx).toString(36)] : []), ...(l.dy ? ['y' + Math.round(l.dy).toString(36)] : [])].join(',')),
     ...(st.parts || []).map(encodePart), ...(st.signature ? [encodeSig(st.signature)] : [])].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
 }
 function decodeShare(text) {                    // throws on anything malformed
@@ -649,11 +660,17 @@ function decodeShare(text) {                    // throws on anything malformed
   const signature = sigSegs.length ? decodeSig(sigSegs[0]) : null;
   if (sigSegs.length && !signature) throw bad();
   const layers = segs.filter(x => !x.startsWith('p,') && !x.startsWith('g,')).map(str => {
-    const [track, roller, hole, color, vis, rot, size, wd, fit] = str.split(',');
+    const f = str.split(','), [track, roller, hole, color, vis, rot, size] = f;
     if (!/^[\w-]+$/.test(track || '') || !/^[\w-]+$/.test(roller || '') || !/^\d+$/.test(hole || '') || !hex.test(color || '')) throw bad();
+    let i = 7, wd = 10, fit = false, dx = 0, dy = 0;
+    if (/^\d+$/.test(f[i] || '')) wd = +f[i++];                              // optional line width (tenths)
+    for (; i < f.length; i++) {                                              // then flags, in any order: "1" = stretch (old links), x<shift>, y<shift>; unknown ones are ignored
+      const t = f[i], num = () => Math.max(-LAYER_SHIFT, Math.min(LAYER_SHIFT, parseInt(t.slice(1), 36) || 0));
+      if (t === '1') fit = true; else if (/^x-?[0-9a-z]+$/.test(t)) dx = num(); else if (/^y-?[0-9a-z]+$/.test(t)) dy = num();
+    }
     return { track, roller, hole: +hole, color: '#' + color, visible: vis !== '0',
       rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(LAYER_SIZE.max, Math.max(LAYER_SIZE.min, Math.round(+size) || 100)),
-      width: Math.min(6, Math.max(0.5, (Math.round(+wd) || 10) / 10)), ...(fit === '1' ? { fit: true } : {}) };
+      width: Math.min(6, Math.max(0.5, (wd || 10) / 10)), ...(fit ? { fit: true } : {}), ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
   });
   return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(shared.length ? { parts: shared } : {}), ...(signature ? { signature } : {}) };
 }
@@ -848,6 +865,7 @@ const SIG_FONTS = {
   plain:    { label: 'Plain',     style: '600 ',  css: "-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" },
 };
 const LAYER_SIZE = { min: 10, max: 500 };         // a layer's Size, in percent
+const LAYER_SHIFT = 1000;                        // a layer's X / Y shift is limited to +/- this many thousandths of the picture's width (x: right, y: down)
 const SIG_LIMITS = { text: 40, strokes: 16, points: 600, library: 12 };
 const sigId = d => 's' + fnv(d.kind === 't' ? `t|${d.font}|${d.text}` : `i|${d.ar}|${d.s.map(q => q.join(',')).join(';')}`);
 const sigName = raw => { const name = cleanName(raw.name); return name ? { name } : {}; };     // the label shown in the list (letters, digits, spaces and . , ( ) + - only)
@@ -922,6 +940,7 @@ const PARTS_KEY = STORAGE_PREFIX + 'parts.v1';
 // is slow (up to a second per part), so results are kept in browser storage (the .v2 is the version of the check: bump it if it changes).
 const FITS_KEY = STORAGE_PREFIX + 'fits.v2';
 const SIG_KEY = STORAGE_PREFIX + 'signatures.v1';
+let activeKey = null;                           // the highlighted layer: the one the position row and dragging the picture move
 let sigLib = [], sigInst = null;                // saved signatures (localStorage), and the signature on the current overlay (or null)
 let library = [], CUSTOM = [];                  // CUSTOM: combos of library parts (kept out of ALL, shown via the Custom parts filter)
 const registry = new Map(), pieceMemo = new Map(), fitMemo = new Map(), guestCombos = new Map();
@@ -1319,7 +1338,7 @@ function ovCurve(p) {
   }
   return c;
 }
-// Lines for a list of layers ({ p, color, visible, rot, size, width }); curve(p) -> { geo, maxR }. width multiplies lineWidth.
+// Lines for a list of layers ({ p, color, visible, rot, size, width, dx, dy }); curve(p) -> { geo, maxR }. width multiplies lineWidth.
 // Sizing: layers share one scale, set by the largest visible layer (by real size), so their real proportions hold; each layer's Size scales it.
 // Older files stretched layers to fill the picture (a global "Fit each" switch, later a per-layer checkbox). Both are gone; a layer that
 // stretched gets the Size that draws the same picture under the one remaining rule (clamped to the Size range). flags[i]: layer i stretched.
@@ -1336,6 +1355,7 @@ function makeLines(ls, lineWidth, resPx, curve) {
     m.resolution.set(resPx, resPx);
     const line = new Line2(cs[i].geo, m), sc = 0.92 / maxAll * l.size / 100;
     line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
+    line.position.set((l.dx || 0) / 500, -(l.dy || 0) / 500, 0);       // shift in thousandths of the picture width (it spans 2 scene units); the layer rotates about its own centre first
     return line;
   });
 }
@@ -1358,7 +1378,7 @@ function overlayState() {
   const used = new Set([...layers.values()].map(l => customIdOf(l.p)).filter(Boolean));
   return { app: APP_ID, v: 1, paper: $('paper').value,
     layers: [...layers.values()].map(l => ({ track: l.p.track.id, roller: l.p.roller.id, hole: l.p.hole,
-      color: l.color, visible: l.visible, rot: l.rot, size: l.size, width: l.width })),
+      color: l.color, visible: l.visible, rot: l.rot, size: l.size, width: l.width, ...(l.dx ? { dx: l.dx } : {}), ...(l.dy ? { dy: l.dy } : {}) })),
     ...(used.size ? { parts: [...used].map(id => registry.get(id)).filter(Boolean) } : {}),     // custom parts travel with the setup
     ...(sigInst ? { signature: sigInst } : {}) };                                              // so does the signature
 }
@@ -1432,11 +1452,12 @@ function applyState(meta) {                     // replace the overlay with a sa
   for (const l of meta.layers || []) {
     const p = lookup(l);
     if (!p) { missing++; continue; }
-    layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1 });
+    layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0 });
     legacyFlags.push(!!(l.fit ?? legacyFit));
   }
   sigInst = canonSigInstance(meta.signature); fillSigSelect();           // the signature a saved piece was signed with (null if unsigned)
   bakeLegacyFit([...layers.values()], legacyFlags, ovCurve);
+  activeKey = [...layers.keys()].at(-1) ?? null;
   if (!composeOpen) setCompose(true);
   markTiles(); buildLayerList(); renderOverlay(); repaintAll();
   say(`Opened ${layers.size} layer${layers.size === 1 ? '' : 's'}` + (missing ? ` (${missing} skipped: part not in this set)` : '') +
@@ -1489,7 +1510,7 @@ const thQueue = []; let thPumping = false;
 function renderThumb(item, canvas) {
   const st = item.state, geos = [], T = Math.round(220 * pr);
   registerParts(st.parts);
-  const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, fit: !!(l.fit ?? st.baseScale === 'fit') })).filter(l => l.p);
+  const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0, fit: !!(l.fit ?? st.baseScale === 'fit') })).filter(l => l.p);
   const curve = p => { const { pts, maxR } = traceRaw(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]);
     const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR }; };
   gl.setSize(T, T, false);
@@ -1652,19 +1673,36 @@ const markTiles = () => { for (const e of tiles.values()) markTile(e); };
 function toggleLayer(p) {
   if (layers.has(p.key)) { layers.delete(p.key); ovCache.get(p.key)?.geo.dispose(); ovCache.delete(p.key); }
   else {
-    layers.set(p.key, { key: p.key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1 });   // same color the tile is drawn in
-    setOvTab('layers');                                                                                    // show the list the new layer went into
+    layers.set(p.key, { key: p.key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1, dx: 0, dy: 0 });   // same color the tile is drawn in
+    activeKey = p.key;                                                                                                  // the new layer is the one that moves
+    setOvTab('layers');                                                                                                 // show the list the new layer went into
   }
+  if (!layers.has(activeKey)) activeKey = [...layers.keys()].at(-1) ?? null;
   markTiles(); buildLayerList(); renderOverlay();
 }
 // The Size slider is logarithmic (position 0..1000 <-> LAYER_SIZE.min..max %), so each step is a similar percentage change over the wide range.
 const posToSize = v => Math.round(LAYER_SIZE.min * (LAYER_SIZE.max / LAYER_SIZE.min) ** (v / 1000));
 const sizeToPos = z => Math.round(Math.log(Math.max(LAYER_SIZE.min, Math.min(LAYER_SIZE.max, z)) / LAYER_SIZE.min) / Math.log(LAYER_SIZE.max / LAYER_SIZE.min) * 1000);
+const shiftClamp = v => Math.max(-LAYER_SHIFT, Math.min(LAYER_SHIFT, Math.round(v)));
+function syncPos() {                            // the position row shows the highlighted layer's X / Y (percent of the picture width)
+  const l = layers.get(activeKey); $('pos-row').hidden = !l; $('sigc').style.cursor = l ? 'move' : 'default';
+  if (l) { $('pos-x').value = (l.dx || 0) / 10; $('pos-y').value = (l.dy || 0) / 10; $('pos-dot').style.background = l.color; }
+}
+function setActive(key) {
+  if (String(key) === String(activeKey)) return;
+  activeKey = layers.has(key) ? key : null;
+  for (const r of document.querySelectorAll('#layers .layer')) r.classList.toggle('active', r.dataset.key === String(activeKey));
+  syncPos();
+}
+$('pos-x').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dx = shiftClamp(+e.target.value * 10); renderOverlay(); } };
+$('pos-y').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dy = shiftClamp(+e.target.value * 10); renderOverlay(); } };
+$('pos-reset').onclick = () => { const l = layers.get(activeKey); if (l) { l.dx = l.dy = 0; syncPos(); renderOverlay(); } };
 function buildLayerList() {
   $('ov-hint').style.display = layers.size ? 'none' : '';
   const box = $('layers'); box.innerHTML = '';
   for (const l of layers.values()) {
-    const row = document.createElement('div'); row.className = 'layer' + (l.visible ? '' : ' off');
+    const row = document.createElement('div'); row.className = 'layer' + (l.visible ? '' : ' off') + (String(l.key) === String(activeKey) ? ' active' : ''); row.dataset.key = String(l.key);
+    row.addEventListener('pointerdown', () => setActive(l.key));                  // touching a layer's row (or its sliders) makes it the one that moves
     row.innerHTML = `<input type="checkbox" title="Show / hide this layer" ${l.visible ? 'checked' : ''}>` +
       `<input type="color" value="${l.color}" title="Layer color"><span style="display:flex">${trackIcon(l.p.track)}${rollerIcon(l.p.roller, l.p.hole)}</span>` +
       `<span class="ltxt"><b>${l.p.track.name}</b>${l.p.track.kind === 'ring' ? '' : ' · outside'}<br>${l.p.roller.name} · hole ${l.p.hole}` +
@@ -1677,13 +1715,14 @@ function buildLayerList() {
     const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
       del = row.querySelector('button[title=Remove]');           // (not the first button: a layer can also carry a "keep part" button)
     vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); };
-    col.oninput = () => { l.color = col.value; markTiles(); renderOverlay(); };
+    col.oninput = () => { l.color = col.value; markTiles(); syncPos(); renderOverlay(); };
     for (const r of row.querySelectorAll('input[type=range]'))
       r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); };
     del.onclick = () => toggleLayer(l.p);
     row.querySelector('.keep')?.addEventListener('click', () => keepPart(customIdOf(l.p)));
     box.append(row);
   }
+  syncPos();
 }
 function setOvTab(name) {                       // the panel under the picture shows one tab at a time, so the layer list gets all the leftover height
   for (const b of document.querySelectorAll('#ov-tabs button')) b.classList.toggle('on', b.dataset.tab === name);
@@ -2108,8 +2147,15 @@ function sigKeepInside() {                       // the signature stays fully on
   const css = ovCanvas.clientWidth, pad = 14, fit = (v, m) => m >= 500 ? 500 : Math.max(m, Math.min(1000 - m, Math.round(v)));      // pad: room for the frame and its corner handle
   sigInst.x = fit(sigInst.x, (sigHit.w / 2 + pad) / css * 1000); sigInst.y = fit(sigInst.y, (sigHit.h / 2 + pad) / css * 1000);
 }
+let layerDrag = null;                           // dragging the picture moves the highlighted layer (unless the pointer is on the signature)
 sigC.addEventListener('pointerdown', ev => {
-  if (!onSig(ev) && !onHandle(ev)) return;
+  const lay = layers.get(activeKey);
+  if (!onSig(ev) && !onHandle(ev)) {
+    if (!lay) return;
+    const p0 = sigPoint(ev); layerDrag = { x: p0.x, y: p0.y, dx: lay.dx || 0, dy: lay.dy || 0, l: lay };
+    try { sigC.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
+    sigC.style.cursor = 'grabbing'; ev.preventDefault(); return;
+  }
   const p = sigPoint(ev);
   sigDrag = onHandle(ev) ? { mode: 'size', left: sigHit.cx - sigHit.w / 2, top: sigHit.cy - sigHit.h / 2, w0: sigHit.w, h0: sigHit.h }     // resize: the top-left corner stays put
                          : { mode: 'move', dx: p.x - sigHit.cx, dy: p.y - sigHit.cy };
@@ -2118,17 +2164,21 @@ sigC.addEventListener('pointerdown', ev => {
 });
 sigC.addEventListener('pointermove', ev => {
   const p = sigPoint(ev);
+  if (layerDrag) {
+    layerDrag.l.dx = shiftClamp(layerDrag.dx + (p.x - layerDrag.x) / p.w * 1000); layerDrag.l.dy = shiftClamp(layerDrag.dy + (p.y - layerDrag.y) / p.h * 1000);
+    syncPos(); renderOverlay(); return;
+  }
   if (sigDrag && sigDrag.mode === 'size') {
     const d = sigDrag, nw = Math.max(p.w * 0.02, p.x - d.left), nh = d.h0 * nw / d.w0;                // keep the proportions; the pointer is the corner
     sigInst.size = Math.max(20, Math.min(1000, Math.round(nw / p.w * 1000)));
     sigInst.x = Math.round((d.left + nw / 2) / p.w * 1000); sigInst.y = Math.round((d.top + nh / 2) / p.h * 1000); syncSize(); sigRedraw();
   } else if (sigDrag) { sigInst.x = Math.round((p.x - sigDrag.dx) / p.w * 1000); sigInst.y = Math.round((p.y - sigDrag.dy) / p.h * 1000); sigRedraw(); }
   else {
-    const hot = onSig(ev) || onHandle(ev); sigC.style.cursor = onHandle(ev) ? 'nwse-resize' : onSig(ev) ? 'grab' : 'default';
+    const hot = onSig(ev) || onHandle(ev); sigC.style.cursor = onHandle(ev) ? 'nwse-resize' : onSig(ev) ? 'grab' : layers.get(activeKey) ? 'move' : 'default';
     if (hot !== sigHot) { sigHot = hot; drawSigLayer(); }
   }
 });
-sigC.addEventListener('pointerup', () => { sigDrag = null; sigC.style.cursor = 'grab'; drawSigLayer(); });
+sigC.addEventListener('pointerup', () => { const was = layerDrag; layerDrag = null; sigDrag = null; sigC.style.cursor = was ? 'move' : 'grab'; drawSigLayer(); });
 sigC.addEventListener('pointerleave', () => { if (!sigDrag && sigHot) { sigHot = false; drawSigLayer(); } });
 sigC.addEventListener('wheel', ev => {         // scroll (or trackpad pinch) over the signature to resize it
   if (!sigInst || !(onSig(ev) || onHandle(ev))) return;

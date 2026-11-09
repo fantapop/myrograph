@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -169,6 +169,15 @@ check('links without a signature are unchanged (no g segment, no signature key)'
   check('stretch-to-fit is never written to a link, even for a layer that still carries the flag', C.encodeShare({ ...st, layers: [{ ...st.layers[0], fit: true }] }).split('/')[3].split(',').length === 7);
   const old9 = C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,10,1'), oldF = C.decodeShare('v1/faf7f0/f/ring96-in,w24,1,1f4fd8,1,0,100');
   check('old links: the layer flag and the global "fit each" segment are still read, for the app to convert', old9.layers[0].fit === true && oldF.baseScale === 'fit' && !('fit' in oldF.layers[0]) && !('baseScale' in C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100'))); }
+
+// layer shifts (X right, Y down, thousandths of the picture): optional tokens in the layer segment, only written when not 0
+{ const shifted = { ...st, layers: [{ ...st.layers[0], dx: -125, dy: 400 }, { ...st.layers[1], width: 1, dx: 1000 }, { ...st.layers[0], track: 'ring105-in', dy: -1000 }] };
+  const link = C.encodeShare(shifted), segs = link.split('/').slice(3);
+  check('layer shifts round-trip (negative, zero on one axis, extremes, with and without a line width)', JSON.stringify(C.decodeShare('#' + link)) === JSON.stringify(shifted), segs.join('  '));
+  check('unshifted layers add nothing to the link, and links from before shifts existed decode with no shift keys', !C.encodeShare(st).includes(',x') && !C.encodeShare(st).includes(',y') && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,25').layers.every(l => !('dx' in l) && !('dy' in l)));
+  const clamp = C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,xzzzz,y-zzzz,qq9').layers[0];
+  check('absurd shifts are clamped, and unknown tokens are ignored rather than rejected', clamp.dx === C.LAYER_SHIFT && clamp.dy === -C.LAYER_SHIFT && C.LAYER_SHIFT === 1000);
+  check('a shift can follow a width, a stretch flag from old links, or nothing', C.decodeShare('v1/faf7f0/t/a,b,1,1f4fd8,1,0,100,x5').layers[0].dx === 5 && C.decodeShare('v1/faf7f0/t/a,b,1,1f4fd8,1,0,100,25,x5,y6').layers[0].width === 2.5 && C.decodeShare('v1/faf7f0/t/a,b,1,1f4fd8,1,0,100,10,1,y6').layers[0].fit === true); }
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

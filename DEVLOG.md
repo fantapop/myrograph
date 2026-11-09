@@ -63,8 +63,7 @@ Next steps / not done:
   localhost link works only on the same computer (the copy message says so).
 - Albums live per browser profile and per origin (file:// vs http://localhost are separate
   stores) - export is the backup path. No drag-reorder of items, no multi-select.
-- Compose: no SVG export, no layer reordering, no per-layer
-  offset (all share one centre), no per-layer line width.
+- Compose: no SVG export, no layer reordering.
 - Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
   overlapping combos"). In the photo the Bar has teeth only on its short ends; modelled with teeth
   all round, so Bar-in-ring is probably more permissive on the real toy.
@@ -79,6 +78,19 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-08 — Per-layer X / Y shift
+
+Plan/outcome: each layer gets `dx`/`dy` (thousandths of the picture width, +/-1000, x right, y down; 0 = centred).
+UI without adding per-row height (the user cares about layer-list room): one layer is "active" (accent bar on its row;
+last added, or whichever row is clicked) and a single position row at the top of the Layers tab edits it - X / Y
+percent boxes, "Center", plus dragging the picture moves the active layer (a drag on the signature still moves the
+signature). Renderer: `line.position` in `makeLines` (so live view, PNG, print and album thumbnails all agree; the
+layer rotates about its own centre, then is shifted). Persisted as `dx`/`dy` in overlay state (only when non-zero, so
+old files are unchanged) and as `x<b36>` / `y<b36>` tail fields in the share-link layer segment (decoder reads the
+optional width number and any of `1`(legacy fit)/`x..`/`y..` in any order). Shared size scale ignores shifts.
+Verified: node tests (codec roundtrip, clamping, old links), headless Chrome (boxes, drag, Center, row highlight,
+applyState, share roundtrip; row height still 88px). Row padding gained 6px/4px so the accent bar doesn't hit labels.
 
 ### 2026-11-08 — Stretch to fit removed; wider Size range
 
