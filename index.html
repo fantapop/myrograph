@@ -10,6 +10,9 @@
   WebGL canvas, copying the result into a plain 2D canvas inside the tile (so tiles scroll
   natively with their labels). Tiles that scroll away are discarded and redrawn on demand.
 
+  Theme: the UI has a dark and a light theme (CSS variables on <html data-theme>; the header's sun/moon button switches, the choice is kept in
+  localStorage myrograph.theme, otherwise the system setting is followed). The paper colour patterns are drawn on is separate and never changes with it.
+
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
 
@@ -62,19 +65,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>myrograph</title>
+<script>   /* UI theme before first paint: the saved choice (myrograph.theme), else the system setting */
+  (() => { let t = null; try { t = localStorage.getItem('myrograph.theme'); } catch { /* private mode */ }
+    document.documentElement.dataset.theme = t === 'light' || t === 'dark' ? t : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; })();
+</script>
 <style>
-  :root { --bg: #1b1b1f; --panel: #26262c; --ink: #e8e6e1; --dim: #8d8b86; --accent: #e9b44c; --paper: #faf7f0; }
+  /* UI theme: dark by default; :root[data-theme=light] below (set from the saved choice or the system setting before first paint, see the script in <head>).
+     The paper colour (--paper, what patterns are drawn on) is separate: it is the user's choice and never changes with the theme. */
+  :root { --bg: #1b1b1f; --panel: #26262c; --ink: #e8e6e1; --dim: #8d8b86; --accent: #e9b44c; --accent-ink: #e9b44c; --on-accent: #1b1b1f; --paper: #faf7f0;
+    --ctl: #33333b; --line: #44444e; --line-hi: #66666f; --sunk: #1f1f24; --raised: #2b2b32; --edge: #000; --hi: #fff; --tile-hover: #55555f; --sep: #33333b;
+    --grid1: #2e2e36; --grid2: #3d3d48; --grid3: #4a4a55; --handle-ln: rgba(255,255,255,.18); color-scheme: dark; }
+  :root[data-theme=light] { --bg: #e8e7e2; --panel: #f6f5f1; --ink: #1c1c22; --dim: #67665f; --accent: #e0a122; --accent-ink: #8a5a00; --on-accent: #1b1b1f;
+    --ctl: #ffffff; --line: #c3c1b8; --line-hi: #94928a; --sunk: #ecebe5; --raised: #ffffff; --edge: #cdcbc2; --hi: #1c1c22; --tile-hover: #8f8d84; --sep: #dcdad2;
+    --grid1: #dcdad2; --grid2: #c6c4ba; --grid3: #aeaca1; --handle-ln: rgba(0,0,0,.18); color-scheme: light; }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
     font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  header { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid #000;
+  header { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--edge);
     padding: 8px 16px; max-height: 50vh; overflow: auto; }
   summary { cursor: pointer; color: var(--dim); }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
   .row > .label { color: var(--dim); width: 92px; flex: none; text-transform: uppercase; font-size: 11px; letter-spacing: .05em;
     align-self: flex-start; display: flex; align-items: center; min-height: 24px; }     /* centred on the row's first line, not the whole row */
   .row > .chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
-  .chip, button { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e;
+  .chip, button { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line);
     border-radius: 999px; padding: 1px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   .chip.pic { border-radius: 8px; padding: 3px 7px 3px 4px; }
   .chip svg { width: 28px; height: 28px; flex: none; }
@@ -84,26 +98,26 @@
   .row.big .chip.pic svg { width: 56px; height: 56px; }
   .chip .lbl { text-align: center; }
   header.tall { position: static; max-height: none; }   /* too tall to stay pinned over the grid: scrolls away instead */
-  .rowtoggle { font-size: 12px; padding: 4px 0; width: 84px; justify-content: center; margin-left: auto; color: var(--ink); border: 1px dashed #66666f; border-radius: 999px; align-self: center; }   /* pushed to the row's right end: the pills of all rows line up */
-  .rowtoggle:hover { border-color: #fff; }
+  .rowtoggle { font-size: 12px; padding: 4px 0; width: 84px; justify-content: center; margin-left: auto; color: var(--ink); border: 1px dashed var(--line-hi); border-radius: 999px; align-self: center; }   /* pushed to the row's right end: the pills of all rows line up */
+  .rowtoggle:hover { border-color: var(--hi); }
   .chip.fold { display: none !important; }
-  .chip.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  .chip.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   button { border-radius: 4px; padding: 3px 10px; }
-  .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid #44444e; }
-  .swatch.on { border-color: #fff; }
+  .swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
+  .swatch.on { border-color: var(--hi); }
   .paper-sw.on { border-color: var(--accent); }
-  input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid #44444e; background: none; cursor: pointer; }
+  input[type=color] { width: 28px; height: 24px; padding: 0; border: 1px solid var(--line); background: none; cursor: pointer; }
   /* free-color pickers (ink, paper): a rainbow ring around a dot showing the current custom color (--pc); the real
      color input sits invisibly on top, so a click still opens the native picker */
-  .pick { position: relative; display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #44444e; flex: none;
+  .pick { position: relative; display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); flex: none;
     background: conic-gradient(#f33, #fc3, #6d3, #3dc, #39f, #c3f, #f39, #f33); }
   .pick::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--pc, #fff); border: 1px solid rgba(0,0,0,.45); pointer-events: none; }
   .pick input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
-  .pick:hover { border-color: #fff; }
+  .pick:hover { border-color: var(--hi); }
   #count { margin-left: auto; color: var(--dim); }
   #f-ink { align-items: center; }
-  #f-ink select, #pal-edit input[type=text] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 6px; }
-  #pal-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 2px; padding: 8px 10px; background: #1f1f24; border-radius: 6px; }
+  #f-ink select, #pal-edit input[type=text] { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+  #pal-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 2px; padding: 8px 10px; background: var(--sunk); border-radius: 6px; }
   #pal-edit .pc, #pal-edit .pp { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; color: var(--dim); }
   #pal-edit .pp input[type=color]:disabled { opacity: .35; }
   #pal-edit .pc button { padding: 0 5px; margin-left: 1px; border-radius: 4px; background: none; border: none; color: var(--dim); }
@@ -111,54 +125,57 @@
   .cp { display: inline-flex; align-items: center; }
   .cp .chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
   .cp .edit { border-radius: 0 8px 8px 0; padding: 3px 7px; align-self: stretch; border-left: none; color: var(--dim); }
-  dialog#pm { background: var(--panel); color: var(--ink); border: 1px solid #000; border-radius: 8px; padding: 0; width: min(1060px, 96vw); max-height: 94vh; overflow: auto; }
+  dialog#pm { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 8px; padding: 0; width: min(1060px, 96vw); max-height: 94vh; overflow: auto; }
   dialog#pm::backdrop { background: rgba(0,0,0,.65); }
-  .pm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border-bottom: 1px solid #000; position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  .pm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border-bottom: 1px solid var(--edge); position: sticky; top: 0; background: var(--panel); z-index: 1; }
   .pm-head .sp { flex: 1; }
-  .pm-head input[type=text], #pm select, #pm input[type=number] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 6px; }
+  .pm-head input[type=text], #pm select, #pm input[type=number] { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
   .pm-head label { color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
   .pm-head output { color: var(--ink); min-width: 2.2em; text-align: right; }
   #pm button:disabled { opacity: .4; cursor: not-allowed; }
-  #pm button.primary { background: var(--accent); color: #1b1b1f; border-color: var(--accent); font-weight: 600; }
+  #pm button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
   .pm-body { display: flex; flex-wrap: wrap; gap: 16px; padding: 14px; }
   .pm-left { flex: 1 1 400px; max-width: 520px; min-width: 280px; }
   .pm-right { flex: 1 1 360px; min-width: 280px; display: flex; flex-direction: column; gap: 12px; }
   .pm-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
-  .pm-tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  .pm-tabs button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   #pm-c:focus { outline: none; }
-  #pm-c { display: block; width: 100%; aspect-ratio: 1; background: #1f1f24; border-radius: 6px; touch-action: none; cursor: crosshair; }
+  #pm-c { display: block; width: 100%; aspect-ratio: 1; background: var(--sunk); border-radius: 6px; touch-action: none; cursor: crosshair; }
   .tl { max-width: 340px; margin: 0 0 6px !important; flex-wrap: nowrap !important; }
   .tl input { flex: 1; min-width: 0; }
   #pm-play { width: 36px; padding: 2px 0; justify-content: center; }
   #pm-v { display: block; width: 100%; max-width: 340px; aspect-ratio: 1; background: var(--paper); border-radius: 6px; }
-  .pm-sec { background: #1f1f24; border-radius: 6px; padding: 8px 10px; }
+  .pm-sec { background: var(--sunk); border-radius: 6px; padding: 8px 10px; }
   .pm-sec h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
   .pm-sec .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; color: var(--dim); }
   .pm-sec .ctl label { display: inline-flex; align-items: center; gap: 5px; }
   #pm-hint, #pm-msg, #pm-sum { font-size: 11px; color: var(--dim); margin-top: 6px; min-height: 1.4em; }
-  #pm-msg { color: var(--accent); }
+  #pm-msg { color: var(--accent-ink); }
   #pm-compat { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 8px; }
   #pm-compat .grp { width: 100%; font-size: 11px; color: var(--dim); margin-top: 2px; }
-  #pm-compat button { padding: 1px; border-radius: 6px; border: 2px solid #44444e; background: #2b2b32; line-height: 0; }
+  #pm-compat button { padding: 1px; border-radius: 6px; border: 2px solid var(--line); background: var(--raised); line-height: 0; }
   #pm-compat button svg { width: 26px; height: 26px; color: var(--dim); }
   #pm-compat button.ok { border-color: #3f9b62; } #pm-compat button.bad { border-color: #c4553a; opacity: .75; } #pm-compat button.wait { border-style: dotted; }
-  #pm-compat button.on { background: #44444e; outline: 2px solid var(--accent); }
+  #pm-compat button.on { background: var(--line); outline: 2px solid var(--accent); }
   .layer .keep { padding: 0 6px; font-size: 11px; margin-top: 2px; }
   #ovwrap { position: relative; flex: none; width: min(100%, 42vh); margin: 0 auto; }      /* a shorter picture on short screens, so the lists below keep room */
-  #ov-play { position: absolute; left: 8px; bottom: 8px; z-index: 2; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: #1b1b1fd0; line-height: 1; font-size: 13px; }
-  #ov-tabs { display: flex; gap: 4px; padding: 6px 12px; border-top: 1px solid #000; border-bottom: 1px solid #000; flex: none; }
-  #ov-tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  #ov-play { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; }
+  #ov-play[hidden] { display: none; }
+  #theme-btn { position: absolute; right: 108px; top: 6px; padding: 3px 8px; display: inline-flex; align-items: center; }
+  #theme-btn svg { width: 15px; height: 15px; }
+  #ov-tabs { display: flex; gap: 4px; padding: 6px 12px; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); flex: none; }
+  #ov-tabs button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   #compose .pane > .ch:first-child { border-top: none; }
   #sigc { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }
-  dialog#sg { background: var(--panel); color: var(--ink); border: 1px solid #000; border-radius: 8px; padding: 0; width: min(620px, 96vw); }
+  dialog#sg { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 8px; padding: 0; width: min(620px, 96vw); }
   dialog#sg::backdrop { background: rgba(0,0,0,.65); }
   .sg-body { padding: 12px 14px 14px; }
   .sg-body .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .sg-body input[type=text], .sg-body select { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 3px 6px; }
-  #sg-c { display: block; width: 100%; aspect-ratio: 3.2; background: #faf7f0; border-radius: 6px; touch-action: none; cursor: crosshair; }
-  #sg-msg { font-size: 11px; color: var(--accent); min-height: 1.4em; margin-top: 6px; }
+  .sg-body input[type=text], .sg-body select { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
+  #sg-c { display: block; width: 100%; aspect-ratio: 3.2; background: #faf7f0; border: 1px solid var(--line); border-radius: 6px; touch-action: none; cursor: crosshair; }
+  #sg-msg { font-size: 11px; color: var(--accent-ink); min-height: 1.4em; margin-top: 6px; }
   #sg-sel { font: inherit; }
-  #sg-auto.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  #sg-auto.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   #print-sheet { display: none; }
   @media print {
     @page { margin: 10mm; }
@@ -174,14 +191,14 @@
   body.compose-open #grid { margin-right: calc(16px + var(--panel-w)); }
   body.compose-open .tile { cursor: pointer; }
   .tile { position: absolute; background: var(--panel); border-radius: 6px; overflow: hidden; --lc: var(--accent); }
-  body.compose-open .tile:hover { outline: 2px solid #55555f; }
+  body.compose-open .tile:hover { outline: 2px solid var(--tile-hover); }
   .tile.sel { outline: 3px solid var(--lc) !important; }
   .tile.sel::after { content: "✓"; position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%;
     background: var(--lc); color: #fff; text-align: center; line-height: 22px; font-weight: 700; text-shadow: 0 0 2px #000; }
   #compose { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-w); z-index: 4; background: var(--panel);
-    border-left: 1px solid #000; display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s; }
+    border-left: 1px solid var(--edge); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s; }
   body.compose-open #compose { transform: none; }
-  #compose .ch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 12px; border-bottom: 1px solid #000; }
+  #compose .ch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 12px; border-bottom: 1px solid var(--edge); }
   #compose .ch .sp { flex: 1; }
   #ovc { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); flex: none; }
   [hidden] { display: none !important; }
@@ -189,7 +206,7 @@
   #layers { padding: 4px 12px 0; }
   #views { display: flex; gap: 4px; margin-bottom: 4px; }
   #views button { border-radius: 6px; padding: 3px 14px; font-weight: 600; }
-  #views button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
+  #views button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   #albumview { margin: 16px; }
   body.compose-open #albumview { margin-right: calc(16px + var(--panel-w)); }
   body.view-albums #grid, body.view-albums header details { display: none; }
@@ -197,22 +214,22 @@
   .ab .sp { flex: 1; }
   .ab select { max-width: 40%; font-size: 14px; }
   .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding-top: 14px; }
-  .card { background: #1f1f24; border-radius: 6px; overflow: hidden; }
+  .card { background: var(--sunk); border-radius: 6px; overflow: hidden; }
   .card canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); cursor: pointer; }
   .card .nm { display: flex; align-items: center; gap: 2px; padding: 5px 6px 2px 8px; font-size: 13px; }
   .card .nm span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card .meta { padding: 0 8px 7px; font-size: 11px; color: var(--dim); }
   .card .nm button { padding: 0 5px; border-radius: 4px; background: none; border: none; color: var(--dim); }
   .card .nm button:hover { color: var(--ink); }
-  .layer { padding: 8px 4px 8px 6px; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto auto; gap: 6px 8px; align-items: center; }
+  .layer { padding: 8px 4px 8px 6px; border-bottom: 1px solid var(--sep); display: grid; grid-template-columns: auto auto auto 1fr auto auto; gap: 6px 8px; align-items: center; }
   .layer.off { opacity: .5; }
   .layer.active { box-shadow: inset 3px 0 0 var(--accent); background: rgba(233,180,76,.07); }
   #pos-row { padding: 6px 12px; gap: 4px 10px; }
   .layer .xy { display: flex; align-items: center; gap: 3px; color: var(--dim); font-size: 11px; }
   .layer .xy input { width: 42px; }
   .layer .xy .sep { width: 4px; }
-  #pos-row input[type=number], .layer .xy input { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 4px; }
-  .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff4; display: inline-block; flex: none; }
+  #pos-row input[type=number], .layer .xy input { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); display: inline-block; flex: none; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
   .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
   .layer .tune { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }      /* Rotate / Size / Line / Spin side by side: a layer row is ~85px, not ~120px */
@@ -220,8 +237,8 @@
   .layer .tune .tl { display: flex; justify-content: space-between; }
   .layer .tune input { width: 100%; margin: 2px 0 0; display: block; }
   .hint { color: var(--dim); padding: 12px; margin: 0; }
-  #compose .tb { border-top: 1px solid #000; }
-  #ov-msg { padding: 4px 12px; font-size: 11px; color: var(--accent); min-height: 1px; }
+  #compose .tb { border-top: 1px solid var(--edge); }
+  #ov-msg { padding: 4px 12px; font-size: 11px; color: var(--accent-ink); min-height: 1px; }
   body.dragging::after { content: "Drop a saved myrograph PNG to open it"; position: fixed; inset: 0; z-index: 9; display: grid;
     place-items: center; background: rgba(0,0,0,.7); font-size: 20px; }
   .tile canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); }
@@ -234,6 +251,7 @@
 <body>
 <header>
   <nav id="views"><button id="v-p" class="on">Patterns</button><button id="v-a">Albums</button></nav>
+  <button id="theme-btn" title="Switch between light and dark"></button>
   <button id="compose-btn">Compose</button>
   <details open>
     <summary>Filters</summary>
@@ -262,9 +280,9 @@
   <div id="al-items" class="thumbs"></div>
 </section>
 <aside id="compose">
-  <div class="ch"><b>Overlay</b><span class="sp"></span>
+  <div class="ch"><b>Overlay</b><button id="ov-play" hidden title="Pause / play the animation"></button><span class="sp"></span>
     <button id="ov-close">✕</button></div>
-  <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas><button id="ov-play" hidden title="Pause / play the animation">⏸</button></div>
+  <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas></div>
   <div id="ov-msg"></div>
   <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Signature</button><button data-tab="anim">Animate</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
   <div id="tab-layers" class="pane">
@@ -1388,8 +1406,33 @@ function buildOverlay(lineWidth, resPx, phase = animPhase, bake = false) {      
   for (const o of [...ovScene.children]) { ovScene.remove(o); o.material.dispose(); }
   ovScene.add(...makeLines([...layers.values()].map(l => ({ ...l, rot: bake ? bakeRot(l, phase) : layerAngle(l, phase) })), lineWidth, resPx, ovCurve));
 }
+// ---- UI theme: dark / light (the CSS variables switch on <html data-theme>; the head script picked the first one). A click saves the choice
+// (myrograph.theme); until then the page follows the system setting live. The paper colour is separate and never changes.
+const THEME_KEY = STORAGE_PREFIX + 'theme';
+const ICON_SUN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg>';
+const ICON_MOON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M13 9.4A5.6 5.6 0 0 1 6.6 3a5.6 5.6 0 1 0 6.4 6.4z"/></svg>';
+let themeCache = null;
+function themeColors() {                        // the CSS variables the canvases need (the part maker draws its own grid)
+  if (!themeCache) { const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue('--' + n).trim();
+    themeCache = { grid1: v('grid1'), grid2: v('grid2'), grid3: v('grid3'), ink: v('ink'), dim: v('dim'), bg: v('bg'), hi: v('hi'), accent: v('accent'), handleLn: v('handle-ln') }; }
+  return themeCache;
+}
+function themeIcon() {
+  const light = document.documentElement.dataset.theme === 'light';
+  $('theme-btn').innerHTML = light ? ICON_MOON : ICON_SUN; $('theme-btn').title = light ? 'Switch to dark mode' : 'Switch to light mode';
+}
+function setTheme(t, save) {
+  document.documentElement.dataset.theme = t; themeCache = null; themeIcon();
+  if (save) { try { localStorage.setItem(THEME_KEY, t); } catch { /* private mode: the choice just lasts this visit */ } }
+  edDraw();
+}
+$('theme-btn').onclick = () => setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true);
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => { let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch { /* ignore */ } if (!saved) setTheme(e.matches ? 'light' : 'dark', false); });
+themeIcon();
+
 // ---- animation: a layer's Spin is whole turns per loop (+ clockwise); one loop lasts `loopSec`. Playing only moves each existing line's rotation
 // (the scene is rebuilt only when something is edited); the picture is a function of the loop phase, so Save PNG / Print can capture any frame.
+const ICON_PLAY = '<svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor"><path d="M2.5 1v10L11 6z"/></svg>', ICON_PAUSE = '<svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor"><rect x="2" y="1" width="3" height="10" rx=".7"/><rect x="7" y="1" width="3" height="10" rx=".7"/></svg>';
 let loopSec = LOOP_SEC.def, playing = true, animPhase = 0, animRaf = 0, animT0 = 0, exporting = false;
 const spinLabel = v => v ? (v > 0 ? '↻' : '↺') + Math.abs(v) : '0';
 const anySpin = () => [...layers.values()].some(l => l.visible && l.spin);
@@ -1410,7 +1453,9 @@ function animTick(now) {
 }
 function animSync() {                           // start / stop the frame loop to match the state, and show the play button only when something spins
   const spin = anySpin(), run = composeOpen && playing && spin && !exporting;
-  $('ov-play').hidden = !composeOpen || !spin; $('ov-play').textContent = playing ? '⏸' : '▶';
+  $('ov-play').hidden = !composeOpen || !spin;
+  const mode = playing ? 'pause' : 'play';                      // the button offers the action (it shows what a click does)
+  if ($('ov-play').dataset.mode !== mode) { $('ov-play').dataset.mode = mode; $('ov-play').innerHTML = (playing ? ICON_PAUSE : ICON_PLAY) + (playing ? 'Pause' : 'Play'); }
   if (run && !animRaf) { animT0 = performance.now() - animPhase * loopSec * 1000; animRaf = requestAnimationFrame(animTick); }
   if (!run && animRaf) { cancelAnimationFrame(animRaf); animRaf = 0; }
 }
@@ -1603,23 +1648,66 @@ function persist() { store.set(CUR_KEY, curId || ''); return store.set(STORE_KEY
 const thumbs = new Map();                       // item id -> canvas (in-memory; re-rendered from the setup)
 const thScene = new THREE.Scene(); thScene.background = new THREE.Color('#faf7f0');
 const thQueue = []; let thPumping = false;
-function renderThumb(item, canvas) {
+// A saved setup ready to draw at thumbnail size: its lines are built once, so a spinning thumbnail only re-sets rotations per frame.
+function thumbRig(item) {
   const st = item.state, geos = [], T = Math.round(220 * pr);
   registerParts(st.parts);
-  const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0, fit: !!(l.fit ?? st.baseScale === 'fit') })).filter(l => l.p);
+  const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0, spin: Math.max(-LAYER_SPIN, Math.min(LAYER_SPIN, Math.round(+l.spin) || 0)), fit: !!(l.fit ?? st.baseScale === 'fit') })).filter(l => l.p);
   const curve = p => { const { pts, maxR } = traceRaw(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]);
     const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR }; };
-  gl.setSize(T, T, false);
-  thScene.background.set(st.paper || '#faf7f0');
   bakeLegacyFit(ls, ls.map(l => l.fit), curve);
-  const lines = makeLines(ls, 1.5 * pr, T, curve);
-  thScene.add(...lines); gl.render(thScene, camera);
-  canvas.width = canvas.height = T; canvas.getContext('2d').drawImage(gl.domElement, 0, 0, T, T);
-  const sg = canonSigInstance(st.signature); if (sg) drawSignature(canvas.getContext('2d'), sg, T, T, st.paper || '#faf7f0');
-  for (const l of lines) { thScene.remove(l); l.material.dispose(); }
-  geos.forEach(g => g.dispose());
-  gl.setSize(px, px, false);                    // back to the grid's tile size
+  const vis = ls.filter(l => l.visible);
+  return { st, T, geos, vis, lines: makeLines(ls, 1.5 * pr, T, curve), sig: canonSigInstance(st.signature), paper: st.paper || '#faf7f0',
+    loop: Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, Math.round(+st.loop) || LOOP_SEC.def)), spins: vis.some(l => l.spin) };
 }
+function thumbDispose(rig) { for (const l of rig.lines) l.material.dispose(); rig.geos.forEach(g => g.dispose()); }
+function thumbDraw(rig, canvas, phase) {        // the caller has sized gl to rig.T (and puts it back to the tile size afterwards)
+  thScene.background.set(rig.paper);
+  rig.vis.forEach((l, i) => { rig.lines[i].rotation.z = layerAngle(l, phase) * Math.PI / 180; });
+  thScene.add(...rig.lines); gl.render(thScene, camera);
+  if (canvas.width !== rig.T) canvas.width = canvas.height = rig.T;
+  const g = canvas.getContext('2d'); g.drawImage(gl.domElement, 0, 0, rig.T, rig.T);
+  if (rig.sig) drawSignature(g, rig.sig, rig.T, rig.T, rig.paper);
+  for (const l of rig.lines) thScene.remove(l);
+}
+function renderThumb(item, canvas) {
+  const rig = thumbRig(item);
+  gl.setSize(rig.T, rig.T, false); thumbDraw(rig, canvas, 0); gl.setSize(px, px, false);        // (gl goes back to the grid's tile size)
+  thumbDispose(rig);
+}
+// Albums: setups with a Spin animate in place (only the ones on screen, round-robin within a ~12 ms budget per frame, so a big album slows
+// the animation down rather than the page). Not with prefers-reduced-motion. Rigs are kept only while the albums view shows.
+const thRigs = new Map(); let thAnimRaf = 0, thAnimT0 = 0, thRR = 0;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const stateSpins = st => (st.layers || []).some(l => l.visible !== false && Math.round(+l.spin));
+function thAnimClear() { for (const r of thRigs.values()) thumbDispose(r); thRigs.clear(); }
+function thAnimTick(now) {
+  thAnimRaf = 0;
+  if (view !== 'albums' || document.hidden || reduceMotion.matches) return;
+  const cs = [...document.querySelectorAll('#al-items canvas')].filter(c => {
+    const it = c._item, r = c.getBoundingClientRect();
+    return it && thumbs.get(it.id) === c && r.bottom > 0 && r.top < innerHeight && stateSpins(it.state);
+  });
+  if (cs.length) {
+    const t0 = performance.now(); let T = 0;
+    for (let k = 0; k < cs.length; k++) {
+      const c = cs[(thRR + k) % cs.length], id = c._item.id;
+      if (!thRigs.has(id)) thRigs.set(id, thumbRig(c._item));
+      const rig = thRigs.get(id);
+      if (rig.T !== T) { T = rig.T; gl.setSize(T, T, false); }
+      thumbDraw(rig, c, ((now - thAnimT0) / 1000 / rig.loop) % 1);
+      if (performance.now() - t0 > 12) { thRR = (thRR + k + 1) % cs.length; break; }
+    }
+    if (T) gl.setSize(px, px, false);
+  }
+  thAnimRaf = requestAnimationFrame(thAnimTick);
+}
+function thAnimSync() {
+  const run = view === 'albums' && !document.hidden && !reduceMotion.matches;
+  if (run && !thAnimRaf) { thAnimT0 = performance.now(); thAnimRaf = requestAnimationFrame(thAnimTick); }
+  if (!run && thAnimRaf) { cancelAnimationFrame(thAnimRaf); thAnimRaf = 0; }
+}
+document.addEventListener('visibilitychange', thAnimSync);
 function thPump() {
   thPumping = false;
   const t0 = performance.now();
@@ -1645,11 +1733,11 @@ function buildAlbums() {
   fillAlbumSelects();
   for (const id of ['al-ren', 'al-del', 'al-exp']) $(id).disabled = !a;
   $('al-expall').disabled = !albums.length;
-  const box = $('al-items'); box.innerHTML = '';
+  const box = $('al-items'); box.innerHTML = ''; thAnimClear();
   if (!a || !a.items.length) { box.innerHTML = '<p class="hint" style="grid-column:1/-1">Nothing saved here yet. Build an overlay and press “Save overlay here”.</p>'; return; }
   for (const item of a.items) {
     const card = document.createElement('div'); card.className = 'card';
-    const c = thumbFor(item); c.title = 'Open this overlay'; c.onclick = () => openItem(item);
+    const c = thumbFor(item); c.title = stateSpins(item.state) ? 'Open this overlay (it animates)' : 'Open this overlay'; c.onclick = () => openItem(item); c._item = item;
     card.append(c);
     const nm = document.createElement('div'); nm.className = 'nm';
     nm.innerHTML = '<span></span><button title="Rename">✎</button><button title="Replace with the current overlay">⟳</button><button title="Copy a share link">🔗</button><button title="Delete">✕</button>';
@@ -1686,7 +1774,7 @@ function setView(v) {
   if (v === 'albums') buildAlbums();
   else if (gridStale) { gridStale = false; layout(); }
   window.scrollTo(0, scrollMem[v]);
-  sync();
+  sync(); thAnimSync();
 }
 function albumPayload(list) {
   return { app: APP_ID, kind: 'album', v: 1,
@@ -1957,28 +2045,29 @@ function edDraw() {
   if (Math.abs(pmc.getBoundingClientRect().width - edView.w) > 1) edResize();
   const ctx = pmc.getContext('2d'), w = edView.w, d = ed.d; edView.H = d.N / 4 + 2;
   const S = w / (2 * edView.H), X = x => w / 2 + x * S, Y = y => w / 2 - y * S, o = edPiece.roller.o;
+  const TC = themeColors();
   ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.clearRect(0, 0, w, w);
-  ctx.strokeStyle = '#2e2e36'; ctx.lineWidth = 1; ctx.beginPath();
+  ctx.strokeStyle = TC.grid1; ctx.lineWidth = 1; ctx.beginPath();
   for (let g = -Math.floor(edView.H / 5) * 5; g <= edView.H; g += 5) { ctx.moveTo(X(g), 0); ctx.lineTo(X(g), w); ctx.moveTo(0, Y(g)); ctx.lineTo(w, Y(g)); }
-  ctx.stroke(); ctx.strokeStyle = '#3d3d48'; ctx.beginPath(); ctx.moveTo(X(0), 0); ctx.lineTo(X(0), w); ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0)); ctx.stroke();
-  ctx.setLineDash([4, 4]); ctx.strokeStyle = '#4a4a55'; ctx.beginPath(); ctx.arc(X(0), Y(0), d.N / TAU * S, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  ctx.stroke(); ctx.strokeStyle = TC.grid2; ctx.beginPath(); ctx.moveTo(X(0), 0); ctx.lineTo(X(0), w); ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0)); ctx.stroke();
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = TC.grid3; ctx.beginPath(); ctx.arc(X(0), Y(0), d.N / TAU * S, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
   ctx.beginPath(); for (let i = 0; i < o.M; i++) ctx[i ? 'lineTo' : 'moveTo'](X(o.p[2 * i]), Y(o.p[2 * i + 1])); ctx.closePath();
-  ctx.fillStyle = 'rgba(233,180,76,.16)'; ctx.fill(); ctx.strokeStyle = '#e9b44c'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = 'rgba(233,180,76,.16)'; ctx.fill(); ctx.strokeStyle = TC.accent; ctx.lineWidth = 2; ctx.stroke();
   if (ed.tab === 'shape') {
     const K = d.k * d.n;
     for (let m = 0; m < K; m++) {
       const [hx, hy] = handleXY(m), primary = m < d.n && (!d.mir || m <= d.n / 2);
-      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(hx), Y(hy)); ctx.stroke();
+      ctx.strokeStyle = TC.handleLn; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(hx), Y(hy)); ctx.stroke();
       ctx.beginPath(); ctx.arc(X(hx), Y(hy), primary ? 6.5 : 5, 0, TAU);
-      ctx.fillStyle = ed.drag?.m === m ? '#fff' : primary ? '#e8e6e1' : '#8d8b86'; ctx.fill(); ctx.strokeStyle = '#1b1b1f'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = ed.drag?.m === m ? TC.hi : primary ? TC.ink : TC.dim; ctx.fill(); ctx.strokeStyle = TC.bg; ctx.lineWidth = 1.5; ctx.stroke();
     }
   }
   ctx.font = '10px -apple-system, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   d.h.forEach((q, i) => {
     const hx = X(q[0] / 4), hy = Y(q[1] / 4), bad = holeBad(q), on = ed.tab === 'holes';
     ctx.beginPath(); ctx.arc(hx, hy, on ? 8 : 3.5, 0, TAU);
-    ctx.fillStyle = bad ? '#c4553a' : i === ed.sel ? '#e9b44c' : on ? '#e8e6e1' : 'rgba(232,230,225,.55)'; ctx.fill();
-    if (on) { ctx.strokeStyle = '#1b1b1f'; ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = '#1b1b1f'; ctx.fillText(i + 1, hx, hy + .5); }
+    ctx.fillStyle = bad ? '#c4553a' : i === ed.sel ? TC.accent : on ? TC.ink : TC.dim; ctx.fill();
+    if (on) { ctx.strokeStyle = TC.bg; ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = TC.bg; ctx.fillText(i + 1, hx, hy + .5); }
   });
 }
 pmc.addEventListener('pointerdown', ev => {

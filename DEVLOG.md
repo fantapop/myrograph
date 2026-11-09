@@ -79,6 +79,22 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Albums animate; Play/Pause in the panel header; light / dark theme
+
+- Album thumbnails of setups with a Spin now animate (`thumbRig` / `thumbDraw` / `thAnimTick`): lines are built once per item and only
+  rotations change per frame; only on-screen spinning items are drawn, round-robin inside a ~12 ms budget (big albums get a lower frame rate,
+  not a janky page); stops outside the albums view / hidden tab / prefers-reduced-motion. Each item uses its own loop length. Static thumbnails
+  are unchanged (phase 0). Tested: static item's pixels constant, spinning item changes every sample, stops when leaving the view.
+- The picture's round ⏸ glyph button (off-centre, out of place) is now a normal labelled button with centred SVG icons ("Pause" / "Play") in the
+  Compose panel header next to the title; shown only when a visible layer spins. Alternatives considered: a button in the tab row (no room next to
+  Clear), an overlay on the picture (what was wrong), a transport bar under the picture (costs height).
+- Light / dark UI: every UI colour is a CSS variable (`--ctl --line --sunk --edge --on-accent --accent-ink ...`); `:root[data-theme=light]`
+  overrides them. A <head> script picks the theme before first paint (saved `myrograph.theme`, else `prefers-color-scheme`); the header sun/moon button
+  toggles and saves; with no saved choice the page follows the system live. `color-scheme` is set so native controls / scrollbars match. The paper (what patterns are
+  drawn on) is the user's choice and does not change with the theme. The part maker's canvas reads its grid / handle colours through `themeColors()`.
+  Accent as text uses `--accent-ink` (darker in light mode). Checked by screenshot in light: gallery, Compose panel, part maker.
+- Not done: no "auto" state in the toggle once a choice is saved (clear localStorage `myrograph.theme` to go back to following the system); (the signature dialog and palette editor were checked by screenshot too).
+
 ### 2026-11-08 — Animation: per-layer spin, loop length, GIF export
 
 Design: a layer's `spin` = whole turns per loop (-10..10, + clockwise); one global loop length `loopSec` (2-60 s, default 8). Integer

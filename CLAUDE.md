@@ -60,3 +60,8 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   loop phase (`layerAngle(l, phase)` in CORE): playing (`animTick`, rAF) only updates each existing line's rotation; edits rebuild the scene at `animPhase`.
   Save PNG captures the frame on screen (`bakeRot` -> whole-degree angles, spin kept); links/albums store phase 0. Save GIF (`makeGif`) renders offscreen from
   a snapshot with its own scene; the encoder (gifenc) is imported from the CDN only on export. Share link: layer field `s<b36>`, segment `loop,<s>`.
+- Albums animate: `thumbRig` builds a saved setup's lines once, `thumbDraw` draws it at a loop phase; `thAnimTick` redraws the on-screen spinning thumbnails
+  round-robin within a ~12 ms/frame budget (only in the albums view, not with prefers-reduced-motion); `renderThumb` is the static phase-0 draw.
+- Theme: all UI colours are CSS variables (`:root` dark, `:root[data-theme=light]`); a <head> script sets `data-theme` before first paint (saved `myrograph.theme`,
+  else the system setting). Canvases that draw UI colours (the part maker) read them through `themeColors()`. Don't hardcode UI colours: add a variable.
+
