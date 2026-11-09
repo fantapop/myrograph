@@ -6,7 +6,7 @@ pen-hole layouts of a Deluxe-style set. No build step, no server: open `index.ht
 
 - Browse and filter thousands of ring/wheel/shape/pen-hole combinations (rendered with three.js,
   only the tiles on screen are drawn).
-- **Compose** several patterns into one overlay (per-layer color, rotation, size, X/Y shift, spin) and export an animated GIF or SVG (saved albums animate too); light and dark UI themes.
+- **Compose** several patterns into one overlay (per-layer color, rotation, size, X/Y shift, spin, pen-draw) and export an animated GIF or SVG (saved albums animate too); light and dark UI themes.
 - **Save** an overlay as a PNG with its setup embedded, and re-import it later to keep editing.
 - Keep named **albums** in the browser (localStorage), export/import them as files.
 - **Text & signatures**: type a name or any text in a handwriting-style font, or draw a signature by hand, keep a list of them, and put several on the overlay

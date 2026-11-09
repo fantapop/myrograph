@@ -70,4 +70,8 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   AND the drawing order (later draws on top; makeLines creates materials in that order). Tiles have no selected state; a click adds a layer (and flashes the tile).
 - Export formats: PNG (static, embeds the setup), GIF (`makeGif`, gifenc from the CDN), animated SVG (`makeSvg`: one scaled path per layer, `<animateTransform>` rotate,
   SVG angles are the negative of three.js's). Collapsible filter rows (`applyCollapse`) work on a row's direct children; give one the class `nofold` to keep it visible.
+- Draw: a layer's `draw` (0..`LAYER_DRAW`=10) = pen draws per loop; `drawFraction(l, phase)` (CORE) is the cycle: complete for the first `DRAW_HOLD` (20%) of each cycle, then clears and
+  draws out, so phase 0 is always the finished shape (thumbnails / links / a freshly opened file never show a blank layer). The pen is constant speed by ARC LENGTH (`cumLengths` /
+  `drawCount` -> `instanceCount` of the Line2 geometry, set per line in an `onBeforeRender` override because duplicate layers share one geometry). `setLineFrame` is the one place that
+  moves a built line to a phase (live tick, GIF frames, album thumbnails). SVG: `pathLength="1"` + dash offset `<animate>` (`drawAttrs`). Link field `d<b36>`.
 

@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, canonSigInstances, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_DRAW, DRAW_HOLD, drawFraction, isMoving, cumLengths, drawCount, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, canonSigInstances, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -199,6 +199,19 @@ check('links without a signature are unchanged (no g segment, no signature key)'
   check('links from before animation decode without spin or loop', !('spin' in C.decodeShare('#' + C.encodeShare(st)).layers[0]) && !('loop' in C.decodeShare('#' + C.encodeShare(st)))); }
 check('a positive Spin turns clockwise (the angle falls), whole turns repeat after one loop, and baked angles are 0..359',
   C.layerAngle({ rot: 10, spin: 1 }, 0.25) === -80 && C.layerAngle({ rot: 10, spin: 2 }, 1) === 10 - 720 && C.bakeRot({ rot: 10, spin: 1 }, 0.25) === 280 && C.bakeRot({ rot: 0, spin: 0 }, 0.7) === 0 && C.bakeRot({ rot: 359, spin: -1 }, 0.5) === 179);
+
+// per-layer Draw (pen draws the curve out N times per loop)
+{ const drawn = { ...st, layers: [{ ...st.layers[0], draw: 3 }, { ...st.layers[1], dx: 40, spin: -2, draw: 10 }, { ...st.layers[0], track: 'ring105-in' }] };
+  const link = C.encodeShare(drawn);
+  check('draw round-trips through a link next to spin and shifts (and is absent when 0)', JSON.stringify(C.decodeShare('#' + link)) === JSON.stringify(drawn) && !/,d[0-9a-z]/.test(C.encodeShare(st)), link.split('/').slice(3).join('  '));
+  check('draw is clamped when read and old links decode without it', C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,dzzzz').layers[0].draw === C.LAYER_DRAW && !('draw' in C.decodeShare('#' + C.encodeShare(st)).layers[0])); }
+check('draw fraction: complete at phase 0 and 1, holds, then clears and draws out; 0 draws = always complete',
+  C.drawFraction({ draw: 1 }, 0) === 1 && C.drawFraction({ draw: 1 }, 1) === 1 && C.drawFraction({ draw: 1 }, C.DRAW_HOLD / 2) === 1 && C.drawFraction({ draw: 1 }, C.DRAW_HOLD + 1e-9) < 1e-6
+  && Math.abs(C.drawFraction({ draw: 1 }, (1 + C.DRAW_HOLD) / 2) - 0.5) < 1e-9 && C.drawFraction({ draw: 0 }, 0.37) === 1 && C.drawFraction({}, 0.5) === 1
+  && Math.abs(C.drawFraction({ draw: 4 }, 0.25 * (1 + C.DRAW_HOLD) / 2 * 4 / 4) - C.drawFraction({ draw: 4 }, 0.25 * (1 + C.DRAW_HOLD) / 2 * 4 / 4 + 0.25)) < 1e-9);
+{ const pts = new Float64Array([0, 0, 0, 1, 0, 0, 1, 3, 0, 1, 3, 4]), cum = C.cumLengths(pts);        // lengths 1, 3, 4 -> total 8
+  check('cumulative length and the number of segments drawn at a fraction of it (arc length, not sample count)', cum.join() === '0,1,4,8' && C.drawCount(cum, 0) === 0 && C.drawCount(cum, 1) === 3 && C.drawCount(cum, 0.12) === 0 && C.drawCount(cum, 0.13) === 1 && C.drawCount(cum, 0.5) === 2 && C.drawCount(cum, 0.99) === 2);
+  check('a layer is "moving" if it spins or draws', C.isMoving({ spin: 1 }) && C.isMoving({ draw: 2 }) && !C.isMoving({}) && !C.isMoving({ spin: 0, draw: 0 })); }
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

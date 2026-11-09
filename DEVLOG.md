@@ -79,6 +79,22 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Per-layer Draw (a pen draws the curve out)
+
+- New 5th slider per layer row, **Draw**: 0 = off, 1..10 = how many times per loop the curve is drawn out (right = faster; loop length / N seconds per draw). Same idea
+  as Spin (whole numbers per loop repeat seamlessly; layers choose independently; combines with Spin, X/Y, size...). Row height unchanged (5 columns of ~76 px).
+- Cycle (`drawFraction`): each cycle starts COMPLETE, holds for 20% (`DRAW_HOLD`), clears, then draws out over the remaining 80%. Chosen so phase 0 is the finished shape:
+  album thumbnails, links, a freshly opened file and a paused-at-0 picture never show an empty layer. The pen moves at constant speed by arc length, not per sample
+  (`cumLengths` + `drawCount`; sampling is adaptive so segment count would speed up / slow down).
+- Rendering: Line2's `instanceCount` limits how many segments draw. Geometry is shared by copies of a pattern, so each line sets the count in its own `onBeforeRender`
+  (a per-layer geometry object would leak GPU buffers on every edit; the first attempt, dropped). `setLineFrame` moves a line to a phase (live, GIF, album thumbnails).
+  Save PNG / Print capture the frame on screen, including a partly drawn curve (the saved setup keeps `draw`, so reopening shows the finished picture).
+- Exports: GIF frames draw out; animated SVG uses `pathLength="1"` + a dash whose offset is animated with `<animate>` (values 0;0;1;0, keyTimes hold/cut/draw) at loop/N seconds;
+  share link layer field `d<b36>`; albums animate draw-only items too.
+- Tested: node (codec, clamp, fraction, arc-length count); Chrome: complete at phase 0 and in the hold, blank at the start of a draw, ~half drawn halfway (0.51), a copy of the same pattern
+  without Draw untouched, SVG stills match WebGL (IoU 0.96 at three phases), GIF ink falls and rises across the loop, a draw-only album item animates.
+- Not done: no draw direction (reverse / erase), no per-layer hold length, drawing isn't shown in PNG-embedded state (only in the image).
+
 ### 2026-11-09 — One Save & share tab; several texts / signatures per overlay
 
 - The Animate tab is gone: the GIF and animated-SVG exports moved into **Save & share** (under an "Animation" heading) and the loop length moved to the
