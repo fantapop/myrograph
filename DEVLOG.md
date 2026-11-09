@@ -79,6 +79,13 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Dedicated Move row removed
+
+The position row at the top of the Layers tab (X / Y boxes, Center button, "or drag the picture") is gone: dragging the picture moves
+the highlighted layer, and each layer row's own X / Y boxes give precise values (type 0, 0 to recentre; the Center button was dropped).
+The layer list gains ~34 px. `syncPos` now only keeps the active row's boxes in sync with a drag and sets the picture cursor. Tested in
+headless Chrome: boxes shift the layer, drag moves the highlighted layer and its boxes follow, typing 0 / 0 recentres, row height unchanged (88 px).
+
 ### 2026-11-08 — Albums animate; Play/Pause in the panel header; light / dark theme
 
 - Album thumbnails of setups with a Spin now animate (`thumbRig` / `thumbDraw` / `thAnimTick`): lines are built once per item and only

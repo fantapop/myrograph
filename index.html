@@ -224,12 +224,10 @@
   .layer { padding: 8px 4px 8px 6px; border-bottom: 1px solid var(--sep); display: grid; grid-template-columns: auto auto auto 1fr auto auto; gap: 6px 8px; align-items: center; }
   .layer.off { opacity: .5; }
   .layer.active { box-shadow: inset 3px 0 0 var(--accent); background: rgba(233,180,76,.07); }
-  #pos-row { padding: 6px 12px; gap: 4px 10px; }
   .layer .xy { display: flex; align-items: center; gap: 3px; color: var(--dim); font-size: 11px; }
   .layer .xy input { width: 42px; }
   .layer .xy .sep { width: 4px; }
-  #pos-row input[type=number], .layer .xy input { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; }
-  .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); display: inline-block; flex: none; }
+  .layer .xy input { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
   .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
   .layer .tune { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }      /* Rotate / Size / Line / Spin side by side: a layer row is ~85px, not ~120px */
@@ -286,11 +284,6 @@
   <div id="ov-msg"></div>
   <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Signature</button><button data-tab="anim">Animate</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
   <div id="tab-layers" class="pane">
-    <div class="ch" id="pos-row" hidden><span style="color:var(--dim)">Move</span><span id="pos-dot" class="dot" title="The highlighted layer"></span>
-      <label title="Shift the highlighted layer right (+) or left (-), in percent of the picture's width. You can also drag the picture." style="display:inline-flex;align-items:center;gap:3px">X <input type="number" id="pos-x" step="0.5" min="-100" max="100" style="width:4.8em">%</label>
-      <label title="Shift the highlighted layer down (+) or up (-), in percent of the picture's width. You can also drag the picture." style="display:inline-flex;align-items:center;gap:3px">Y <input type="number" id="pos-y" step="0.5" min="-100" max="100" style="width:4.8em">%</label>
-      <button id="pos-reset" title="Put the highlighted layer back in the centre">Center</button>
-      <span style="font-size:11px;color:var(--dim)">or drag the picture</span></div>
     <div id="layers"></div>
     <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers. Layers start on one centre; drag the picture (or use X / Y) to move the highlighted layer. Drop a saved PNG here to re-open it.</p>
   </div>
@@ -982,7 +975,7 @@ const PARTS_KEY = STORAGE_PREFIX + 'parts.v1';
 // is slow (up to a second per part), so results are kept in browser storage (the .v2 is the version of the check: bump it if it changes).
 const FITS_KEY = STORAGE_PREFIX + 'fits.v2';
 const SIG_KEY = STORAGE_PREFIX + 'signatures.v1';
-let activeKey = null;                           // the highlighted layer: the one the position row and dragging the picture move
+let activeKey = null;                           // the highlighted layer: the one dragging the picture moves (its row's X / Y boxes follow)
 let sigLib = [], sigInst = null;                // saved signatures (localStorage), and the signature on the current overlay (or null)
 let library = [], CUSTOM = [];                  // CUSTOM: combos of library parts (kept out of ALL, shown via the Custom parts filter)
 const registry = new Map(), pieceMemo = new Map(), fitMemo = new Map(), guestCombos = new Map();
@@ -1871,11 +1864,10 @@ const posToWidth = v => Math.round(LAYER_WIDTH.min * (LAYER_WIDTH.max / LAYER_WI
 const widthToPos = w => Math.round(Math.log(Math.max(LAYER_WIDTH.min, Math.min(LAYER_WIDTH.max, w)) / LAYER_WIDTH.min) / Math.log(LAYER_WIDTH.max / LAYER_WIDTH.min) * 1000);
 const sizeToPos = z => Math.round(Math.log(Math.max(LAYER_SIZE.min, Math.min(LAYER_SIZE.max, z)) / LAYER_SIZE.min) / Math.log(LAYER_SIZE.max / LAYER_SIZE.min) * 1000);
 const shiftClamp = v => Math.max(-LAYER_SHIFT, Math.min(LAYER_SHIFT, Math.round(v)));
-function syncPos() {                            // the position row shows the highlighted layer's X / Y (percent of the picture width)
-  const l = layers.get(activeKey); $('pos-row').hidden = !l; $('sigc').style.cursor = l ? 'move' : 'default';
+function syncPos() {                            // the highlighted layer's X / Y boxes (percent of the picture width) follow a drag; the cursor says the picture is draggable
+  const l = layers.get(activeKey); $('sigc').style.cursor = l ? 'move' : 'default';
   if (!l) return;
   const set = (el, v) => { if (el !== document.activeElement) el.value = v; };       // never rewrite the box being typed in
-  set($('pos-x'), (l.dx || 0) / 10); set($('pos-y'), (l.dy || 0) / 10); $('pos-dot').style.background = l.color;
   const row = document.querySelector(`#layers .layer[data-key="${CSS.escape(String(l.key))}"]`);
   if (row) for (const r of row.querySelectorAll('.xy input')) set(r, (l[r.dataset.k] || 0) / 10);
 }
@@ -1885,9 +1877,6 @@ function setActive(key) {
   for (const r of document.querySelectorAll('#layers .layer')) r.classList.toggle('active', r.dataset.key === String(activeKey));
   syncPos();
 }
-$('pos-x').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dx = shiftClamp(+e.target.value * 10); syncPos(); renderOverlay(); } };
-$('pos-y').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dy = shiftClamp(+e.target.value * 10); syncPos(); renderOverlay(); } };
-$('pos-reset').onclick = () => { const l = layers.get(activeKey); if (l) { l.dx = l.dy = 0; syncPos(); renderOverlay(); } };
 function buildLayerList() {
   $('ov-hint').style.display = layers.size ? 'none' : '';
   const box = $('layers'); box.innerHTML = '';
