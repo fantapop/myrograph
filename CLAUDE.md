@@ -26,9 +26,10 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
 
 - Signatures (CORE: `canonSignature`, `canonSigInstance`, `encodeSig`/`decodeSig`; UI section "signature"): a signature is
   `{kind:'t', text, font}` (font = a key of `SIG_FONTS`, a CSS stack) or `{kind:'i', ar, s: strokes}` (hand-drawn, 0..1000 coordinates),
-  id = hash of its content. `sigInst = { sig, x, y, size, color }` is the one signature on the current overlay (thousandths of the
-  picture; color null = auto black/white by paper). It lives in `overlayState().signature` (so PNG / album / link carry a copy; `g,...`
-  link segment) and is painted by `drawSignature()` onto the live layer `#sigc`, the PNG, the print canvas and album thumbnails.
+  id = hash of its content. A placed one is `{ sig, x, y, size, color }` (thousandths of the picture; color null = auto black/white by paper); the overlay
+  carries a LIST: `sigs` (max `SIG_LIMITS.placed` = 8), `sigInst` = the selected one. It lives in `overlayState().signatures` (PNG / album / link carry copies; one
+  `g,...` link segment each; older files have a single `signature`, read by `canonSigInstances`) and is painted by `drawSignature()` onto the live layer `#sigc`, the PNG,
+  the print canvas, the GIF / SVG and album thumbnails (`drawAllSignatures`). The UI calls them "Text & signature".
   The list is `sigLib` (localStorage `myrograph.signatures.v1`, max 12). Typed text is never put in innerHTML.
 
 ## Working here

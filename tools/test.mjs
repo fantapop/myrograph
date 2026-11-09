@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, canonSigInstances, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -152,11 +152,20 @@ check('signature text cannot carry markup or control characters, and is capped',
 check('the saved list drops invalid and duplicate entries and is capped', C.parseSignatures(JSON.stringify([sigT, sigT, { kind: 'x' }, sigI])).length === 2 && C.parseSignatures('{oops').length === 0 && C.parseSignatures(JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ kind: 't', text: 'n' + i, font: 'plain' })))).length === C.SIG_LIMITS.library);
 const inst = C.canonSigInstance({ sig: sigT, x: 700, y: 900, size: 300, color: '#AA3355' });
 check('a placed signature keeps its position, size and colour, with safe defaults', inst.x === 700 && inst.size === 300 && inst.color === '#aa3355' && C.canonSigInstance({ sig: sigT }).color === null && C.canonSigInstance({ sig: sigT, x: 5000, size: 1 }).x === 800 && C.canonSigInstance({ sig: { kind: 'x' } }) === null);
-const stSig = { ...st, signature: C.canonSigInstance({ sig: sigI, x: 123, y: 456, size: 321, color: '#102030' }) }, stSigT = { ...st, signature: inst };
+const stSig = { ...st, signatures: [C.canonSigInstance({ sig: sigI, x: 123, y: 456, size: 321, color: '#102030' })] }, stSigT = { ...st, signatures: [inst] };
 check('share link carries a drawn or typed signature and round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(stSig))) === JSON.stringify(stSig) && JSON.stringify(C.decodeShare('#' + C.encodeShare(stSigT))) === JSON.stringify(stSigT), `${C.encodeShare(stSig).length} chars (drawn), ${C.encodeShare(stSigT).length} (typed)`);
 check('a signature with unusual text survives the link (spaces, commas, slashes, accents)', (() => { const g = C.canonSigInstance({ sig: { kind: 't', text: 'José, a/b & Co.', font: 'serif' } }); return C.decodeSig(C.encodeSig(g)).sig.text === 'José, a/b & Co.' && !C.encodeSig(g).slice(2).includes('/'); })());
-check('damaged or doubled signature segments are rejected', ['v1/faf7f0/t/g,t,nope,abc,1,2,3,-', 'v1/faf7f0/t/g,i,1,0_0-5_5,1,2,3,-', 'v1/faf7f0/t/g,t,plain,x,1,2,3,xyz', 'v1/faf7f0/t/g,t,plain,x,1,2,3,-/g,t,plain,y,1,2,3,-', 'v1/faf7f0/t/g,t,plain,x,1'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } }));
-check('links without a signature are unchanged (no g segment, no signature key)', !C.encodeShare(st).includes('g,') && !('signature' in C.decodeShare('#' + C.encodeShare(st))));
+check('damaged signature segments are rejected', ['v1/faf7f0/t/g,t,nope,abc,1,2,3,-', 'v1/faf7f0/t/g,i,1,0_0-5_5,1,2,3,-', 'v1/faf7f0/t/g,t,plain,x,1,2,3,xyz', 'v1/faf7f0/t/g,t,plain,x,1'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } }));
+check('links without a signature are unchanged (no g segment, no signature key)', !C.encodeShare(st).includes('g,') && !('signatures' in C.decodeShare('#' + C.encodeShare(st))) && !('signature' in C.decodeShare('#' + C.encodeShare(st))));
+
+// several texts / signatures on one overlay (older files and links carry a single `signature`)
+{ const a = C.canonSigInstance({ sig: sigT, x: 100, y: 200, size: 300 }), b = C.canonSigInstance({ sig: sigI, x: 600, y: 700, size: 250, color: '#102030' }), c2 = C.canonSigInstance({ sig: { kind: 't', text: 'Third, one', font: 'serif' }, x: 500, y: 500 });
+  const multi = { ...st, signatures: [a, b, c2] }, link = C.encodeShare(multi);
+  check('several signatures round-trip through a link, in order', JSON.stringify(C.decodeShare('#' + link)) === JSON.stringify(multi) && link.split('/').filter(s => s.startsWith('g,')).length === 3);
+  check('a link with one old-style signature (a single g segment) reads as a list of one', C.decodeShare('v1/faf7f0/t/g,t,plain,x,1,2,3,-').signatures.length === 1);
+  check('states from before lists (a single `signature`) still encode and read', C.canonSigInstances({ signature: a }).length === 1 && C.encodeShare({ ...st, signature: a }) === C.encodeShare({ ...st, signatures: [a] }) && C.canonSigInstances({}).length === 0);
+  check('at most SIG_LIMITS.placed are read, bad entries skipped, and too many in a link are refused', C.canonSigInstances({ signatures: [a, { sig: { kind: 'x' } }, b] }).length === 2 && C.canonSigInstances({ signatures: Array(20).fill(a) }).length === C.SIG_LIMITS.placed
+    && (() => { try { C.decodeShare('v1/faf7f0/t/' + Array(C.SIG_LIMITS.placed + 1).fill('g,t,plain,x,1,2,3,-').join('/')); return false; } catch { return true; } })()); }
 
 // signature names: a label for the list, never part of the identity, always safe
 { const named = C.canonSignature({ ...sigT, name: '  My <b>formal</b>   one ' });

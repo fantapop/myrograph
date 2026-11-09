@@ -37,8 +37,9 @@
   "Print" (button, or Ctrl/Cmd+P while the panel is open) prints just the overlay on a clean page: on beforeprint it is
   re-rendered at 2400 px into a plain canvas (a WebGL canvas can print blank); with the panel closed or no visible
   layers the browser prints the page as usual.
-  Signature: a name typed in a handwriting-style font, or drawn by hand, kept in a list (localStorage) and optionally placed on the
-  overlay (one per overlay), draggable on the picture; it appears in PNGs, prints, album thumbnails and share links.
+  Text & signature: a name or any text typed in a handwriting-style font, or a signature drawn by hand, kept in a list (localStorage); put as many as
+  you like (up to 8) on the overlay, each draggable / resizable / coloured on the picture; they appear in PNGs, prints, GIF / SVG, album thumbnails and share links.
+  Save & share tab: PNG, link, print, album, and the animation exports (GIF, SVG); the loop length sits next to Pause in the panel header.
   Share links: "Copy link" (panel) / the link button on an album item puts the overlay into the
   URL fragment (#v1/paper/scale/layer/layer..., ~35 chars per layer, never sent to a server);
   opening such a URL restores the overlay in the Compose panel. A file:// link only works on
@@ -160,6 +161,7 @@
   #pm-compat button.on { background: var(--line); outline: 2px solid var(--accent); }
   .layer .keep { padding: 0 6px; font-size: 11px; margin-top: 2px; }
   #ovwrap { position: relative; flex: none; width: min(100%, 42vh); margin: 0 auto; }      /* a shorter picture on short screens, so the lists below keep room */
+  #ov-anim { display: inline-flex; align-items: center; gap: 8px; }
   #ov-play { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; }
   #ov-play[hidden] { display: none; }
   #theme-btn { position: absolute; right: 108px; top: 6px; padding: 3px 8px; display: inline-flex; align-items: center; }
@@ -233,6 +235,13 @@
   .layer .grip:hover, .layer .grip:focus-visible { color: var(--ink); }
   .layer .grip svg { width: 10px; height: 16px; }
   .layer.dragging { background: var(--sunk); box-shadow: 0 2px 10px rgba(0,0,0,.35); position: relative; z-index: 1; }
+  .sec { padding: 10px 12px 2px; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim); }
+  #sg-list { padding: 4px 12px 0; }
+  .sgrow { display: flex; align-items: center; gap: 8px; padding: 5px 4px 5px 8px; border-bottom: 1px solid var(--sep); cursor: pointer; }
+  .sgrow.active { box-shadow: inset 3px 0 0 var(--accent); background: rgba(233,180,76,.07); }
+  .sgrow .sgt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sgrow .sgk { font-size: 11px; color: var(--dim); }
+  .sgrow button { padding: 0 8px; }
   .layer .xy { display: flex; align-items: center; gap: 3px; color: var(--dim); font-size: 11px; }
   .layer .xy input { width: 38px; }
   .layer > button[title=Remove] { padding: 2px 8px; }
@@ -288,41 +297,33 @@
   <div id="al-items" class="thumbs"></div>
 </section>
 <aside id="compose">
-  <div class="ch"><b>Overlay</b><button id="ov-play" hidden title="Pause / play the animation"></button><span class="sp"></span>
+  <div class="ch"><b>Overlay</b><span id="ov-anim" hidden><button id="ov-play" title="Pause / play the animation"></button>
+      <label title="The time one full loop of the animation takes (each layer's Spin is whole turns per loop)" style="color:var(--dim)">Loop <input type="number" id="an-loop" min="2" max="60" step="1" value="8" style="width:3.6em"> s</label></span><span class="sp"></span>
     <button id="ov-close">✕</button></div>
   <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas></div>
   <div id="ov-msg"></div>
-  <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Signature</button><button data-tab="anim">Animate</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
+  <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Text &amp; signature</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
   <div id="tab-layers" class="pane">
     <div id="layers"></div>
     <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers (click one again to add another copy). Layers start on one centre; drag the picture (or use X / Y) to move the highlighted layer, drag a layer's grip to reorder. Drop a saved PNG here to re-open it.</p>
   </div>
   <div id="tab-sign" class="pane" hidden>
-    <div class="ch"><label style="color:var(--dim)">Signature</label>
-      <select id="sg-sel" title="Sign this piece with one of your saved signatures" style="flex:1;min-width:0"></select>
-      <button id="sg-new" title="Add a signature: type your name or draw it by hand">＋ New…</button>
-      <button id="sg-ren" title="Rename the selected signature in your list">Rename</button>
-      <button id="sg-del" title="Delete the selected signature from your list">Delete</button></div>
+    <div class="ch"><label style="color:var(--dim)">Saved</label>
+      <select id="sg-sel" title="Your saved texts and signatures" style="flex:1;min-width:90px"></select>
+      <button id="sg-add" title="Put the selected one on the picture (as many as you like)">＋ Add</button>
+      <button id="sg-new" title="Make a new text or signature: type it or draw it by hand, then it goes on the picture">＋ New…</button>
+      <button id="sg-ren" title="Rename the selected saved item">✎</button>
+      <button id="sg-del" title="Delete the selected item from your saved list (copies on the picture stay)">Delete</button></div>
+    <div id="sg-list"></div>
     <div class="ch" id="sg-ctl" hidden><label style="color:var(--dim)">Size</label>
-      <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Signature size">
-      <label title="Width of the signature as a percentage of the picture (it scales like a font size)" style="display:inline-flex;align-items:center;gap:2px"><input type="number" id="sg-pct" min="2" max="100" step="1" style="width:3.6em">%</label>
-      <span class="pick" title="Signature colour"><input type="color" id="sg-color"></span>
+      <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Size of the highlighted text or signature">
+      <label title="Width as a percentage of the picture (it scales like a font size)" style="display:inline-flex;align-items:center;gap:2px"><input type="number" id="sg-pct" min="2" max="100" step="1" style="width:3.6em">%</label>
+      <span class="pick" title="Colour"><input type="color" id="sg-color"></span>
       <button id="sg-auto" title="Black or white, whichever suits the paper">Auto</button>
+      <button id="sg-dup" title="Make another copy of the highlighted one">Copy</button>
       <button id="sg-reset" title="Put it back in the bottom right corner">Reset</button>
-      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Drag the signature to move it, drag its corner handle or scroll / pinch over it to resize.</span></div>
-    <p class="hint" id="sg-hint">Pick one of your signatures, or make a new one, to sign this piece. You can only have one signature on a piece.</p>
-  </div>
-  <div id="tab-anim" class="pane" hidden>
-    <div class="ch"><label style="color:var(--dim)" title="The time one full loop of the animation takes">One loop lasts</label>
-      <input type="number" id="an-loop" min="2" max="60" step="1" value="8" style="width:4.2em"> seconds
-      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Each layer's <b>Spin</b> (Layers tab) is how many whole turns it makes in one loop: ↻ clockwise, ↺ counter-clockwise. A layer turns about its own centre, so it keeps spinning in place wherever you move it. Whole turns make the animation repeat seamlessly.</span></div>
-    <div class="ch"><button id="an-save" title="Render one loop as an animated GIF (a few seconds of work)">Save GIF</button>
-      <select id="an-px" title="Picture size"><option value="480">480 px</option><option value="640" selected>640 px</option><option value="800">800 px</option></select>
-      <select id="an-fps" title="Frames per second"><option value="10">10 fps</option><option value="20" selected>20 fps</option><option value="25">25 fps</option></select>
-      <span style="font-size:11px;color:var(--dim);flex-basis:100%">GIF plays everywhere (chat, social) but is large and limited to 256 colours; it repeats forever.</span></div>
-    <div class="ch"><button id="an-svg" title="Save the animation as an animated SVG image">Save animated SVG</button>
-      <span style="font-size:11px;color:var(--dim);flex-basis:100%">SVG is the real curves, so it is tiny, razor sharp at any size and repeats forever. It plays in web browsers (open the file, or use it as an image on a page) but not in most chat apps or image editors.</span></div>
-    <div class="ch"><span style="font-size:11px;color:var(--dim)">Save PNG and Print capture the frame you see; Copy link and albums keep the spin settings.</span></div>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Click one in the picture or the list to select it. Drag it to move it, drag its corner handle or scroll / pinch over it to resize.</span></div>
+    <p class="hint" id="sg-hint">Pick a saved text or signature and press Add, or make a new one with New… (type it, or draw it by hand). You can put several on the picture.</p>
   </div>
   <div id="tab-share" class="pane" hidden>
     <div class="ch"><button id="ov-save" title="Save the overlay as a PNG with the layer setup embedded">Save PNG</button>
@@ -334,17 +335,25 @@
     <div class="ch"><label style="color:var(--dim)">Album</label>
       <select id="ov-albumsel" title="Which album the button adds to (same selection as in the Albums view)" style="flex:1;min-width:0"></select>
       <button id="ov-album" title="Add the current overlay to the selected album">＋ Add to album</button></div>
+    <div class="sec">Animation <span style="text-transform:none;letter-spacing:0">- set each layer's Spin in the Layers tab, the loop length next to Pause above</span></div>
+    <div class="ch"><button id="an-save" title="Render one loop as an animated GIF (a few seconds of work)">Save GIF</button>
+      <select id="an-px" title="Picture size"><option value="480">480 px</option><option value="640" selected>640 px</option><option value="800">800 px</option></select>
+      <select id="an-fps" title="Frames per second"><option value="10">10 fps</option><option value="20" selected>20 fps</option><option value="25">25 fps</option></select>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Plays everywhere (chat, social) but is large and limited to 256 colours; repeats forever.</span></div>
+    <div class="ch"><button id="an-svg" title="Save the animation as an animated SVG image">Save animated SVG</button>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">The real curves: tiny, razor sharp at any size, repeats forever. Plays in web browsers but not in most chat apps or image editors.</span></div>
+    <div class="ch"><span style="font-size:11px;color:var(--dim)">Save PNG and Print capture the frame you see; Copy link and albums keep the spin settings.</span></div>
   </div>
 </aside>
 
 <div id="print-sheet"><canvas id="print-c"></canvas></div>
 <dialog id="sg">
-  <div class="pm-head"><b>New signature</b><span class="sp"></span>
-    <button id="sg-save" class="primary">Save signature</button><button id="sg-x" title="Close">✕</button></div>
+  <div class="pm-head"><b>New text or signature</b><span class="sp"></span>
+    <button id="sg-save" class="primary">Save and add</button><button id="sg-x" title="Close">✕</button></div>
   <div class="sg-body">
     <div class="ctl"><label style="color:var(--dim)">Name</label><input type="text" id="sg-name" maxlength="24" size="36" placeholder="Name in your list (optional)"></div>
     <div class="pm-tabs"><button id="sg-t-type" class="on">Type</button><button id="sg-t-draw">Draw</button></div>
-    <div id="sg-p-type" class="ctl"><input type="text" id="sg-text" maxlength="40" placeholder="Your name" size="22">
+    <div id="sg-p-type" class="ctl"><input type="text" id="sg-text" maxlength="40" placeholder="Your name, or any text" size="22">
       <select id="sg-font" title="Handwriting style (uses fonts installed on this device)"></select></div>
     <div id="sg-p-draw" hidden><div class="ctl"><button id="sg-undo">Undo stroke</button><button id="sg-clear">Clear</button></div>
       <div style="font-size:11px;color:var(--dim);margin-bottom:6px">Draw with your mouse, finger or pen. On a trackpad, <b>hold Space or Shift</b> and just move the pointer: the pen is down while the key is held.</div></div>
@@ -682,23 +691,23 @@ function readTextChunk(png, keyword) {          // text of the first uncompresse
 // then optionally loop,<seconds> (only if not the default)
 // (the t|f segment and an optional layer field `1` are only
 // READ, from links made when layers could stretch to fit: the app converts them to sizes, see bakeLegacyFit)
-// then optionally one p,... segment per custom part the layers use (see encodePart), and one g,... segment for the signature (see encodeSig)
+// then optionally one p,... segment per custom part the layers use (see encodePart), and one g,... segment per text / signature (see encodeSig)
 function encodeShare(st) {
   return ['v1', st.paper.replace('#', ''), 't',
     ...st.layers.map(l => [l.track, l.roller, l.hole, l.color.replace('#', ''), l.visible === false ? 0 : 1,
       Math.round(l.rot || 0), Math.round(l.size || 100), ...(Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)]),
       ...(l.dx ? ['x' + Math.round(l.dx).toString(36)] : []), ...(l.dy ? ['y' + Math.round(l.dy).toString(36)] : []), ...(l.spin ? ['s' + Math.round(l.spin).toString(36)] : [])].join(',')),
     ...(st.loop && Math.round(st.loop) !== LOOP_SEC.def ? ['loop,' + Math.round(st.loop)] : []),
-    ...(st.parts || []).map(encodePart), ...(st.signature ? [encodeSig(st.signature)] : [])].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
+    ...(st.parts || []).map(encodePart), ...canonSigInstances(st).map(encodeSig)].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
 }
 function decodeShare(text) {                    // throws on anything malformed
   const parts = text.replace(/^#/, '').split('/'), hex = /^[0-9a-f]{6}$/i, bad = () => new Error('This share link is damaged or not recognised');
   if (parts[0] !== 'v1' || parts.length < 3 || !hex.test(parts[1])) throw bad();
   const segs = parts.slice(3).filter(Boolean), partSegs = segs.filter(x => x.startsWith('p,')), sigSegs = segs.filter(x => x.startsWith('g,')), shared = [];
-  if (partSegs.length > PART_LIMITS.maxShared || sigSegs.length > 1) throw bad();
+  if (partSegs.length > PART_LIMITS.maxShared || sigSegs.length > SIG_LIMITS.placed) throw bad();
   for (const x of partSegs) { const d = decodePart(x); if (!d) throw bad(); shared.push(d); }
-  const signature = sigSegs.length ? decodeSig(sigSegs[0]) : null;
-  if (sigSegs.length && !signature) throw bad();
+  const signatures = sigSegs.map(decodeSig);
+  if (signatures.some(g => !g)) throw bad();
   const loopSeg = segs.find(x => /^loop,\d+$/.test(x)), loop = loopSeg ? Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, +loopSeg.slice(5))) : 0;
   const layers = segs.filter(x => !x.startsWith('p,') && !x.startsWith('g,') && !/^loop,/.test(x)).map(str => {
     const f = str.split(','), [track, roller, hole, color, vis, rot, size] = f;
@@ -713,7 +722,7 @@ function decodeShare(text) {                    // throws on anything malformed
       rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(LAYER_SIZE.max, Math.max(LAYER_SIZE.min, Math.round(+size) || 100)),
       width: Math.min(LAYER_WIDTH.max, Math.max(LAYER_WIDTH.min, (wd || 10) / 10)), ...(fit ? { fit: true } : {}), ...(dx ? { dx } : {}), ...(dy ? { dy } : {}), ...(spin ? { spin } : {}) };
   });
-  return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(loop ? { loop } : {}), ...(shared.length ? { parts: shared } : {}), ...(signature ? { signature } : {}) };
+  return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(loop ? { loop } : {}), ...(shared.length ? { parts: shared } : {}), ...(signatures.length ? { signatures } : {}) };
 }
 
 // ---- ink palettes: ordered color sets. The active one feeds the grid's Auto ink (one color per moving
@@ -896,7 +905,7 @@ function decodePart(seg) {                       // null if damaged
 // text:  { id, kind: 't', text, font, name? }    font is a key of SIG_FONTS (a CSS font stack; the device picks what it has)
 // ink:   { id, kind: 'i', ar, s: [[x0, y0, x1, y1, ...], ...], name? }   points in 0..1000 across the signature's width, y in 0..ar (height/width x 1000)
 // name is only a label for the user's list: it is not part of the id and is not carried in share links
-// on an overlay: { sig, x, y, size, color }       x, y = the signature's centre and size = its width, all in thousandths of the picture; color null = auto
+// on an overlay: { sig, x, y, size, color }       (an overlay carries a list of them: `signatures`; older files have one `signature`)   x, y = the signature's centre and size = its width, all in thousandths of the picture; color null = auto
 const SIG_FONTS = {
   script:   { label: 'Script',    style: '',      css: "'Snell Roundhand','Apple Chancery','Segoe Script','Lucida Handwriting','Brush Script MT',cursive" },
   brush:    { label: 'Brush',     style: '',      css: "'Brush Script MT','Segoe Script','Bradley Hand',cursive" },
@@ -914,7 +923,7 @@ const LOOP_SEC = { min: 2, max: 60, def: 8 };    // how long one animation loop 
 // Whole turns per loop make phase 1 look like phase 0, so the animation repeats seamlessly. bakeRot: the same, as a whole 0..359 for saving.
 const layerAngle = (l, phase) => (l.rot || 0) - 360 * (l.spin || 0) * phase;
 const bakeRot = (l, phase) => ((Math.round(layerAngle(l, phase)) % 360) + 360) % 360;
-const SIG_LIMITS = { text: 40, strokes: 16, points: 600, library: 12 };
+const SIG_LIMITS = { text: 40, strokes: 16, points: 600, library: 12, placed: 8 };     // placed: how many texts / signatures one overlay can carry
 const sigId = d => 's' + fnv(d.kind === 't' ? `t|${d.font}|${d.text}` : `i|${d.ar}|${d.s.map(q => q.join(',')).join(';')}`);
 const sigName = raw => { const name = cleanName(raw.name); return name ? { name } : {}; };     // the label shown in the list (letters, digits, spaces and . , ( ) + - only)
 function canonSignature(raw) {                   // validated copy with its id recomputed; null if unusable
@@ -943,6 +952,10 @@ function canonSigInstance(raw) {                 // a signature placed on an ove
   const pick = (v, lo, hi, dflt) => Number.isInteger(v) && v >= lo && v <= hi ? v : dflt;
   return { sig, x: pick(raw.x, 0, 1000, 800), y: pick(raw.y, 0, 1000, 930), size: pick(raw.size, 20, 1000, 240),
     color: /^#[0-9a-f]{6}$/i.test(raw.color || '') ? raw.color.toLowerCase() : null };
+}
+function canonSigInstances(st) {                 // the signatures on a saved overlay: `signatures`, or the single `signature` of older files
+  const raw = Array.isArray(st?.signatures) ? st.signatures : st?.signature ? [st.signature] : [];
+  return raw.map(canonSigInstance).filter(Boolean).slice(0, SIG_LIMITS.placed);
 }
 function parseSignatures(text) {                 // the saved list (JSON); never throws
   try { const a = JSON.parse(text || '[]'), seen = new Set();
@@ -989,7 +1002,7 @@ const PARTS_KEY = STORAGE_PREFIX + 'parts.v1';
 const FITS_KEY = STORAGE_PREFIX + 'fits.v2';
 const SIG_KEY = STORAGE_PREFIX + 'signatures.v1';
 let activeKey = null;                           // the highlighted layer: the one dragging the picture moves (its row's X / Y boxes follow)
-let sigLib = [], sigInst = null;                // saved signatures (localStorage), and the signature on the current overlay (or null)
+let sigLib = [], sigs = [], sigInst = null;     // saved texts / signatures (localStorage); the ones on the current overlay; and the selected one of those (or null)
 let library = [], CUSTOM = [];                  // CUSTOM: combos of library parts (kept out of ALL, shown via the Custom parts filter)
 const registry = new Map(), pieceMemo = new Map(), fitMemo = new Map(), guestCombos = new Map();
 const piece = id => { let q = pieceMemo.get(id); if (!q && registry.has(id)) pieceMemo.set(id, q = makePart(registry.get(id))); return q; };
@@ -1172,7 +1185,7 @@ function markPaperSwatches() {
 function setPaper(c) {
   $('paper').value = c; markPaperSwatches();
   document.documentElement.style.setProperty('--paper', c); scene.background.set(c);
-  if (sigInst) fillSigSelect();                  // an auto-coloured signature changes with the paper
+  if (sigs.length) fillSigSelect();              // an auto-coloured text / signature changes with the paper
   repaintAll(); renderOverlay();
 }
 function setPalette(id) {                       // choose a palette (and its paper, if it has one); back to Auto ink
@@ -1457,7 +1470,7 @@ function animTick(now) {
 }
 function animSync() {                           // start / stop the frame loop to match the state, and show the play button only when something spins
   const spin = anySpin(), run = composeOpen && playing && spin && !exporting;
-  $('ov-play').hidden = !composeOpen || !spin;
+  $('ov-anim').hidden = !composeOpen || !spin;
   const mode = playing ? 'pause' : 'play';                      // the button offers the action (it shows what a click does)
   if ($('ov-play').dataset.mode !== mode) { $('ov-play').dataset.mode = mode; $('ov-play').innerHTML = (playing ? ICON_PAUSE : ICON_PLAY) + (playing ? 'Pause' : 'Play'); }
   if (run && !animRaf) { animT0 = performance.now() - animPhase * loopSec * 1000; animRaf = requestAnimationFrame(animTick); }
@@ -1484,7 +1497,7 @@ function overlayState(ph = 0) {                 // ph: the loop phase to capture
       color: l.color, visible: l.visible, rot: ph ? bakeRot(l, ph) : l.rot, size: l.size, width: l.width, ...(l.dx ? { dx: l.dx } : {}), ...(l.dy ? { dy: l.dy } : {}), ...(l.spin ? { spin: l.spin } : {}) })),
     ...(loopSec !== LOOP_SEC.def ? { loop: loopSec } : {}),
     ...(used.size ? { parts: [...used].map(id => registry.get(id)).filter(Boolean) } : {}),     // custom parts travel with the setup
-    ...(sigInst ? { signature: sigInst } : {}) };                                              // so does the signature
+    ...(sigs.length ? { signatures: sigs.map(g => ({ ...g })) } : {}) };                       // so do the texts / signatures
 }
 async function makePng(px) {
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -1494,7 +1507,7 @@ async function makePng(px) {
   r.render(ovScene, camera);
   const flat = document.createElement('canvas'); flat.width = flat.height = px;          // the picture plus the signature, as one image
   const g2 = flat.getContext('2d'); g2.drawImage(r.domElement, 0, 0);
-  if (sigInst) drawSignature(g2, sigInst, px, px, $('paper').value);
+  drawAllSignatures(g2, sigs, px, px, $('paper').value);
   const blob = await new Promise(res => flat.toBlob(res, 'image/png'));
   r.dispose(); r.forceContextLoss();
   renderOverlay();
@@ -1510,7 +1523,7 @@ function fillPrintCanvas() {
   buildOverlay(1.6 * PRINT_PX / (ovCanvas.clientWidth || 440), PRINT_PX);
   r.render(ovScene, camera);
   c.width = c.height = PRINT_PX; c.getContext('2d').drawImage(r.domElement, 0, 0);
-  if (sigInst) drawSignature(c.getContext('2d'), sigInst, PRINT_PX, PRINT_PX, $('paper').value);
+  drawAllSignatures(c.getContext('2d'), sigs, PRINT_PX, PRINT_PX, $('paper').value);
   r.dispose(); r.forceContextLoss(); renderOverlay();
 }
 // ---- animated GIF: one loop, rendered frame by frame offscreen (own scene and a snapshot of the layers, so editing meanwhile can't disturb it).
@@ -1521,7 +1534,7 @@ async function makeGif(px, fps, onProgress = () => {}) {
   const n = Math.max(2, Math.round(loopSec * fps)), delay = Math.round(1000 / fps);
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }), sc = new THREE.Scene(), enc = GIFEncoder();
   r.setPixelRatio(1); r.setSize(px, px, false); sc.background = new THREE.Color($('paper').value);
-  const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l })), sig = sigInst, paper = $('paper').value;
+  const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l })), sigList = sigs.map(g => ({ ...g })), paper = $('paper').value;
   const lines = makeLines(vis, 1.6 * px / (ovCanvas.clientWidth || 440), px, ovCurve); sc.add(...lines);
   const flat = document.createElement('canvas'); flat.width = flat.height = px;
   const g2 = flat.getContext('2d', { willReadFrequently: true });
@@ -1529,7 +1542,7 @@ async function makeGif(px, fps, onProgress = () => {}) {
     for (let i = 0; i < n; i++) {
       vis.forEach((l, k) => { lines[k].rotation.z = layerAngle(l, i / n) * Math.PI / 180; });
       r.render(sc, camera); g2.drawImage(r.domElement, 0, 0);
-      if (sig) drawSignature(g2, sig, px, px, paper);
+      drawAllSignatures(g2, sigList, px, px, paper);
       const { data } = g2.getImageData(0, 0, px, px), palette = quantize(data, 256);
       enc.writeFrame(applyPalette(data, palette), px, px, { palette, delay });
       onProgress(i + 1, n); if (i % 3 === 2) await new Promise(res => setTimeout(res));      // let the page breathe (and show progress)
@@ -1565,8 +1578,8 @@ function makeSvg({ px = 800, phase = null } = {}) {
     out.push(`<g transform="translate(${f((l.dx || 0) / 500)} ${f((l.dy || 0) / 500)})"><g transform="rotate(${f(a0)} 0 0)">${anim}` +
       `<path d="${d.join('')}" fill="none" stroke="${l.color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/></g></g>`);
   }
-  if (sigInst) {                                // the signature rides along as a transparent picture (it doesn't move)
-    const c = document.createElement('canvas'); c.width = c.height = 1024; drawSignature(c.getContext('2d'), sigInst, 1024, 1024, $('paper').value);
+  if (sigs.length) {                            // the texts / signatures ride along as one transparent picture (they don't move)
+    const c = document.createElement('canvas'); c.width = c.height = 1024; drawAllSignatures(c.getContext('2d'), sigs, 1024, 1024, $('paper').value);
     out.push(`<image x="-1" y="-1" width="2" height="2" href="${c.toDataURL('image/png')}"/>`);
   }
   out.push('</svg>');
@@ -1629,7 +1642,7 @@ function applyState(meta) {                     // replace the overlay with a sa
       spin: Math.max(-LAYER_SPIN, Math.min(LAYER_SPIN, Math.round(+l.spin) || 0)) });
     legacyFlags.push(!!(l.fit ?? legacyFit));
   }
-  sigInst = canonSigInstance(meta.signature); fillSigSelect();           // the signature a saved piece was signed with (null if unsigned)
+  sigs = canonSigInstances(meta); sigInst = sigs.at(-1) ?? null; fillSigSelect();      // the texts / signatures a saved piece carries (none if unsigned)
   bakeLegacyFit([...layers.values()], legacyFlags, ovCurve);
   activeKey = [...layers.keys()].at(-1) ?? null;
   setLoop(meta.loop); animPhase = 0;
@@ -1691,7 +1704,7 @@ function thumbRig(item) {
     const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR }; };
   bakeLegacyFit(ls, ls.map(l => l.fit), curve);
   const vis = ls.filter(l => l.visible);
-  return { st, T, geos, vis, lines: makeLines(ls, 1.5 * pr, T, curve), sig: canonSigInstance(st.signature), paper: st.paper || '#faf7f0',
+  return { st, T, geos, vis, lines: makeLines(ls, 1.5 * pr, T, curve), sigs: canonSigInstances(st), paper: st.paper || '#faf7f0',
     loop: Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, Math.round(+st.loop) || LOOP_SEC.def)), spins: vis.some(l => l.spin) };
 }
 function thumbDispose(rig) { for (const l of rig.lines) l.material.dispose(); rig.geos.forEach(g => g.dispose()); }
@@ -1701,7 +1714,7 @@ function thumbDraw(rig, canvas, phase) {        // the caller has sized gl to ri
   thScene.add(...rig.lines); gl.render(thScene, camera);
   if (canvas.width !== rig.T) canvas.width = canvas.height = rig.T;
   const g = canvas.getContext('2d'); g.drawImage(gl.domElement, 0, 0, rig.T, rig.T);
-  if (rig.sig) drawSignature(g, rig.sig, rig.T, rig.T, rig.paper);
+  drawAllSignatures(g, rig.sigs, rig.T, rig.T, rig.paper);
   for (const l of rig.lines) thScene.remove(l);
 }
 function renderThumb(item, canvas) {
@@ -1876,7 +1889,7 @@ window.addEventListener('hashchange', () => {
   if (layers.size && !confirm('Open the shared overlay and replace the current one?')) return;
   applyHash();
 });
-window.__myro = { anim: { makeSvg, setPhase(p) { animPhase = p; renderOverlay(); }, phase: () => animPhase, play(b) { playing = b; animSync(); }, running: () => !!animRaf, loop: () => loopSec, setLoop, makeGif, saveGif }, sig: { inst: () => sigInst, lib: () => sigLib, box: () => sigHit, strokes: () => sgStrokes, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
+window.__myro = { anim: { makeSvg, setPhase(p) { animPhase = p; renderOverlay(); }, phase: () => animPhase, play(b) { playing = b; animSync(); }, running: () => !!animRaf, loop: () => loopSec, setLoop, makeGif, saveGif }, sig: { all: () => sigs, inst: () => sigInst, lib: () => sigLib, box: () => sigHit, strokes: () => sgStrokes, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
   encodeShare, decodeShare, readTextChunk, addTextChunk,
   parts: { open: d => openMaker(d), pv: () => pv, pvState: () => pvState, ed: () => ed, library: () => library, registry, CUSTOM: () => CUSTOM, keepPart, edSave, edDraw, edSync, lookup,
     forget(id) { library = library.filter(d => d.id !== id); registry.delete(id); pieceMemo.delete(id); guestCombos.clear(); libraryChanged(); } } };   // forget: test hook   // test hook
@@ -1971,9 +1984,11 @@ function buildLayerList() {
   }
   syncPos();
 }
+let ovTab = 'layers';
 function setOvTab(name) {                       // the panel under the picture shows one tab at a time, so the layer list gets all the leftover height
   for (const b of document.querySelectorAll('#ov-tabs button')) b.classList.toggle('on', b.dataset.tab === name);
-  for (const id of ['layers', 'sign', 'anim', 'share']) $('tab-' + id).hidden = id !== name;
+  for (const id of ['layers', 'sign', 'share']) $('tab-' + id).hidden = id !== name;
+  ovTab = name; drawSigLayer();                   // a selected text / signature shows its frame while its tab is open
 }
 document.querySelectorAll('#ov-tabs button').forEach(b => { b.onclick = () => setOvTab(b.dataset.tab); });
 function setCompose(open) {
@@ -2372,42 +2387,52 @@ function drawSignature(ctx, inst, W, H, paper) { // paints the signature onto an
   ctx.restore(); return b;
 }
 
-// -- the live layer over the picture: shows the signature and lets you drag it
-const sigC = $('sigc'); let sigHit = null, sigDrag = null, sigHot = false;      // sigHit: the signature's box on the live picture, in CSS px; sigHot: show its frame and handle
+// -- the live layer over the picture: shows the texts / signatures and lets you select, drag and resize them
+const sigC = $('sigc'); let sigBoxes = new Map(), sigHit = null, sigDrag = null, sigHover = null;      // sigBoxes: each one's box on the live picture (CSS px); sigHit: the selected one's; sigHover: the one under the pointer
 function drawSigLayer() {
-  const css = ovCanvas.clientWidth; sigHit = null;
+  const css = ovCanvas.clientWidth; sigBoxes = new Map(); sigHit = null;
   if (!css) return;
   if (sigC.width !== Math.round(css * pr)) sigC.width = sigC.height = Math.round(css * pr);
   const ctx = sigC.getContext('2d'); ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.clearRect(0, 0, css, css);
-  if (sigInst) sigHit = drawSignature(ctx, sigInst, css, css, $('paper').value);
-  if (sigHit && (sigHot || sigDrag)) {          // a frame and a corner handle while the pointer is on the signature (editing aids: never exported)
-    const b = sigHit, x = b.cx - b.w / 2 - 6, y = b.cy - b.h / 2 - 6;
+  for (const g of sigs) sigBoxes.set(g, drawSignature(ctx, g, css, css, $('paper').value));
+  sigHit = sigBoxes.get(sigInst) || null;
+  const framed = sigDrag ? sigInst : sigHover || (ovTab === 'sign' ? sigInst : null), b = framed && sigBoxes.get(framed);
+  if (b) {                                      // a frame (and, on the selected one, a corner handle): editing aids, never exported
+    const x = b.cx - b.w / 2 - 6, y = b.cy - b.h / 2 - 6;
     ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = '#e9b44c'; ctx.lineWidth = 1.2; ctx.strokeRect(x, y, b.w + 12, b.h + 12); ctx.setLineDash([]);
-    ctx.fillStyle = '#e9b44c'; ctx.fillRect(x + b.w + 12 - 5, y + b.h + 12 - 5, 10, 10); ctx.restore();
+    if (framed === sigInst) { ctx.fillStyle = '#e9b44c'; ctx.fillRect(x + b.w + 12 - 5, y + b.h + 12 - 5, 10, 10); } ctx.restore();
   }
 }
+const drawAllSignatures = (ctx, list, W, H, paper) => { for (const g of list) drawSignature(ctx, g, W, H, paper); };
 const sigPoint = ev => { const r = sigC.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top, w: r.width, h: r.height }; };
-const onSig = ev => { if (!sigHit) return false; const p = sigPoint(ev); return Math.abs(p.x - sigHit.cx) <= sigHit.w / 2 + 10 && Math.abs(p.y - sigHit.cy) <= sigHit.h / 2 + 10; };
+const sigAt = ev => {                           // the topmost text / signature under the pointer
+  const p = sigPoint(ev);
+  for (let i = sigs.length - 1; i >= 0; i--) { const b = sigBoxes.get(sigs[i]); if (b && Math.abs(p.x - b.cx) <= b.w / 2 + 10 && Math.abs(p.y - b.cy) <= b.h / 2 + 10) return sigs[i]; }
+  return null;
+};
+const onSig = ev => !!sigAt(ev);
 const onHandle = ev => { if (!sigHit) return false; const p = sigPoint(ev); return Math.hypot(p.x - (sigHit.cx + sigHit.w / 2 + 6), p.y - (sigHit.cy + sigHit.h / 2 + 6)) <= 11; };
 const syncSize = () => { $('sg-size').value = sigInst.size; $('sg-pct').value = Math.round(sigInst.size / 10); };
 const sigRedraw = () => { drawSigLayer(); sigKeepInside(); drawSigLayer(); };         // draw, pull back inside the picture if it grew past an edge, draw again
-function sigKeepInside() {                       // the signature stays fully on the picture (centred if it is bigger than the picture)
+function sigKeepInside() {                       // the selected one stays fully on the picture (centred if it is bigger than the picture)
   if (!sigInst || !sigHit) return;
   const css = ovCanvas.clientWidth, pad = 14, fit = (v, m) => m >= 500 ? 500 : Math.max(m, Math.min(1000 - m, Math.round(v)));      // pad: room for the frame and its corner handle
   sigInst.x = fit(sigInst.x, (sigHit.w / 2 + pad) / css * 1000); sigInst.y = fit(sigInst.y, (sigHit.h / 2 + pad) / css * 1000);
 }
-let layerDrag = null;                           // dragging the picture moves the highlighted layer (unless the pointer is on the signature)
+function selectSig(g) { sigInst = g; fillSigSelect(); drawSigLayer(); }
+let layerDrag = null;                           // dragging the picture moves the highlighted layer (unless the pointer is on a text / signature)
 sigC.addEventListener('pointerdown', ev => {
-  const lay = layers.get(activeKey);
-  if (!onSig(ev) && !onHandle(ev)) {
+  const lay = layers.get(activeKey), handle = onHandle(ev), hit = handle ? sigInst : sigAt(ev);
+  if (!hit) {
     if (!lay) return;
     const p0 = sigPoint(ev); layerDrag = { x: p0.x, y: p0.y, dx: lay.dx || 0, dy: lay.dy || 0, l: lay };
     try { sigC.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
     sigC.style.cursor = 'grabbing'; ev.preventDefault(); return;
   }
-  const p = sigPoint(ev);
-  sigDrag = onHandle(ev) ? { mode: 'size', left: sigHit.cx - sigHit.w / 2, top: sigHit.cy - sigHit.h / 2, w0: sigHit.w, h0: sigHit.h }     // resize: the top-left corner stays put
-                         : { mode: 'move', dx: p.x - sigHit.cx, dy: p.y - sigHit.cy };
+  if (hit !== sigInst) selectSig(hit);          // clicking another one selects it (and drags it)
+  const p = sigPoint(ev), b = sigHit;
+  sigDrag = handle ? { mode: 'size', left: b.cx - b.w / 2, top: b.cy - b.h / 2, w0: b.w, h0: b.h }     // resize: the top-left corner stays put
+                   : { mode: 'move', dx: p.x - b.cx, dy: p.y - b.cy };
   try { sigC.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
   sigC.style.cursor = 'grabbing'; ev.preventDefault();
 });
@@ -2423,50 +2448,76 @@ sigC.addEventListener('pointermove', ev => {
     sigInst.x = Math.round((d.left + nw / 2) / p.w * 1000); sigInst.y = Math.round((d.top + nh / 2) / p.h * 1000); syncSize(); sigRedraw();
   } else if (sigDrag) { sigInst.x = Math.round((p.x - sigDrag.dx) / p.w * 1000); sigInst.y = Math.round((p.y - sigDrag.dy) / p.h * 1000); sigRedraw(); }
   else {
-    const hot = onSig(ev) || onHandle(ev); sigC.style.cursor = onHandle(ev) ? 'nwse-resize' : onSig(ev) ? 'grab' : layers.get(activeKey) ? 'move' : 'default';
-    if (hot !== sigHot) { sigHot = hot; drawSigLayer(); }
+    const handle = onHandle(ev), over = handle ? sigInst : sigAt(ev);
+    sigC.style.cursor = handle ? 'nwse-resize' : over ? 'grab' : layers.get(activeKey) ? 'move' : 'default';
+    if (over !== sigHover) { sigHover = over; drawSigLayer(); }
   }
 });
 sigC.addEventListener('pointerup', () => { const was = layerDrag; layerDrag = null; sigDrag = null; sigC.style.cursor = was ? 'move' : 'grab'; drawSigLayer(); });
-sigC.addEventListener('pointerleave', () => { if (!sigDrag && sigHot) { sigHot = false; drawSigLayer(); } });
-sigC.addEventListener('wheel', ev => {         // scroll (or trackpad pinch) over the signature to resize it
-  if (!sigInst || !(onSig(ev) || onHandle(ev))) return;
-  ev.preventDefault(); sigInst.size = Math.max(20, Math.min(1000, Math.round(sigInst.size * Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)))));
+sigC.addEventListener('pointerleave', () => { if (!sigDrag && sigHover) { sigHover = null; drawSigLayer(); } });
+sigC.addEventListener('wheel', ev => {         // scroll (or trackpad pinch) over a text / signature to resize it
+  const g = onHandle(ev) ? sigInst : sigAt(ev); if (!g) return;
+  ev.preventDefault(); if (g !== sigInst) selectSig(g);
+  sigInst.size = Math.max(20, Math.min(1000, Math.round(sigInst.size * Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)))));
   syncSize(); sigRedraw();
 }, { passive: false });
 
-// -- the list and the controls in the Compose panel
+// -- the saved list, the list of what is on the picture, and the controls in the Compose panel
 const saveSigs = () => store.set(SIG_KEY, JSON.stringify(sigLib));
+let sigLibSel = '';                             // the saved item chosen in the dropdown (the one Add / Rename / Delete act on)
 function fillSigSelect() {
-  const sel = $('sg-sel'); sel.textContent = ''; sel.add(new Option('No signature', ''));
+  const sel = $('sg-sel'); sel.textContent = '';
   for (const d of sigLib) sel.add(new Option(sigLabel(d), d.id));
-  if (sigInst && !sigLib.some(d => d.id === sigInst.sig.id)) sel.add(new Option(sigLabel(sigInst.sig) + ' (from file)', sigInst.sig.id));
-  sel.value = sigInst ? sigInst.sig.id : '';
-  $('sg-ctl').hidden = !sigInst; $('sg-hint').hidden = !!sigInst; $('sg-del').disabled = $('sg-ren').disabled = !sigInst || !sigLib.some(d => d.id === sigInst.sig.id);
+  if (!sigLib.length) sel.add(new Option('Nothing saved yet: use New…', ''));
+  if (!sigLib.some(d => d.id === sigLibSel)) sigLibSel = sigLib[0]?.id || '';
+  sel.value = sigLibSel; $('sg-add').disabled = $('sg-ren').disabled = $('sg-del').disabled = !sigLibSel;
+  const list = $('sg-list'); list.textContent = '';
+  for (const g of sigs) {
+    const row = document.createElement('div'); row.className = 'sgrow' + (g === sigInst ? ' active' : '');
+    const t = document.createElement('span'); t.className = 'sgt'; t.textContent = sigLabel(g.sig);               // (text, never markup)
+    const k = document.createElement('span'); k.className = 'sgk'; k.textContent = g.sig.kind === 't' ? 'text' : 'drawn';
+    const x = document.createElement('button'); x.textContent = '✕'; x.title = 'Take it off the picture';
+    row.append(t, k, x); row.onclick = () => selectSig(g); x.onclick = e => { e.stopPropagation(); removeSig(g); };
+    list.append(row);
+  }
+  $('sg-ctl').hidden = !sigInst; $('sg-hint').hidden = sigs.length > 0;
   if (sigInst) {
     const c = sigInk(sigInst, $('paper').value); syncSize(); $('sg-color').value = c;
     $('sg-color').parentElement.style.setProperty('--pc', c); $('sg-auto').classList.toggle('on', !sigInst.color);
   }
 }
-const pickSig = d => { const first = !sigInst; sigInst = canonSigInstance({ sig: d, ...(sigInst ? { x: sigInst.x, y: sigInst.y, size: sigInst.size, color: sigInst.color } : {}) }); fillSigSelect(); drawSigLayer(); if (first) $('sg-reset').click(); else { sigKeepInside(); drawSigLayer(); } };
-$('sg-sel').onchange = e => {
-  const id = e.target.value, d = sigLib.find(x => x.id === id) || (sigInst && sigInst.sig.id === id ? sigInst.sig : null);
-  if (!id || !d) { sigInst = null; fillSigSelect(); drawSigLayer(); } else pickSig(d);
+function addSig(def) {                          // put a saved text / signature on the picture (a new copy each time)
+  if (sigs.length >= SIG_LIMITS.placed) return say(`A picture can carry ${SIG_LIMITS.placed} texts / signatures: take one off first.`, 6000);
+  const g = canonSigInstance({ sig: def }); sigs.push(g); sigInst = g; fillSigSelect(); drawSigLayer();
+  if (sigs.length === 1) $('sg-reset').click();                                          // the first goes bottom right, like a signature
+  else { g.x = 500; g.y = 200 + 100 * ((sigs.length - 2) % 6); sigRedraw(); }           // the next ones start mid-picture, staggered
+}
+function removeSig(g) {
+  sigs = sigs.filter(x => x !== g); if (sigInst === g) sigInst = sigs.at(-1) ?? null; if (sigHover === g) sigHover = null;
+  fillSigSelect(); drawSigLayer();
+}
+const libSig = () => sigLib.find(d => d.id === sigLibSel);
+$('sg-sel').onchange = e => { sigLibSel = e.target.value; fillSigSelect(); };
+$('sg-add').onclick = () => { const d = libSig(); if (d) addSig(d); };
+$('sg-dup').onclick = () => {
+  if (!sigInst) return; if (sigs.length >= SIG_LIMITS.placed) return say(`A picture can carry ${SIG_LIMITS.placed} texts / signatures: take one off first.`, 6000);
+  const g = canonSigInstance({ ...sigInst, x: sigInst.x + 40, y: sigInst.y + 60 }); sigs.splice(sigs.indexOf(sigInst) + 1, 0, g); sigInst = g; fillSigSelect(); sigRedraw();
 };
 $('sg-size').oninput = e => { sigInst.size = +e.target.value; $('sg-pct').value = Math.round(sigInst.size / 10); sigRedraw(); };
 $('sg-pct').oninput = e => { const v = +e.target.value; if (!(v >= 2 && v <= 100)) return; sigInst.size = Math.round(v * 10); $('sg-size').value = sigInst.size; sigRedraw(); };
 $('sg-ren').onclick = () => {
-  const d = sigInst && sigLib.find(x => x.id === sigInst.sig.id); if (!d) return;
-  const n = prompt('Name for this signature', sigLabel(d)); if (n === null) return;
+  const d = libSig(); if (!d) return;
+  const n = prompt('Name for this saved item', sigLabel(d)); if (n === null) return;
   const name = cleanName(n); if (name) d.name = name; else delete d.name;               // a blank name goes back to the default label
-  sigInst.sig = canonSignature({ ...d }); saveSigs(); fillSigSelect();
+  for (const g of sigs) if (g.sig.id === d.id) g.sig = canonSignature({ ...d });
+  saveSigs(); fillSigSelect();
 };
 $('sg-color').oninput = e => { sigInst.color = e.target.value; $('sg-color').parentElement.style.setProperty('--pc', sigInst.color); $('sg-auto').classList.remove('on'); drawSigLayer(); };
 $('sg-auto').onclick = () => { sigInst.color = null; fillSigSelect(); drawSigLayer(); };
-$('sg-reset').onclick = () => { sigInst.x = 1000; sigInst.y = 1000; sigKeepInside(); sigInst.x -= 30; sigInst.y -= 20; sigKeepInside(); drawSigLayer(); };     // bottom right corner with a margin
+$('sg-reset').onclick = () => { if (!sigInst) return; sigInst.x = 1000; sigInst.y = 1000; sigKeepInside(); sigInst.x -= 30; sigInst.y -= 20; sigKeepInside(); drawSigLayer(); };     // bottom right corner with a margin
 $('sg-del').onclick = () => {
-  const d = sigInst && sigLib.find(x => x.id === sigInst.sig.id); if (!d || !confirm(`Delete the signature "${sigLabel(d)}" from your list? (Saved pieces keep their own copy.)`)) return;
-  sigLib = sigLib.filter(x => x.id !== d.id); saveSigs(); sigInst = null; fillSigSelect(); drawSigLayer();
+  const d = libSig(); if (!d || !confirm(`Delete "${sigLabel(d)}" from your saved list? (Copies on the picture, and saved pieces, keep theirs.)`)) return;
+  sigLib = sigLib.filter(x => x.id !== d.id); saveSigs(); fillSigSelect();
 };
 
 // -- the dialog that creates a signature: type it, or draw it
@@ -2544,19 +2595,19 @@ function strokesToInk(strokes) {                 // canvas strokes -> a compact 
 }
 $('sg-save').onclick = () => {
   let def;
-  if (sgMode === 'type') { def = canonSignature({ kind: 't', text: $('sg-text').value, font: $('sg-font').value }); if (!def) return sgMsg('Type your name first.'); }
+  if (sgMode === 'type') { def = canonSignature({ kind: 't', text: $('sg-text').value, font: $('sg-font').value }); if (!def) return sgMsg('Type some text first.'); }
   else {
     if (!sgStrokes.length) return sgMsg('Draw your signature first.');
     def = canonSignature(strokesToInk(sgStrokes)); if (!def) return sgMsg('That signature is too small or too narrow; draw it larger.');
   }
   const typed = cleanName($('sg-name').value), old = sigLib.find(d => d.id === def.id);
   def = canonSignature({ ...def, name: typed || old?.name || (def.kind === 't' ? def.text : `Signature ${sigLib.filter(d => d.kind === 'i').length + 1}`) });     // set name, else the old one, else a default
-  if (old) Object.assign(old, def);                                                                                                                              // saving the same signature again just updates its name
+  if (old) { Object.assign(old, def); for (const g of sigs) if (g.sig.id === old.id) g.sig = canonSignature({ ...old }); }                                        // saving the same one again just updates its name
   else {
     if (sigLib.length >= SIG_LIMITS.library) return sgMsg(`Your list is full (${SIG_LIMITS.library} signatures): delete one first.`);
     sigLib.push(def);
   }
-  saveSigs(); sgd.close(); pickSig(old || def);  // and sign the current piece with it
+  saveSigs(); sigLibSel = (old || def).id; sgd.close(); addSig(old || def);  // and put it on the picture
 };
 sgd.addEventListener('close', () => { sgCur = null; });
 window.addEventListener('resize', sgDraw);

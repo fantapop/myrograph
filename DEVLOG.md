@@ -79,6 +79,20 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — One Save & share tab; several texts / signatures per overlay
+
+- The Animate tab is gone: the GIF and animated-SVG exports moved into **Save & share** (under an "Animation" heading) and the loop length moved to the
+  panel header next to Pause (`#ov-anim`: Pause + "Loop [8] s", shown only while a visible layer spins), so it sits beside what it controls.
+- The Signature feature is now **Text & signature** and holds a list: `sigs` (max 8, `SIG_LIMITS.placed`), `sigInst` = the selected one. Why: it was being
+  used as a text overlay, so one item was too few. Tab: a "Saved" dropdown (the library, max 12) with Add / New… / ✎ rename / Delete, a list of what is on the picture
+  (click to select, ✕ to take it off), then controls for the selected one (size, %, colour, Auto, Copy, Reset). New… saves to the library AND adds it. The first item lands
+  bottom right as before, later ones mid-picture, staggered. On the picture: click selects, drag moves, corner handle / wheel resizes; the topmost under the pointer wins;
+  the selected one shows its frame while the tab is open. State key is `signatures` (array); share links carry one `g,` segment each; older files / links / albums with a single
+  `signature` still read (`canonSigInstances`). PNG, print, GIF, SVG (one transparent image of all of them) and album thumbnails draw all of them (`drawAllSignatures`).
+  Tested: three texts, selecting by row and by clicking the picture, drag moves only the selected one, size / colour independent, Copy, remove, link / PNG / album round trips,
+  an old single-signature file, the cap of 8, GIF and SVG still export. Node tests cover the codec (several, old single, limits).
+- Not done: no way to reorder texts (later = on top), no per-text rotation, no bold/size-by-font choices beyond the six fonts; the saved list is still capped at 12.
+
 ### 2026-11-09 — Duplicate layers, reordering, tabs, custom-parts collapse, animated SVG
 
 1. Duplicate layers: layers are keyed by their own id (`L<n>`), not the pattern, so the same pattern can be added again (copies can be sized / moved / coloured /
