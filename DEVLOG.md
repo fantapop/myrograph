@@ -79,6 +79,11 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Clicking a pattern opens the overlay
+
+A tile click with the overlay closed now opens it (`setCompose(true)`) and adds that pattern as a layer; with it open it adds another layer as before. Tiles always show a pointer cursor.
+The flash is applied after opening, to the tile looked up again, since opening the panel re-flows the grid. Earlier layers are kept if you closed and reopen this way. Tested in Chrome.
+
 ### 2026-11-09 — Text and signatures split: ad hoc text needs no saving
 
 - Feedback: the feature was built around signatures (saved, reused) but was being used for plain text, which shouldn't have to be saved first. The tab now has two clear paths:

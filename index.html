@@ -193,7 +193,7 @@
   #grid { position: relative; margin: 16px; }
   body.compose-open header { margin-right: var(--panel-w); }
   body.compose-open #grid { margin-right: calc(16px + var(--panel-w)); }
-  body.compose-open .tile { cursor: pointer; }
+  .tile { cursor: pointer; }
   .tile { position: absolute; background: var(--panel); border-radius: 6px; overflow: hidden; }
   body.compose-open .tile:hover { outline: 2px solid var(--tile-hover); }
   .tile.flash { animation: tflash .5s ease-out; }
@@ -1394,7 +1394,11 @@ function makeTile(i) {
   foot.innerHTML = `${trackIcon(p.track)}${rollerIcon(p.roller, p.hole)}<div class="txt"><b>${p.track.name}</b>${p.track.kind === 'ring' ? '' : ' · outside'}<br>${p.roller.name} · hole ${p.hole}</div>`;     // a ring's name already says which side
   el.append(canvas, foot); grid.append(el);
   const e = { i, el, canvas, alive: true }; tiles.set(i, e); enqueue(e);
-  el.onclick = () => { if (composeOpen) { addLayer(list[i]); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } };      // every click adds a layer (the same pattern can be added again)
+  el.onclick = () => {                          // every click adds a layer (the same pattern can be added again); with the overlay closed, it opens with this pattern
+    if (!composeOpen) setCompose(true);
+    addLayer(list[i]);
+    const t = tiles.get(i)?.el; if (t) { t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); }      // (the grid may have been re-flowed by opening the panel)
+  };
 }
 function sync() {                               // create tiles near the viewport, discard the rest
   if (view !== 'patterns') return;
