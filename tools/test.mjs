@@ -64,7 +64,7 @@ const oval = mkDef('oval', 44, 'My oval');
 check('presets all build into valid parts that roll on most of the box', C.PART_PRESETS.every(p => mkDef(p.id) && mkDef(p.id).h.length >= 3 && cat.tracks.filter(t => C.pairFits(t, C.makePart(mkDef(p.id)).roller)).length >= 12), C.PART_PRESETS.map(p => mkDef(p.id)?.h.length).join(','));
 const part = C.makePart(oval);
 check('custom outline has exactly N teeth of perimeter', part.roller.o.N === 44 && Math.abs((() => { let t = 0; const o = part.roller.o; for (let i = 0; i < o.M; i++) { const j = (i + 1) % o.M; t += Math.hypot(o.p[2 * j] - o.p[2 * i], o.p[2 * j + 1] - o.p[2 * i + 1]); } return t; })() - 44) < 0.3);
-check('mirrored symmetric shape is centred on its origin', (() => { const o = part.roller.o; let sx = 0, sy = 0; for (let i = 0; i < o.M; i++) { sx += o.p[2 * i]; sy += o.p[2 * i + 1]; } return Math.hypot(sx, sy) / o.M < 0.05; })());
+check('mirrored symmetric shape is centered on its origin', (() => { const o = part.roller.o; let sx = 0, sy = 0; for (let i = 0; i < o.M; i++) { sx += o.p[2 * i]; sy += o.p[2 * i + 1]; } return Math.hypot(sx, sy) / o.M < 0.05; })());
 check('content-addressed id ignores the name but not the shape', C.canonPart({ ...oval, name: 'Other' }).id === oval.id && C.canonPart({ ...oval, N: 45 }).id !== oval.id && /^c[0-9a-f]{8}$/.test(oval.id));
 const bad = [null, 7, { ...oval, N: 5 }, { ...oval, k: 0 }, { ...oval, r: [1, 2] }, { ...oval, r: oval.r.map(() => 300) }, { ...oval, h: [] }, { ...oval, h: [[0.5, 1]] }, { ...oval, k: 8, n: 12 }, { ...oval, h: Array(40).fill([1, 1]) }];
 check('invalid part definitions are rejected', bad.every(b => C.canonPart(b) === null));
@@ -76,7 +76,7 @@ check('resampling the handle count keeps the outline', (() => { const r2 = C.res
 const o44 = part.roller.o;
 check('hole rule: inside the body with a margin', C.holeFits(o44, 0, 0) && !C.holeFits(o44, 100, 0) && !C.holeFits(o44, o44.p[0] - 0.2, o44.p[1]));
 const fx = C.fillHoles(o44, 'x', 1.5);
-check('hole fill gives valid holes, rim to centre, within the cap', fx.length > 2 && fx.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && fx[0][0] > fx.at(-1)[0] && C.fillHoles(o44, 'grid', 1.5).length <= C.PART_LIMITS.maxHoles);
+check('hole fill gives valid holes, rim to center, within the cap', fx.length > 2 && fx.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && fx[0][0] > fx.at(-1)[0] && C.fillHoles(o44, 'grid', 1.5).length <= C.PART_LIMITS.maxHoles);
 const memo = new Map(), pcs = [C.makePart(mkDef('circle', 40, 'Disc')), part];
 const cc = C.customCombos(cat, pcs, memo);
 check('custom combos pair each custom piece with the box and with each other', cc.every(c => c.custom && c.key === `${c.track.id}|${c.roller.id}|${c.hole}`) &&
@@ -91,7 +91,7 @@ const stp = { ...st, parts: [oval, mkDef('clover', 0, 'Clover (3)')] };
 check('share link carries custom parts and round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(stp))) === JSON.stringify(stp), `${C.encodeShare(stp).length} chars`);
 check('share link rejects damaged custom parts', ['v1/faf7f0/t/p,x,44,2,6,1,zz,1_1', 'v1/faf7f0/t/p,x,5,2,6,1,ffffffffffff,1_1', 'v1/faf7f0/t/p,x,44,2,6,1,ffffffffffff,'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } }));
 
-// fixed pieces carry the same pen holes as their moving twins (the icons draw them); a custom part's fixed copy is re-centred, so its holes shift with it
+// fixed pieces carry the same pen holes as their moving twins (the icons draw them); a custom part's fixed copy is re-centered, so its holes shift with it
 check('fixed pieces have their twin\'s holes', cat.tracks.filter(t => t.kind === 'piece').every(t => t.holes === cat.rollers.find(r => r.id === t.pieceId).holes));
 const fixedHoles = pcs[1].fixed.holes, rollerHoles = pcs[1].roller.holes, o1 = pcs[1].roller.o; let mx = 0, my = 0; for (let i = 0; i < o1.M; i++) { mx += o1.p[2 * i]; my += o1.p[2 * i + 1]; }
 check('custom fixed copy keeps holes at the same place on the body', fixedHoles.every(([x, y], i) => Math.abs(x - (rollerHoles[i][0] - mx / o1.M)) < 1e-9 && Math.abs(y - (rollerHoles[i][1] - my / o1.M)) < 1e-9));
@@ -124,7 +124,7 @@ check('random hand-shaped parts: none accepted in the ring while really overlapp
 const stepsOf = pts => { let w = 0; for (let i = 0; i + 3 < pts.length; i += 3) w = Math.max(w, Math.hypot(pts[i + 3] - pts[i], pts[i + 4] - pts[i + 1])); return w; };
 const ov = mkp('oval', 48), far = [7, 0], oldStep = 1.0;
 const tr = C.traceRaw(ring96.o, ov.roller.o, true, far), n = tr.pts.length / 3;
-check('pen path far from the piece centre has no step over ~0.2 tooth (was 1.2), and still closes', stepsOf(tr.pts) < 0.2 && Math.hypot(tr.pts[0] - tr.pts[3 * (n - 1)], tr.pts[1] - tr.pts[3 * (n - 1) + 1]) < 1e-6, `largest step ${stepsOf(tr.pts).toFixed(3)}, ${n} points`);
+check('pen path far from the piece center has no step over ~0.2 tooth (was 1.2), and still closes', stepsOf(tr.pts) < 0.2 && Math.hypot(tr.pts[0] - tr.pts[3 * (n - 1)], tr.pts[1] - tr.pts[3 * (n - 1) + 1]) < 1e-6, `largest step ${stepsOf(tr.pts).toFixed(3)}, ${n} points`);
 check('traceRaw returns the travel of every point (non-decreasing, 0 to L)', tr.ss.length === n && tr.ss[0] === 0 && Math.abs(tr.ss[n - 1] - C.lcm(96, 48)) < 1e-9 && tr.ss.every((v, i) => i === 0 || v >= tr.ss[i - 1]));
 check('the point cap still holds', C.traceRaw(ring96.o, mkp('circle', 83).roller.o, true, [10, 0], 3000).pts.length / 3 <= 3000 + 64);
 
@@ -135,7 +135,7 @@ check('presets are all distinct enough from a plain circle to be worth offering 
 // spiral hole fill (the default): one arm winding in from the rim like the real wheels' holes
 { const circle = circ(60).roller.o, c60 = C.fillHoles(circle, 'spiral', 2), real = cat.rollers.find(r => r.id === 'w60').holes.length;
   const ang = c60.map(([x, y]) => Math.atan2(y, x)), step = ang.slice(1).map((a, i) => ((a - ang[i]) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI), dist = c60.map(([x, y]) => Math.hypot(x, y));
-  check('spiral fill on a circle matches a real wheel: the same hole count, rim to centre, an even turn per hole', c60.length === real && dist.every((v, i) => i === 0 || v < dist[i - 1]) && step.every(v => Math.abs(v - 2 * Math.PI * C.SPIRAL_TURNS / (c60.length - 1)) < 0.12)   /* holes sit on a quarter-tooth grid, so angles are only that exact */ && C.fillHoles(circ(84).roller.o, 'spiral', 2).length === 35, `${c60.length} holes (a real 60 has ${real})`);
+  check('spiral fill on a circle matches a real wheel: the same hole count, rim to center, an even turn per hole', c60.length === real && dist.every((v, i) => i === 0 || v < dist[i - 1]) && step.every(v => Math.abs(v - 2 * Math.PI * C.SPIRAL_TURNS / (c60.length - 1)) < 0.12)   /* holes sit on a quarter-tooth grid, so angles are only that exact */ && C.fillHoles(circ(84).roller.o, 'spiral', 2).length === 35, `${c60.length} holes (a real 60 has ${real})`);
   const sp = C.fillHoles(o44, 'spiral', 2), row = C.fillHoles(o44, 'x', 2), dirs = new Set(sp.map(([x, y]) => Math.round(Math.atan2(y, x) * 4)));
   check('spiral fill on an oval: valid holes, within the cap, more than a row, all in different directions, outermost first',
     sp.length > row.length && sp.length <= C.PART_LIMITS.maxHoles && sp.every(q => C.holeFits(o44, q[0] / 4, q[1] / 4)) && dirs.size >= sp.length * 0.7 && Math.hypot(...sp[0]) > Math.hypot(...sp.at(-1)),
@@ -145,13 +145,13 @@ check('presets are all distinct enough from a plain circle to be worth offering 
 // signatures: typed or drawn, validated, saved, and carried in share links
 const sigT = C.canonSignature({ kind: 't', text: '  Chris   F. ', font: 'script' });
 const sigI = C.canonSignature({ kind: 'i', ar: 300, s: [[0, 150, 200, 20, 400, 280, 600, 90, 1000, 300], [100, 250, 900, 260]] });
-check('signatures: text and ink are normalised, given content-based ids, and bad ones refused', sigT.text === 'Chris F.' && /^s[0-9a-f]{8}$/.test(sigT.id) && sigT.id === C.canonSignature({ ...sigT }).id && sigI && sigI.id !== sigT.id &&
+check('signatures: text and ink are normalized, given content-based ids, and bad ones refused', sigT.text === 'Chris F.' && /^s[0-9a-f]{8}$/.test(sigT.id) && sigT.id === C.canonSignature({ ...sigT }).id && sigI && sigI.id !== sigT.id &&
   [null, 5, { kind: 't', text: '', font: 'script' }, { kind: 't', text: 'x', font: 'nope' }, { kind: 't', text: 'x', font: '__proto__' }, { kind: 'i', ar: 300, s: [] }, { kind: 'i', ar: 300, s: [[0, 0, 2000, 5]] }, { kind: 'i', ar: 300, s: [[0, 400]] }, { kind: 'i', ar: 300, s: Array(17).fill([1, 1, 2, 2]) },
    { kind: 'i', ar: 300, s: [Array(1202).fill(5)] }, { kind: 'x' }].every(b => C.canonSignature(b) === null));
 check('signature text cannot carry markup or control characters, and is capped', C.canonSignature({ kind: 't', text: '<img src=x onerror=1>\n\u0007' + 'a'.repeat(100), font: 'plain' }).text.length <= C.SIG_LIMITS.text && !/[<>\u0000-\u001f]/.test(C.canonSignature({ kind: 't', text: '<b>hi</b>\u0001', font: 'plain' }).text));
 check('the saved list drops invalid and duplicate entries and is capped', C.parseSignatures(JSON.stringify([sigT, sigT, { kind: 'x' }, sigI])).length === 2 && C.parseSignatures('{oops').length === 0 && C.parseSignatures(JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ kind: 't', text: 'n' + i, font: 'plain' })))).length === C.SIG_LIMITS.library);
 const inst = C.canonSigInstance({ sig: sigT, x: 700, y: 900, size: 300, color: '#AA3355' });
-check('a placed signature keeps its position, size and colour, with safe defaults', inst.x === 700 && inst.size === 300 && inst.color === '#aa3355' && C.canonSigInstance({ sig: sigT }).color === null && C.canonSigInstance({ sig: sigT, x: 5000, size: 1 }).x === 800 && C.canonSigInstance({ sig: { kind: 'x' } }) === null);
+check('a placed signature keeps its position, size and color, with safe defaults', inst.x === 700 && inst.size === 300 && inst.color === '#aa3355' && C.canonSigInstance({ sig: sigT }).color === null && C.canonSigInstance({ sig: sigT, x: 5000, size: 1 }).x === 800 && C.canonSigInstance({ sig: { kind: 'x' } }) === null);
 const stSig = { ...st, signatures: [C.canonSigInstance({ sig: sigI, x: 123, y: 456, size: 321, color: '#102030' })] }, stSigT = { ...st, signatures: [inst] };
 check('share link carries a drawn or typed signature and round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(stSig))) === JSON.stringify(stSig) && JSON.stringify(C.decodeShare('#' + C.encodeShare(stSigT))) === JSON.stringify(stSigT), `${C.encodeShare(stSig).length} chars (drawn), ${C.encodeShare(stSigT).length} (typed)`);
 check('a signature with unusual text survives the link (spaces, commas, slashes, accents)', (() => { const g = C.canonSigInstance({ sig: { kind: 't', text: 'José, a/b & Co.', font: 'serif' } }); return C.decodeSig(C.encodeSig(g)).sig.text === 'José, a/b & Co.' && !C.encodeSig(g).slice(2).includes('/'); })());
@@ -219,7 +219,7 @@ check('loops needed for an exact repeat: whole numbers 1, halves 2, fifths 5, ot
   check('a layer is "moving" if it spins or draws', C.isMoving({ spin: 1 }) && C.isMoving({ draw: 2 }) && !C.isMoving({}) && !C.isMoving({ spin: 0, draw: 0 })); }
 
 // printing on white: which papers count as white enough to print as they are
-check('near-white papers (white, the cream default, light greys) print as they are; tinted, dark and bad values ask',
+check('near-white papers (white, the cream default, light grays) print as they are; tinted, dark and bad values ask',
   C.isNearWhite('#ffffff') && C.isNearWhite('#faf7f0') && C.isNearWhite('#F2F0EA') && C.isNearWhite('#e6e6e6') && !C.isNearWhite('#e5ffff') && !C.isNearWhite('#fff3b0') && !C.isNearWhite('#1c2233') && !C.isNearWhite('#000000') && !C.isNearWhite('white') && !C.isNearWhite(''));
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

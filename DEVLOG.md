@@ -10,7 +10,7 @@ colors are adjustable. Verified by headless Chrome screenshots; the math core is
 
 Compose feature: header "Compose" button (static label, no layer count) slides a panel in from the right. While open, grid
 tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
-three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
+three.js overlay canvas (all layers share the center), and a layer list with show/hide, color,
 rotation, size (10-500%, a logarithmic slider) and line width (0.5-20x, a logarithmic slider) sliders and remove; layers keep their real sizes relative to each other (the largest visible layer fills the picture); each layer's Size scales it. Selection is in-memory only (lost on reload).
 
 Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
@@ -55,8 +55,8 @@ Chrome (editor interaction, save/edit/copy/delete, reload persistence, link/PNG/
 
 Next steps / not done:
 - Custom parts: no custom rings/racks (inside tracks must be circles); no undo in the maker; no library-only
-  export (albums/PNGs carry parts); hole numbers are in placement order unless "Number rim -> centre"; only
-  non-overlap is modelled, not whether real teeth would mesh (same as the shaped wheels).
+  export (albums/PNGs carry parts); hole numbers are in placement order unless "Number rim -> center"; only
+  non-overlap is modeled, not whether real teeth would mesh (same as the shaped wheels).
 - Palettes: no export/import (browser-local only, like albums), no reordering colors. Paper isn't persisted
   across reloads; it is re-applied from the saved palette on load, so a hand-picked paper is lost on reload.
 - Share links only work for others when copied from the hosted page (GitHub Pages, below); a file:// or
@@ -65,12 +65,12 @@ Next steps / not done:
   stores) - export is the backup path. No drag-reorder of items, no multi-select.
 - Compose: no SVG export, no layer reordering; animation is GIF only (see the 2026-11-08 animation entry).
 - Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
-  overlapping combos"). In the photo the Bar has teeth only on its short ends; modelled with teeth
+  overlapping combos"). In the photo the Bar has teeth only on its short ends; modeled with teeth
   all round, so Bar-in-ring is probably more permissive on the real toy.
 - Shaped-wheel sizes and hole positions were measured by eye from the photo (+/-0.5 tooth); a
   closer photo of each would tighten them. Round-wheel hole distances are an even spread from
   0.8 to 0.14 of the tip radius (only distance matters for a round wheel).
-- Rack is modelled with outside teeth only and aspect 7.8:1 (from the photo).
+- Rack is modeled with outside teeth only and aspect 7.8:1 (from the photo).
 - Possible: click-to-detail, animated drawing, shareable URLs, SVG/PNG export.
 
 Testing: `node tools/test.mjs` extracts the CORE block and checks the rolling math against closed
@@ -79,13 +79,20 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — American spelling; wording of the print question
+
+- Replaced every British spelling (colour, centre / centred, normalised, behaviour, labelled, modelled, neighbouring, recognised, grey, travelling, re-centred / `recentredHoles` -> `recenteredHoles`) with the
+  American one across index.html, CLAUDE.md, DEVLOG.md, tests and the dev journal; CLAUDE.md now says to use American English. Checked: no identifier or stored key changed except the one function rename.
+- The print question now reads "We recommend you print in white to save ink. Would you like to open the print dialog with a white background?" with buttons Cancel / No, use the paper color /
+  Yes, white background (same behavior as before).
+
 ### 2026-11-09 — Print on white when the paper is tinted or dark
 
-- The Print button and Ctrl/Cmd+P now ask "Print on a white background?" when the paper isn't near white (`isNearWhite`: every channel >= 0xE6, so the cream default, white and light greys
-  print straight away; anything tinted or dark asks). Three choices: Print on white / Print with the paper colour / Cancel. Per-print only: `printWhite` is set just for that print and cleared on
-  afterprint, and `fillPrintCanvas` swaps the render background (and the paper used for auto-coloured text, so it prints dark on white) - the stored paper colour, state, links and PNGs are untouched.
-- Limits: the browser's own File > Print menu can't be intercepted (it fires beforeprint with no chance to ask), so it prints the paper colour; pale line colours chosen for a dark paper
-  can look faint on white (the dialog says so; no automatic recolouring). Tested with `window.print` stubbed (cream/white print straight away; dark asks; each button; paper unchanged;
+- The Print button and Ctrl/Cmd+P now ask "Print on a white background?" when the paper isn't near white (`isNearWhite`: every channel >= 0xE6, so the cream default, white and light grays
+  print straight away; anything tinted or dark asks). Three choices: Print on white / Print with the paper color / Cancel. Per-print only: `printWhite` is set just for that print and cleared on
+  afterprint, and `fillPrintCanvas` swaps the render background (and the paper used for auto-colored text, so it prints dark on white) - the stored paper color, state, links and PNGs are untouched.
+- Limits: the browser's own File > Print menu can't be intercepted (it fires beforeprint with no chance to ask), so it prints the paper color; pale line colors chosen for a dark paper
+  can look faint on white (the dialog says so; no automatic recoloring). Tested with `window.print` stubbed (cream/white print straight away; dark asks; each button; paper unchanged;
   Ctrl+P intercepted; beforeprint path; white page + dark auto text sampled from the print canvas) and a node test for `isNearWhite`.
 
 ### 2026-11-09 — Clicking a pattern opens the overlay
@@ -101,7 +108,7 @@ The flash is applied after opening, to the tile looked up again, since opening t
   button that copies it into Signatures (shows "Saved ✓" when it is already there). Drawn signatures have no text editor. The "New…" dialog is back to being "New signature" (draw or type
   a name, saves it and adds it).
 - No data format change: a placed text is the same `{kind:'t', text, font}` as before; the library is just no longer a prerequisite. Drive-by: selects / text inputs in these tabs now use the
-  theme's control colours instead of the browser default.
+  theme's control colors instead of the browser default.
 - Tested in Chrome (library stays empty after adding text; Enter adds; blank refused; edit only the selected; font in place; Save -> Saved ✓ -> Add again from the list; drawn signature has no editor;
   New… still saves and adds). Old drivers that added text through the dialog (d108 / d111) are stale.
 - Not done: nothing to rotate, align or reorder text yet (later = on top).
@@ -144,25 +151,25 @@ The flash is applied after opening, to the tile looked up again, since opening t
   panel header next to Pause (`#ov-anim`: Pause + "Loop [8] s", shown only while a visible layer spins), so it sits beside what it controls.
 - The Signature feature is now **Text & signature** and holds a list: `sigs` (max 8, `SIG_LIMITS.placed`), `sigInst` = the selected one. Why: it was being
   used as a text overlay, so one item was too few. Tab: a "Saved" dropdown (the library, max 12) with Add / New… / ✎ rename / Delete, a list of what is on the picture
-  (click to select, ✕ to take it off), then controls for the selected one (size, %, colour, Auto, Copy, Reset). New… saves to the library AND adds it. The first item lands
+  (click to select, ✕ to take it off), then controls for the selected one (size, %, color, Auto, Copy, Reset). New… saves to the library AND adds it. The first item lands
   bottom right as before, later ones mid-picture, staggered. On the picture: click selects, drag moves, corner handle / wheel resizes; the topmost under the pointer wins;
   the selected one shows its frame while the tab is open. State key is `signatures` (array); share links carry one `g,` segment each; older files / links / albums with a single
   `signature` still read (`canonSigInstances`). PNG, print, GIF, SVG (one transparent image of all of them) and album thumbnails draw all of them (`drawAllSignatures`).
-  Tested: three texts, selecting by row and by clicking the picture, drag moves only the selected one, size / colour independent, Copy, remove, link / PNG / album round trips,
+  Tested: three texts, selecting by row and by clicking the picture, drag moves only the selected one, size / color independent, Copy, remove, link / PNG / album round trips,
   an old single-signature file, the cap of 8, GIF and SVG still export. Node tests cover the codec (several, old single, limits).
 - Not done: no way to reorder texts (later = on top), no per-text rotation, no bold/size-by-font choices beyond the six fonts; the saved list is still capped at 12.
 
 ### 2026-11-09 — Duplicate layers, reordering, tabs, custom-parts collapse, animated SVG
 
-1. Duplicate layers: layers are keyed by their own id (`L<n>`), not the pattern, so the same pattern can be added again (copies can be sized / moved / coloured /
-   spun separately). Grid tiles lost their selected state (outline + check badge, and the tile-takes-layer-colour repaint); clicking a tile always adds a layer and
+1. Duplicate layers: layers are keyed by their own id (`L<n>`), not the pattern, so the same pattern can be added again (copies can be sized / moved / colored /
+   spun separately). Grid tiles lost their selected state (outline + check badge, and the tile-takes-layer-color repaint); clicking a tile always adds a layer and
    flashes it. Share links, PNGs, albums already stored layers as a list, so duplicates round-trip with no format change. Geometry is cached per pattern and
    shared by copies (`releaseCurve`). Removal is the row's X; "Clear" removes all.
 2. Custom parts row now collapses to one line with "+N more" like the other rows (`applyCollapse` now works on a row's direct children so a part's chip and its
    edit button fold together; "＋ Make a part…" moved to the front and is `nofold`). A selected part stays visible when folded (same rule as other rows).
 3. Tabs: the top Patterns / Albums and the Compose panel's Layers / Signature / Animate / Save & share are now plain text tabs with an underline on the current
    one (not buttons); Clear stays a button. (The part maker's Shape / Pen holes tabs are still pill buttons - not asked for.)
-4. Formats: GIF is 256 colours, ~9 KB/frame (a 40-frame 300 px loop = 360 KB, 640 px much more), repeats forever (Netscape loop extension, verified) but some viewers
+4. Formats: GIF is 256 colors, ~9 KB/frame (a 40-frame 300 px loop = 360 KB, 640 px much more), repeats forever (Netscape loop extension, verified) but some viewers
    (e.g. Preview) show it once. Added **animated SVG** (`makeSvg`): each layer is one path of its real curve with an `<animateTransform>` rotate (repeatCount indefinite),
    ~28 KB for 3 layers, vector-sharp at any size, exact timing; plays in browsers / as <img>, not in chat apps or image editors. Verified: parses, turn counts/direction,
    and still frames match the WebGL render (overlap 0.93-0.94 at three phases). Considered and not built: animated WebP (canvas can't encode animated WebP; Safari
@@ -176,9 +183,9 @@ SVG vs WebGL). Old drivers that used the removed Move row (`pos-x`) are stale.
 ### 2026-11-09 — Dedicated Move row removed
 
 The position row at the top of the Layers tab (X / Y boxes, Center button, "or drag the picture") is gone: dragging the picture moves
-the highlighted layer, and each layer row's own X / Y boxes give precise values (type 0, 0 to recentre; the Center button was dropped).
+the highlighted layer, and each layer row's own X / Y boxes give precise values (type 0, 0 to recenter; the Center button was dropped).
 The layer list gains ~34 px. `syncPos` now only keeps the active row's boxes in sync with a drag and sets the picture cursor. Tested in
-headless Chrome: boxes shift the layer, drag moves the highlighted layer and its boxes follow, typing 0 / 0 recentres, row height unchanged (88 px).
+headless Chrome: boxes shift the layer, drag moves the highlighted layer and its boxes follow, typing 0 / 0 recenters, row height unchanged (88 px).
 
 ### 2026-11-08 — Albums animate; Play/Pause in the panel header; light / dark theme
 
@@ -186,13 +193,13 @@ headless Chrome: boxes shift the layer, drag moves the highlighted layer and its
   rotations change per frame; only on-screen spinning items are drawn, round-robin inside a ~12 ms budget (big albums get a lower frame rate,
   not a janky page); stops outside the albums view / hidden tab / prefers-reduced-motion. Each item uses its own loop length. Static thumbnails
   are unchanged (phase 0). Tested: static item's pixels constant, spinning item changes every sample, stops when leaving the view.
-- The picture's round ⏸ glyph button (off-centre, out of place) is now a normal labelled button with centred SVG icons ("Pause" / "Play") in the
+- The picture's round ⏸ glyph button (off-center, out of place) is now a normal labeled button with centered SVG icons ("Pause" / "Play") in the
   Compose panel header next to the title; shown only when a visible layer spins. Alternatives considered: a button in the tab row (no room next to
   Clear), an overlay on the picture (what was wrong), a transport bar under the picture (costs height).
-- Light / dark UI: every UI colour is a CSS variable (`--ctl --line --sunk --edge --on-accent --accent-ink ...`); `:root[data-theme=light]`
+- Light / dark UI: every UI color is a CSS variable (`--ctl --line --sunk --edge --on-accent --accent-ink ...`); `:root[data-theme=light]`
   overrides them. A <head> script picks the theme before first paint (saved `myrograph.theme`, else `prefers-color-scheme`); the header sun/moon button
   toggles and saves; with no saved choice the page follows the system live. `color-scheme` is set so native controls / scrollbars match. The paper (what patterns are
-  drawn on) is the user's choice and does not change with the theme. The part maker's canvas reads its grid / handle colours through `themeColors()`.
+  drawn on) is the user's choice and does not change with the theme. The part maker's canvas reads its grid / handle colors through `themeColors()`.
   Accent as text uses `--accent-ink` (darker in light mode). Checked by screenshot in light: gallery, Compose panel, part maker.
 - Not done: no "auto" state in the toggle once a choice is saved (clear localStorage `myrograph.theme` to go back to following the system); (the signature dialog and palette editor were checked by screenshot too).
 
@@ -200,14 +207,14 @@ headless Chrome: boxes shift the layer, drag moves the highlighted layer and its
 
 Design: a layer's `spin` = whole turns per loop (-10..10, + clockwise); one global loop length `loopSec` (2-60 s, default 8). Integer
 turns keep every GIF seamless; the loop length is the speed knob (1 turn / 8 s = 7.5 rpm; 60 s = 1 rpm). Rotation is about each
-layer's own origin, which is where X / Y shift moves it, so the centre of rotation travels with the layer. Chosen over free deg/s speeds
+layer's own origin, which is where X / Y shift moves it, so the center of rotation travels with the layer. Chosen over free deg/s speeds
 because fractional speeds don't loop; if finer speeds are wanted later, allow half turns for symmetric patterns.
 Implementation: CORE `layerAngle` / `bakeRot` / `LAYER_SPIN` / `LOOP_SEC`, share link `s<b36>` layer field and `loop,<s>` segment. UI: a 4th
 "Spin" slider in each layer row (row height unchanged), ▶/⏸ button on the picture (shown only when something spins), an Animate tab (loop
 seconds, Save GIF, size 480/640/800, fps 10/20/25). Playing only sets each line's `rotation.z` per frame (`animTick`); edits rebuild the scene at the
 current `animPhase`. Save PNG / Print capture the frame on screen; the PNG is saved with baked whole-degree angles (spin kept) so
 reopening it shows the same picture. Albums / links / thumbnails use phase 0. GIF: gifenc (CDN, imported on first export), per-frame
-256-colour palette, own scene + layer snapshot so edits during export can't interfere, infinite loop. Measured: 40 frames at
+256-color palette, own scene + layer snapshot so edits during export can't interfere, infinite loop. Measured: 40 frames at
 240-300 px decode in Chrome's ImageDecoder, frames differ, repeat = infinite (~360 KB at 300 px / 40 frames).
 Testing note: headless virtual time doesn't fire requestAnimationFrame; the driver shims it with setTimeout.
 Not done: no APNG/WebM, no scrubber, no spin in album thumbnails, GIF not embedded with the setup (use Save PNG for that).
@@ -241,12 +248,12 @@ so values like 12.25 round-trip as 12.3 - only quarter steps from the slider mat
 
 ### 2026-11-08 — Per-layer X / Y shift
 
-Plan/outcome: each layer gets `dx`/`dy` (thousandths of the picture width, +/-1000, x right, y down; 0 = centred).
+Plan/outcome: each layer gets `dx`/`dy` (thousandths of the picture width, +/-1000, x right, y down; 0 = centered).
 UI without adding per-row height (the user cares about layer-list room): one layer is "active" (accent bar on its row;
 last added, or whichever row is clicked) and a single position row at the top of the Layers tab edits it - X / Y
 percent boxes, "Center", plus dragging the picture moves the active layer (a drag on the signature still moves the
 signature). Renderer: `line.position` in `makeLines` (so live view, PNG, print and album thumbnails all agree; the
-layer rotates about its own centre, then is shifted). Persisted as `dx`/`dy` in overlay state (only when non-zero, so
+layer rotates about its own center, then is shifted). Persisted as `dx`/`dy` in overlay state (only when non-zero, so
 old files are unchanged) and as `x<b36>` / `y<b36>` tail fields in the share-link layer segment (decoder reads the
 optional width number and any of `1`(legacy fit)/`x..`/`y..` in any order). Shared size scale ignores shifts.
 Verified: node tests (codec roundtrip, clamping, old links), headless Chrome (boxes, drag, Center, row highlight,
@@ -283,7 +290,7 @@ located with `querySelector('button')`, which returns the "＋ keep part" button
 
 1. Removed the "Click to start and stop" checkbox in the signature dialog (clicking it drew lines on the pad); Space/Shift-hold and press-and-drag remain.
 2. The Compose panel had grown to ~700px of controls above the layer list (a 440px square picture, two toolbar rows, album row, signature row and a 3-line
-   signature controls row), leaving 0px for layers on a 550-670px-high viewport (77px at 813). Now: the picture is capped at 42vh and centred; under it a tab bar
+   signature controls row), leaving 0px for layers on a 550-670px-high viewport (77px at 813). Now: the picture is capped at 42vh and centered; under it a tab bar
    `Layers | Signature | Save & share` (+ Clear on the right) shows ONE pane at a time (`setOvTab`), so the layer list gets all the leftover height (measured
    229 / 299 / 380px at viewports of 553 / 673 / 813). Adding a layer from the grid switches to Layers. The layer rows were compacted: Rotate / Size / Line sit side
    by side (`.tune`, 3 columns) so a row is ~88px instead of ~122. The message line (`#ov-msg`) stays directly under the picture on every tab. All element ids are
@@ -321,7 +328,7 @@ the print canvas and album thumbnails. "Clear" clears layers only (the signature
 
 Two reports on the spiral fill. (1) It still looked scattered: 0.7 rad per hole is ~2pi/9, so consecutive holes jumped ~40 degrees around the
 part (fine at icon size, a starburst at full size). The spiral is now one smooth arm over `SPIRAL_TURNS` = 1.4 turns (angle `2pi*1.4*k/(n-1)`, still
-rim to centre, radius fraction 0.9 -> 0.22), used by both `fillHoles('spiral')` and the icons' `holePoints` for the set's round wheels (cosmetic: only a
+rim to center, radius fraction 0.9 -> 0.22), used by both `fillHoles('spiral')` and the icons' `holePoints` for the set's round wheels (cosmetic: only a
 round wheel's hole distance matters). (2) Resizing the part jumbled the holes: the Size slider rescaled the already-rounded quarter-tooth holes at every
 step, so errors compounded (measured: shrink to 24 and back to 63 left holes up to 12.7 teeth from their start, two on the same spot). Now every size is
 scaled from the layout before the first resize (`ed.nBase`, replaced only when the holes were edited since: it is compared with `stamp`), so going back
@@ -331,7 +338,7 @@ restores the layout exactly (0.00 teeth). Resizing far down can still push holes
 
 Correction to the previous entry: the golden-angle (Vogel) layout I first used spreads holes evenly but looks scattered, not like the set's
 wheels (one visible spiral arm, 0.7 rad per hole). Pen-curve-wise the two are equivalent (each hole has its own distance and direction);
-the real spiral additionally makes neighbouring hole NUMBERS neighbours on the part and looks like the set. `fillHoles(..., 'spiral')` now does
+the real spiral additionally makes neighboring hole NUMBERS neighbors on the part and looks like the set. `fillHoles(..., 'spiral')` now does
 what the wheels do: `n = round((N/2 - 7) * 2/d)` holes (d = 2 gives the real count, e.g. 25 for a 63; from the PERIMETER N, not the longest radius,
 which overcounted elongated shapes), hole k at angle 0.7k and at (0.9 - 0.68 k/(n-1)) of the way out to the outline along that direction
 (`edge()`: ray / outline intersection, minus the 1-tooth margin), in generation order (hole 1 = outermost), invalid points skipped. 0.7 rad ~ 2pi/9, so
@@ -369,7 +376,7 @@ was removed. The Shape panel is now: Start from, Symmetry, Mirror.
 ### 2026-11-08 — Part maker: pitch-circle mode removed again, benefit audit
 
 Prompted by "is it just the circle that drives the result?" (yes, verified): for a pitch-circle part the pen curve depends only on
-the rolling circle (N), the fixed piece and the hole's DISTANCE from the centre. Different bodies gave identical curves (0.0000),
+the rolling circle (N), the fixed piece and the hole's DISTANCE from the center. Different bodies gave identical curves (0.0000),
 hole rotation gave the same curve (0.006-0.03 teeth of sampling noise), distance/N changed it. So the mode (added a few hours
 earlier, see the previous entry, whose code is gone) only changed the look and where holes can sit, i.e. no new patterns: removed
 (`git revert` of e88d3cf). `canonPart` now REFUSES `pc` parts (a stored/linked one is skipped, not drawn wrongly); the stored library
@@ -383,7 +390,7 @@ egg 53, lens 26, oval 21, triangle 15, clover 11, pentagon 10, flower 8, rounded
 (flower, star, rounded square: a circle with a wobble), the symmetry choices above 5-fold (the dips between lobes get sharper with
 k squared; 6-8-fold tolerate only 3-6% lobe depth; a part made earlier with more still opens and shows its symmetry), the
 "handles per section" control (presets pick a sensible count; the data field stays), the redundant "row along y" hole fill. Kept
-on purpose: Mirror, Surprise me, grid / both-axes fill, rim-to-centre numbering, the fit grid, the preview and its scrub slider.
+on purpose: Mirror, Surprise me, grid / both-axes fill, rim-to-center numbering, the fit grid, the preview and its scrub slider.
 
 ### 2026-11-08 — Pitch-circle custom parts
 
@@ -433,7 +440,7 @@ separate causes, measured before changing anything:
    shrinks for small pieces). Result on the same sample: 0 accepted overlaps, 0 wrongly rejected clear pairs. The regular catalog
    (Eye/Bar/Triangle/Cross, estimated geometry) deliberately keeps the old check, so the gallery's 7,836 patterns did not change.
 2. The broken-looking line was the pen path itself: it was sampled every 1/4 tooth of CONTACT travel, but a pen far from the
-   piece's centre sweeps much faster (steps of 1.2-1.7 teeth = straight chords and hooked cusps; the path is mathematically
+   piece's center sweeps much faster (steps of 1.2-1.7 teeth = straight chords and hooked cusps; the path is mathematically
    continuous, closing gap 0). `traceRaw` now adds points wherever the pen moved more than 0.15 tooth (largest step now 0.147),
    within the point cap, and returns `ss` (travel per point) so the maker preview draws the moving piece where the pen is.
 Side effects handled: presets that only worked because of the loose check were rounded off again (triangle 4 -> 17 of 24 tracks,
@@ -458,10 +465,10 @@ radius (it was bigger than a 7-tooth wheel itself). Verified a 7-, 9-, 12-, 16-t
 ### 2026-11-08 — Ring labels, per-pattern Auto ink, rename of the saved-data names
 
 - Ring chips: a ring has two sets of teeth (96 inner / 144 outer on one ring, 105 inner / 150 outer on the other), so the four
-  Fixed-part chips are now labelled by ring and side: "Ring 96/144 inside (96)", "... outside (144)", etc. Track names became
+  Fixed-part chips are now labeled by ring and side: "Ring 96/144 inside (96)", "... outside (144)", etc. Track names became
   "Ring 96/144" (footers show "· inside/outside" after it). There is no "150 inner": 150 is the outer edge of the 105 ring.
 - Relative sizes verified, not changed: every wheel is within 0.1% of N/pi at one px-per-tooth scale in both rows (84 wheel =
-  48.7 px, 24 wheel = 13.9 px), the 144 and 150 rings differ by 4% and many neighbouring wheels by 5-7%, so they look alike
+  48.7 px, 24 wheel = 13.9 px), the 144 and 150 rings differ by 4% and many neighboring wheels by 5-7%, so they look alike
   because the real parts are.
 - Auto ink: after layers started taking their tile's color, Auto (one color per moving piece) made every layer from the same
   wheel identical. Auto is now one palette color per *pattern* (`patternSeed(p) % palette.length`, catalog order, so successive
@@ -477,10 +484,10 @@ radius (it was bigger than a 7-tooth wheel itself). Verified a 7-, 9-, 12-, 16-t
 ### 2026-11-08 — Holes on fixed pieces; Cross teeth only on the arm ends
 
 Fixed pieces now draw their pen holes like their moving twins: the `fix-*` catalog tracks carry `holes` (same array as the
-roller), and a custom part's re-centred fixed copy shifts its holes by the same centroid (`recentredHoles`; node-tested).
+roller), and a custom part's re-centered fixed copy shifts its holes by the same centroid (`recenteredHoles`; node-tested).
 The rack has no holes (`holePoints` returns []; forgetting that crashed the whole Fixed row while building, caught before
 pushing). The Cross's teeth go only on the four arm ends, on the 60-tooth pitch circle it rolls on, not in the notches:
-`crossTeeth()` draws four short toothed arcs of radius 1 (the icon is normalised to the Cross's largest radius, which is that
+`crossTeeth()` draws four short toothed arcs of radius 1 (the icon is normalized to the Cross's largest radius, which is that
 circle), spanning +/- asin(hw/Rt) around each axis, ~5.5 teeth per arm (`CROSS_ARM` constants shared with `crossBodyDense`).
 
 ### 2026-11-08 — One scale for the Fixed and Moving rows
@@ -489,7 +496,7 @@ Each row used to be scaled so its own largest piece filled the icon (the 150 rin
 wheel was drawn bigger in the Moving row than in the Fixed row. Now both rows share one reference radius (the largest moving piece,
 13.4 teeth, fills the standard 56 px box) and the Fixed row's icon boxes are taller (`box` = largest ring / ref + .15, ~94 px) so
 the rings fit at that same scale; the rack gets a wider box. Every piece in both rows is therefore drawn at the same px per tooth
-(measured: wheel 60 = 34.8 px in both rows). Row labels now centre on the first line using the measured chip height
+(measured: wheel 60 = 34.8 px in both rows). Row labels now center on the first line using the measured chip height
 (`applyCollapse` sets the label's min-height) instead of a fixed 82 px, since the two rows have different heights. Trade-off: the
 Fixed row is taller and fits fewer chips per line (9 collapsed at 1300 px).
 
@@ -500,7 +507,7 @@ count no longer mentions them ("7,836 of 7,836 patterns"). `ok` is still compute
 the "overlaps" tag in the tile footer is gone (it could no longer appear).
 2. Piece pictures (chips, tile footers, layer rows, maker grid) now show teeth and holes. Teeth are a dashed band along the
 pitch outline with `pathLength = N` and `stroke-dasharray=".5 .5"`, so any shape gets exactly N teeth for free (`teeth()`);
-rings get teeth on both the inner and outer edge. Below ~2 px per tooth neighbouring teeth are merged (`m`) so the texture
+rings get teeth on both the inner and outer edge. Below ~2 px per tooth neighboring teeth are merged (`m`) so the texture
 stays visible: the picture is an illustration, the tooth count is on the chip. The Cross has no teeth ring (its teeth are only
 on the arm ends, its outline is the silhouette). Pen holes were already drawn but round wheels' holes sit on a line at
 0.3-tooth spacing and merged into a bar; round wheels' holes are now displayed along a spiral (`holePoints`, 0.7 rad per hole,
@@ -509,7 +516,7 @@ hole is just as valid). Shaped wheels and custom parts show their real hole posi
 
 ### 2026-11-08 — Rack icon uncropped; ring icons show a small wheel
 
-Rack: it is 35 teeth from centre to end, more than the row's reference radius (the 150 ring, 23.9), so at true scale it was
+Rack: it is 35 teeth from center to end, more than the row's reference radius (the 150 ring, 23.9), so at true scale it was
 1.46x wider than its square icon and the curved ends were cropped away (two bare lines). Icons now accept a wider viewBox
 (`svg(body, hw)`; `trackIcon` widens it when `s + .15 > 1.15`, i.e. only the rack) so it is drawn whole, at true scale, in a
 wider chip. Rings: dropped the orange outline on "the circle it rolls on"; instead a small wheel circle is drawn where it
@@ -520,7 +527,7 @@ maker compat grid).
 ### 2026-11-08 — "+N more" pills line up
 
 The pills followed the last visible chip, so each row's sat at a different x. `.rowtoggle` now has `margin-left: auto` (pushed to
-the end of its line, i.e. the row's right edge) and a fixed 84 px width with centred text, so all rows' pills share both
+the end of its line, i.e. the row's right edge) and a fixed 84 px width with centered text, so all rows' pills share both
 edges. The collapse measuring is unchanged (the pill still has to fit on the first line, so about one chip fewer fits).
 
 ### 2026-11-08 — Pen hole row collapses too
@@ -539,12 +546,12 @@ expanded page. It is now in-memory only: every visit starts collapsed to one lin
 
 ### 2026-11-08 — Row labels on the first line; to-scale is the only mode
 
-Row labels were vertically centred on the whole row, which looked wrong once rows wrapped or expanded. They are now
+Row labels were vertically centered on the whole row, which looked wrong once rows wrapped or expanded. They are now
 `align-self: flex-start` with a min-height equal to the first line (24 px normally, 82 px for the `.row.big` picture rows),
-so each label is centred on its first line of chips. Removed the "Relative sizes" toggle (and `relSizes`, `SIZE_KEY`, the
+so each label is centered on its first line of chips. Removed the "Relative sizes" toggle (and `relSizes`, `SIZE_KEY`, the
 function-valued chip html): the Fixed part / Moving piece pictures are always drawn to scale. The stale
 `spirograph.relsize` localStorage key is simply ignored. `trackIcon`/`rollerIcon` keep their optional `ref` because the
-tile footers, layer rows and custom chips still use the normalised form.
+tile footers, layer rows and custom chips still use the normalized form.
 
 ### 2026-11-08 — Rows collapse to one line with a "+N more" pill
 
@@ -626,8 +633,8 @@ described in Current state. Decisions and why:
 - Content-addressed ids (hash of N, k, n, mirror, radii, holes; not the name). Editing makes a new part, so old
   PNGs/albums/links can never silently change, and dedupe across devices is free. Cost: parts that arrive via a
   file/link are "guest" parts (in `registry`, rendered via `guest()` in `lookup`, not in the library).
-- Rollers are NOT re-centred (origin = handle centre, so hole coordinates stay put while dragging); the fixed
-  version of the part IS re-centred (else its pattern is off-centre in the tile).
+- Rollers are NOT re-centered (origin = handle center, so hole coordinates stay put while dragging); the fixed
+  version of the part IS re-centered (else its pattern is off-center in the tile).
 - Custom combos get string keys (`track|roller|hole`) instead of ALL indices, so layers survive library edits.
 - Part names go into innerHTML in several places, so `cleanName` strips everything but letters/digits/space/_.,()+-
   at the CORE boundary (applies to shared links too).
@@ -688,7 +695,7 @@ so the data never reaches a server and the page needs no routing. Decoder valida
 ### 2026-11-07 — Panel shows which album it adds to
 
 The Compose panel's "+ Album" gave no hint of its target. Now there is an Album dropdown beside a
-button labelled "+ Add to \"<album>\"" (name truncated), plus a "+ New album..." entry; the
+button labeled "+ Add to \"<album>\"" (name truncated), plus a "+ New album..." entry; the
 selection is shared with the Albums view (`fillAlbumSelects`). With no albums yet the dropdown
 says one called "My album" will be created on first add, and the confirmation message names the
 album.
@@ -722,7 +729,7 @@ through tools that strip text chunks (many web uploaders, screenshots) loses the
 ### 2026-11-07 — Overlay composer
 
 Plan/outcome: right-hand drawer with its own WebGL renderer (the grid keeps using the offscreen
-one). Raw (unnormalised) curves are cached per pattern (`traceRaw`) so colour/rotation/scale
+one). Raw (unnormalized) curves are cached per pattern (`traceRaw`) so color/rotation/scale
 changes only re-render; geometry is shared, each layer gets its own Line2 with a uniform
 scale (line width stays in screen pixels). Opening the drawer narrows the grid and re-flows it
 while keeping the first visible row in place (`relayout`). Pattern identity is `p.key` = index in

@@ -11,7 +11,7 @@
   natively with their labels). Tiles that scroll away are discarded and redrawn on demand.
 
   Theme: the UI has a dark and a light theme (CSS variables on <html data-theme>; the header's sun/moon button switches, the choice is kept in
-  localStorage myrograph.theme, otherwise the system setting is followed). The paper colour patterns are drawn on is separate and never changes with it.
+  localStorage myrograph.theme, otherwise the system setting is followed). The paper color patterns are drawn on is separate and never changes with it.
 
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
@@ -23,10 +23,10 @@
   through it per moving piece; newly added Compose layers take the palette's next unused color.
   Dark-background palettes (Neon, Midnight, Chalkboard, or your own with "Paper" ticked) also set the paper.
   "Edit…" / "+ New" build custom palettes, kept in localStorage (myrograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
-  click patterns to add them as layers of one overlay (a pattern can be added more than once; they start on a shared centre; drag a layer's grip to
+  click patterns to add them as layers of one overlay (a pattern can be added more than once; they start on a shared center; drag a layer's grip to
   reorder, later = on top) with per-layer color,
   visibility, rotation, size (10-500%), line width, X / Y shift (drag the picture or type %; the highlighted layer moves) Spin (turns per loop in tenths, up to 5,
-  + clockwise: the layer rotates about its own centre while the picture animates) and Draw (a pen draws the curve out N times per loop, then restarts at once; "Animate" tab: loop length, Save GIF via gifenc (fetched from the CDN on demand) or Save animated SVG (the curves with <animateTransform>, tiny and sharp)); layers keep their real sizes relative to each other. "Save PNG"
+  + clockwise: the layer rotates about its own center while the picture animates) and Draw (a pen draws the curve out N times per loop, then restarts at once; "Animate" tab: loop length, Save GIF via gifenc (fetched from the CDN on demand) or Save animated SVG (the curves with <animateTransform>, tiny and sharp)); layers keep their real sizes relative to each other. "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
   ("Myrograph", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
   they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
@@ -37,9 +37,9 @@
   "Print" (button, or Ctrl/Cmd+P while the panel is open) prints just the overlay on a clean page: on beforeprint it is
   re-rendered at 2400 px into a plain canvas (a WebGL canvas can print blank); with the panel closed or no visible
   layers the browser prints the page as usual. With a tinted or dark paper (not near white, see isNearWhite) the button / Ctrl+P first asks whether to print on
-  white instead (that print only; the stored paper colour is never changed; the browser's own File > Print can't be intercepted and prints the paper colour).
+  white instead (that print only; the stored paper color is never changed; the browser's own File > Print can't be intercepted and prints the paper color).
   Text & signature: plain text is typed straight into the tab (Enter adds it; no saving, edit it in place afterwards, optionally "Save" it); signatures (drawn by hand, or a
-  typed name) are kept in a saved list (localStorage) to reuse; put as many as you like (up to 8) on the overlay, each draggable / resizable / coloured on the picture; they appear in PNGs, prints, GIF / SVG, album thumbnails and share links.
+  typed name) are kept in a saved list (localStorage) to reuse; put as many as you like (up to 8) on the overlay, each draggable / resizable / colored on the picture; they appear in PNGs, prints, GIF / SVG, album thumbnails and share links.
   Save & share tab: PNG, link, print, album, and the animation exports (GIF, SVG); the loop length sits next to Pause in the panel header.
   Share links: "Copy link" (panel) / the link button on an album item puts the overlay into the
   URL fragment (#v1/paper/scale/layer/layer..., ~35 chars per layer, never sent to a server);
@@ -59,7 +59,7 @@
   published charts and the user's photo of the set; shaped-wheel sizes and hole positions were
   measured by eye from that photo (about +/-0.5 tooth), and round-wheel hole distances are an
   even spread over the range seen in the photo (a round wheel's pattern depends only on the
-  pen's distance from the centre, not its angle).
+  pen's distance from the center, not its angle).
   The CORE block between the BEGIN/END markers is extracted and tested under node.
 -->
 <!doctype html>
@@ -74,7 +74,7 @@
 </script>
 <style>
   /* UI theme: dark by default; :root[data-theme=light] below (set from the saved choice or the system setting before first paint, see the script in <head>).
-     The paper colour (--paper, what patterns are drawn on) is separate: it is the user's choice and never changes with the theme. */
+     The paper color (--paper, what patterns are drawn on) is separate: it is the user's choice and never changes with the theme. */
   :root { --bg: #1b1b1f; --panel: #26262c; --ink: #e8e6e1; --dim: #8d8b86; --accent: #e9b44c; --accent-ink: #e9b44c; --on-accent: #1b1b1f; --paper: #faf7f0;
     --ctl: #33333b; --line: #44444e; --line-hi: #66666f; --sunk: #1f1f24; --raised: #2b2b32; --edge: #000; --hi: #fff; --tile-hover: #55555f; --sep: #33333b;
     --grid1: #2e2e36; --grid2: #3d3d48; --grid3: #4a4a55; --handle-ln: rgba(255,255,255,.18); color-scheme: dark; }
@@ -89,7 +89,7 @@
   summary { cursor: pointer; color: var(--dim); }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
   .row > .label { color: var(--dim); width: 92px; flex: none; text-transform: uppercase; font-size: 11px; letter-spacing: .05em;
-    align-self: flex-start; display: flex; align-items: center; min-height: 24px; }     /* centred on the row's first line, not the whole row */
+    align-self: flex-start; display: flex; align-items: center; min-height: 24px; }     /* centered on the row's first line, not the whole row */
   .row > .chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
   .chip, button { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line);
     border-radius: 999px; padding: 1px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
@@ -312,7 +312,7 @@
   <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Text &amp; signature</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
   <div id="tab-layers" class="pane">
     <div id="layers"></div>
-    <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers (click one again to add another copy). Layers start on one centre; drag the picture (or use X / Y) to move the highlighted layer, drag a layer's grip to reorder. Drop a saved PNG here to re-open it.</p>
+    <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers (click one again to add another copy). Layers start on one center; drag the picture (or use X / Y) to move the highlighted layer, drag a layer's grip to reorder. Drop a saved PNG here to re-open it.</p>
   </div>
   <div id="tab-sign" class="pane" hidden>
     <div class="ch"><label style="color:var(--dim)">Text</label>
@@ -333,7 +333,7 @@
     <div class="ch" id="sg-ctl" hidden><label style="color:var(--dim)">Size</label>
       <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Size of the highlighted item">
       <label title="Width as a percentage of the picture (it scales like a font size)" style="display:inline-flex;align-items:center;gap:2px"><input type="number" id="sg-pct" min="2" max="100" step="1" style="width:3.6em">%</label>
-      <span class="pick" title="Colour"><input type="color" id="sg-color"></span>
+      <span class="pick" title="Color"><input type="color" id="sg-color"></span>
       <button id="sg-auto" title="Black or white, whichever suits the paper">Auto</button>
       <button id="sg-dup" title="Make another copy of the highlighted one">Copy</button>
       <button id="sg-reset" title="Put it back in the bottom right corner">Reset</button>
@@ -354,7 +354,7 @@
     <div class="ch"><button id="an-save" title="Render one loop as an animated GIF (a few seconds of work)">Save GIF</button>
       <select id="an-px" title="Picture size"><option value="480">480 px</option><option value="640" selected>640 px</option><option value="800">800 px</option></select>
       <select id="an-fps" title="Frames per second"><option value="10">10 fps</option><option value="20" selected>20 fps</option><option value="25">25 fps</option></select>
-      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Plays everywhere (chat, social) but is large and limited to 256 colours; repeats forever. Decimal speeds can make it 2, 5 or 10 loops long so it repeats exactly.</span></div>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Plays everywhere (chat, social) but is large and limited to 256 colors; repeats forever. Decimal speeds can make it 2, 5 or 10 loops long so it repeats exactly.</span></div>
     <div class="ch"><button id="an-svg" title="Save the animation as an animated SVG image">Save animated SVG</button>
       <span style="font-size:11px;color:var(--dim);flex-basis:100%">The real curves: tiny, razor sharp at any size, every layer repeats on its own, so any speed is seamless. Plays in web browsers but not in most chat apps or image editors.</span></div>
     <div class="ch"><span style="font-size:11px;color:var(--dim)">Save PNG and Print capture the frame you see; Copy link and albums keep the spin settings.</span></div>
@@ -363,10 +363,10 @@
 
 <div id="print-sheet"><canvas id="print-c"></canvas></div>
 <dialog id="pr">
-  <p><b>Print on a white background?</b></p>
-  <p>Your paper is <span class="sw" id="pr-sw"></span> <span id="pr-hex"></span>, so the whole page would print in that colour. You can print on plain white instead. Your paper colour is not changed.</p>
+  <p><b>We recommend you print in white to save ink.</b></p>
+  <p>Would you like to open the print dialog with a white background? Your paper is <span class="sw" id="pr-sw"></span> <span id="pr-hex"></span>, so otherwise the whole page prints in that color. Your paper color itself is not changed.</p>
   <p style="color:var(--dim);font-size:12px">Pale lines may look faint on white.</p>
-  <div class="btns"><button id="pr-cancel">Cancel</button><button id="pr-paper">Print with the paper colour</button><button id="pr-white" class="chip on" style="font-weight:600">Print on white</button></div>
+  <div class="btns"><button id="pr-cancel">Cancel</button><button id="pr-paper">No, use the paper color</button><button id="pr-white" class="chip on" style="font-weight:600">Yes, white background</button></div>
 </dialog>
 <dialog id="sg">
   <div class="pm-head"><b>New signature</b><span class="sp"></span>
@@ -408,7 +408,7 @@
         <div class="ctl"><label>Fill <select id="pm-fill"><option value="spiral">spiral, like the real wheels</option><option value="x">row along the x axis</option>
           <option value="xy">both axes</option><option value="grid">grid</option></select></label>
           <label>every <input type="number" id="pm-sp" min="1" max="8" step="0.5" value="2" style="width:4.5em"> teeth</label>
-          <button id="pm-dofill">Fill</button><button id="pm-sort" title="Number the holes from the rim to the centre, like the real wheels">Number rim → centre</button>
+          <button id="pm-dofill">Fill</button><button id="pm-sort" title="Number the holes from the rim to the center, like the real wheels">Number rim → center</button>
           <button id="pm-rm" title="Remove the selected hole (or press Delete / right-click it)">Remove selected</button><button id="pm-clear">Clear</button></div>
       </div>
       <div class="pm-sec"><h4>Fits with the set <span style="text-transform:none;letter-spacing:0">(click one to preview)</span></h4>
@@ -448,7 +448,7 @@ const PARTS = {
   rack: { N: 150, aspect: 7.8 },              // long stadium shape; teeth on the outside only
   wheels: [24, 30, 32, 40, 42, 45, 48, 52, 56, 60, 63, 72, 75, 80, 84],
   // Shaped wheels: N = teeth the piece meshes with; holes = [x, y] in tooth units from the piece
-  // centre (y up), numbered in order. The Cross's arm ends lie on a circle, so it rolls like a
+  // center (y up), numbered in order. The Cross's arm ends lie on a circle, so it rolls like a
   // 60-tooth wheel (pitch circle) while its real silhouette is used for collision and pictures.
   shapes: [
     { key: 'eye', name: 'Eye', N: 60, holes: [[-8.5, .6], [-6.3, .6], [-4.3, .6], [-2.4, .6], [-.9, .6],
@@ -462,7 +462,7 @@ const PARTS = {
   ],
 };
 
-// ---- outlines: closed CCW curves resampled to exactly N*PER_TOOTH points, centred on the origin
+// ---- outlines: closed CCW curves resampled to exactly N*PER_TOOTH points, centered on the origin
 function makeOutline(dense, N, center = true) {          // center = false keeps the dense curve's own origin
   let pts = dense, area = 0;
   for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; area += a[0] * b[1] - b[0] * a[1]; }
@@ -535,7 +535,7 @@ function crossBodyDense() {                    // real silhouette: curved arm en
 }
 
 // Pen holes in a piece's local frame (same units as the outline).
-function wheelHoles(N) {                       // 5 holes on the 24 up to 35 on the 84, rim to centre
+function wheelHoles(N) {                       // 5 holes on the 24 up to 35 on the 84, rim to center
   const n = Math.round(N / 2 - 7), tip = N / TAU + 0.5, d0 = 0.8 * tip, d1 = 0.14 * tip;   // as seen in the photo
   return Array.from({ length: n }, (_, k) => [d0 + (d1 - d0) * k / (n - 1), 0]);
 }
@@ -549,7 +549,7 @@ function sample(o, s, out) {                   // position + tangent at arc leng
   const tx = t[2 * i] + (t[2 * j] - t[2 * i]) * f, ty = t[2 * i + 1] + (t[2 * j + 1] - t[2 * i + 1]) * f, l = Math.hypot(tx, ty);
   out[2] = tx / l; out[3] = ty / l;
 }
-// Pose of roller G after travelling s teeth along fixed track F with teeth meshing: the contact
+// Pose of roller G after traveling s teeth along fixed track F with teeth meshing: the contact
 // points coincide and their tangents line up. Inside: both curves run the same way; outside:
 // opposite ways. out = [cos, sin, tx, ty] of the rigid transform local -> world.
 function pose(F, G, inside, s, out) {
@@ -561,7 +561,7 @@ function pose(F, G, inside, s, out) {
 // Pen path for one hole in tooth units (z = 0), plus its max radius. Closes after lcm(NF, NG) teeth of travel.
 function traceRaw(F, G, inside, hole, maxPts = 30000, target = 0.15) {
   // Samples the pen path every 1/4 tooth of contact travel, then adds points wherever the pen itself moved more than `target` teeth between
-  // two samples (a pen far from the piece's centre sweeps much faster than the contact point: straight chords and hooked cusps otherwise).
+  // two samples (a pen far from the piece's center sweeps much faster than the contact point: straight chords and hooked cusps otherwise).
   // maxPts caps the point count. Returns the points (x, y, 0), the largest radius, and the travel `ss` each point belongs to.
   const L = lcm(F.N, G.N), n0 = Math.min(maxPts, Math.ceil(L * 4)), P = [0, 0, 0, 0], xs = [], ys = [], ss = [];
   const pen = s => { pose(F, G, inside, s, P); return [P[2] + P[0] * hole[0] - P[1] * hole[1], P[3] + P[1] * hole[0] + P[0] * hole[1]]; };
@@ -724,7 +724,7 @@ function encodeShare(st) {
     ...(st.parts || []).map(encodePart), ...canonSigInstances(st).map(encodeSig)].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
 }
 function decodeShare(text) {                    // throws on anything malformed
-  const parts = text.replace(/^#/, '').split('/'), hex = /^[0-9a-f]{6}$/i, bad = () => new Error('This share link is damaged or not recognised');
+  const parts = text.replace(/^#/, '').split('/'), hex = /^[0-9a-f]{6}$/i, bad = () => new Error('This share link is damaged or not recognized');
   if (parts[0] !== 'v1' || parts.length < 3 || !hex.test(parts[1])) throw bad();
   const segs = parts.slice(3).filter(Boolean), partSegs = segs.filter(x => x.startsWith('p,')), sigSegs = segs.filter(x => x.startsWith('g,')), shared = [];
   if (partSegs.length > PART_LIMITS.maxShared || sigSegs.length > SIG_LIMITS.placed) throw bad();
@@ -792,7 +792,7 @@ const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^=
 const cleanName = s => String(s ?? '').replace(/[^\p{L}\p{N} _.,()+-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);   // safe to put in HTML
 const partCanon = r => r.r.map((_, j, a) => a[Math.min(j, (a.length - j) % a.length)]);   // mirrored: only the first half is free
 function partId(d) { return 'c' + fnv(`${d.N}|${d.k}|${d.n}|${d.mir}|${d.r.join(',')}|${d.h.map(q => q.join(',')).join(';')}`); }
-function canonPart(raw) {                        // validated, normalised copy with its id recomputed; null if unusable
+function canonPart(raw) {                        // validated, normalized copy with its id recomputed; null if unusable
   if (!raw || typeof raw !== 'object' || raw.pc) return null;   // (pitch-circle parts existed for an afternoon and were removed; refusing them beats drawing them wrongly)
   const L = PART_LIMITS, int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
   const { N, k, n } = raw, mir = raw.mir ? 1 : 0;
@@ -823,16 +823,16 @@ function partDense(d, per = 24) {                // closed polar curve through t
   }
   return pts;
 }
-function recentredHoles(o, d) {         // the fixed copy is re-centred, so its holes shift by the same centroid
+function recenteredHoles(o, d) {         // the fixed copy is re-centered, so its holes shift by the same centroid
   let cx = 0, cy = 0; for (let k = 0; k < o.M; k++) { cx += o.p[2 * k]; cy += o.p[2 * k + 1]; }
   cx /= o.M; cy /= o.M; return d.h.map(([x, y]) => [x / 4 - cx, y / 4 - cy]);
 }
-function makePart(d) {                           // the same part as a moving piece and as a fixed piece (re-centred)
+function makePart(d) {                           // the same part as a moving piece and as a fixed piece (re-centered)
   const dense = partDense(d), o = makeOutline(dense, d.N, false), oc = makeOutline(dense, d.N, true);
   return { def: d, scale: d.N / perimeter(dense),
     roller: { id: d.id, name: d.name, N: d.N, o, body: o, holes: d.h.map(([x, y]) => [x / 4, y / 4]), custom: true },
     fixed: { id: 'fix-' + d.id, name: d.name, kind: 'piece', pieceId: d.id, inside: false, o: oc, body: oc, custom: true,
-      holes: recentredHoles(o, d) } };
+      holes: recenteredHoles(o, d) } };
 }
 function polyInfo(o, x, y) {                     // is (x, y) inside the outline, and how far from its edge (teeth)?
   let d2 = Infinity, inside = false;
@@ -845,19 +845,19 @@ function polyInfo(o, x, y) {                     // is (x, y) inside the outline
   return { inside, dist: Math.sqrt(d2) };
 }
 const holeFits = (o, x, y) => { const q = polyInfo(o, x, y); return q.inside && q.dist >= HOLE_MARGIN; };
-function fillHoles(o, mode, d) {                 // candidate pen holes (quarter-tooth ints), rim to centre, valid ones only
+function fillHoles(o, mode, d) {                 // candidate pen holes (quarter-tooth ints), rim to center, valid ones only
   let ext = 0; for (let k = 0; k < o.M; k++) ext = Math.max(ext, Math.hypot(o.p[2 * k], o.p[2 * k + 1]));
   const lim = Math.ceil(ext / d), seen = new Set(), pts = [];
   const add = (x, y) => { const q = [Math.round(x * 4), Math.round(y * 4)], key = q.join(); if (!seen.has(key) && holeFits(o, q[0] / 4, q[1] / 4)) { seen.add(key); pts.push(q); } };
   if (mode === 'spiral') {                       // like the real wheels: one arm winding in from the rim over SPIRAL_TURNS turns, following the outline's shape
     const n = Math.max(3, Math.min(PART_LIMITS.maxHoles, Math.round((o.N / 2 - 7) * 2 / d)));      // from the perimeter, like the real wheels: d = 2 gives round(N/2 - 7)
-    const edge = a => { let t = 0; const c = Math.cos(a), s = Math.sin(a);                                  // where a ray from the centre leaves the outline
+    const edge = a => { let t = 0; const c = Math.cos(a), s = Math.sin(a);                                  // where a ray from the center leaves the outline
       for (let k = 0, j = o.M - 1; k < o.M; j = k++) { const ax = o.p[2 * j], ay = o.p[2 * j + 1], ex = o.p[2 * k] - ax, ey = o.p[2 * k + 1] - ay, den = c * ey - s * ex;
         if (Math.abs(den) < 1e-12) continue; const tt = (ax * ey - ay * ex) / den, u = (ax * s - ay * c) / den;
         if (tt > 0 && u >= 0 && u <= 1) t = Math.max(t, tt); }
       return t; };
     for (let k = 0; k < n; k++) { const a = TAU * SPIRAL_TURNS * k / Math.max(1, n - 1), r = (0.9 - 0.68 * k / Math.max(1, n - 1)) * Math.max(0, edge(a) - HOLE_MARGIN); add(r * Math.cos(a), r * Math.sin(a)); }
-    return pts;                                  // in spiral order, rim first: hole 1 is the outermost and neighbours in number are neighbours on the part
+    return pts;                                  // in spiral order, rim first: hole 1 is the outermost and neighbors in number are neighbors on the part
   } else if (mode === 'grid') for (let i = -lim; i <= lim; i++) for (let j = -lim; j <= lim; j++) add(i * d, j * d);
   else for (let i = 1; i <= lim; i++) { if (mode !== 'y') add(i * d, 0); if (mode !== 'x') add(0, i * d); }
   add(0, 0);
@@ -928,7 +928,7 @@ function decodePart(seg) {                       // null if damaged
 // text:  { id, kind: 't', text, font, name? }    font is a key of SIG_FONTS (a CSS font stack; the device picks what it has)
 // ink:   { id, kind: 'i', ar, s: [[x0, y0, x1, y1, ...], ...], name? }   points in 0..1000 across the signature's width, y in 0..ar (height/width x 1000)
 // name is only a label for the user's list: it is not part of the id and is not carried in share links
-// on an overlay: { sig, x, y, size, color }       (an overlay carries a list of them: `signatures`; older files have one `signature`)   x, y = the signature's centre and size = its width, all in thousandths of the picture; color null = auto
+// on an overlay: { sig, x, y, size, color }       (an overlay carries a list of them: `signatures`; older files have one `signature`)   x, y = the signature's center and size = its width, all in thousandths of the picture; color null = auto
 const SIG_FONTS = {
   script:   { label: 'Script',    style: '',      css: "'Snell Roundhand','Apple Chancery','Segoe Script','Lucida Handwriting','Brush Script MT',cursive" },
   brush:    { label: 'Brush',     style: '',      css: "'Brush Script MT','Segoe Script','Bradley Hand',cursive" },
@@ -945,7 +945,7 @@ const cleanSpeed = (v, max) => Math.max(-max, Math.min(max, Math.round(+v * 10) 
 const LOOP_SEC = { min: 2, max: 60, def: 8 };    // how long one animation loop lasts, in seconds
 // A layer's angle at `phase` (loops since the start: it keeps counting past 1, so live playback never has a seam) in degrees, counter-clockwise on screen as three.js
 // draws it (a positive Spin turns clockwise). Whole turns per loop make phase 1 look like phase 0 (see loopMultiple for GIFs). bakeRot: as a whole 0..359 for saving.
-// Is this paper colour (#rrggbb) close enough to white that printing it as it is costs nothing? The default cream is; anything noticeably tinted or dark is not (the Print
+// Is this paper color (#rrggbb) close enough to white that printing it as it is costs nothing? The default cream is; anything noticeably tinted or dark is not (the Print
 // button then offers a white background instead).
 const isNearWhite = hex => /^#[0-9a-f]{6}$/i.test(hex) && [1, 3, 5].every(i => parseInt(hex.slice(i, i + 2), 16) >= 0xE6);
 const layerAngle = (l, phase) => (l.rot || 0) - 360 * (l.spin || 0) * phase;
@@ -1074,21 +1074,21 @@ function outlinePath(o) {
 // big enough for their largest piece (rings, rack), so every piece in every row is drawn at the same pixels per tooth.
 const svg = (body, hx = 1.15, hy = 1.15) => `<svg viewBox="${-hx} ${-hy} ${2 * hx} ${2 * hy}"${hx !== 1.15 || hy !== 1.15 ? ` style="width:${(56 * hx / 1.15).toFixed(1)}px;height:${(56 * hy / 1.15).toFixed(1)}px"` : ''} fill="none" stroke="currentColor" stroke-width="0.07" stroke-linejoin="round">${body}</svg>`;
 // ref (optional): the radius in teeth that fills a standard icon, so pieces drawn with the same ref are to scale; box = the half-size
-// (in ref units) of the row's icon box. Without ref every piece is normalised to fill its icon.
+// (in ref units) of the row's icon box. Without ref every piece is normalized to fill its icon.
 const radiusOf = o => { let m = 0; for (let k = 0; k < o.M; k++) m = Math.max(m, Math.hypot(o.p[2 * k], o.p[2 * k + 1])); return m; };
 const trackRadius = t => t.kind === 'ring' ? (t.inside ? t.o.N / t.ratio : t.o.N) / TAU : radiusOf(t.body || t.o);   // a ring's icon shows its outer edge
 const rollerRadius = r => radiusOf(r.body);
 const scaled = (body, s) => s === 1 ? body : `<g transform="scale(${s.toFixed(4)})" stroke-width="${(0.07 / s).toFixed(3)}">${body}</g>`;   // keep line weight
 // Teeth: a dashed band along the pitch outline. pathLength = tooth count makes the dash pattern exactly N teeth (half on,
-// half off) whatever the shape; R = the piece's radius in teeth (the icon is normalised to it), so a tooth is 1/R tall.
-// When a tooth would be under ~2 px (small pictures), neighbouring teeth are merged so the cog texture stays visible: the
+// half off) whatever the shape; R = the piece's radius in teeth (the icon is normalized to it), so a tooth is 1/R tall.
+// When a tooth would be under ~2 px (small pictures), neighboring teeth are merged so the cog texture stays visible: the
 // picture is an illustration, the tooth count is on the chip. px = on-screen size of the icon, ref = the row's reference radius.
 const teeth = (N, R, ref, px, min = 8) => {
   const pitch = px / 2.3 / (ref || R), m = Math.max(1, Math.ceil(2 / pitch)), n = Math.max(min, Math.round(N / m));
   return `pathLength="${n}" stroke-dasharray=".5 .5" stroke-width="${Math.min(1.4 * m / R, 0.2).toFixed(4)}" stroke-opacity=".8"`;   // a tooth is never taller than 20% of the radius (7-tooth wheels)
 };
 // The Cross has teeth only on the four arm ends (on the 60-tooth pitch circle), not in the notches between them: four short toothed arcs.
-// The icon is normalised to the Cross's largest radius, which is that circle, so the arcs have radius 1.
+// The icon is normalized to the Cross's largest radius, which is that circle, so the arcs have radius 1.
 function crossTeeth(rm, ref, px) {
   const al = Math.asin(CROSS_ARM.hw / CROSS_ARM.Rt), per = 60 * al / Math.PI, pt = a => `${Math.cos(a).toFixed(4)} ${(-Math.sin(a)).toFixed(4)}`;
   let out = '';
@@ -1111,7 +1111,7 @@ function trackIcon(t, ref = 0, box = 1.15, tight = false) {
   if (!iconCache.has(key)) {
     let body;
     if (t.kind === 'ring') {                    // the ring, plus a small wheel where it would roll: inside the opening, or against the outer edge
-      const w = 0.2, d = t.inside ? t.ratio - w : 1 + w, c = (d * Math.SQRT1_2).toFixed(3);   // centre of the wheel, up and to the right
+      const w = 0.2, d = t.inside ? t.ratio - w : 1 + w, c = (d * Math.SQRT1_2).toFixed(3);   // center of the wheel, up and to the right
       const R = (t.inside ? t.o.N / t.ratio : t.o.N) / TAU, outerN = Math.round(R * TAU), innerN = Math.round(outerN * t.ratio);   // teeth on the outside and inside edges
       body = `<circle r="1" fill="currentColor" fill-opacity=".18"/><circle r="${t.ratio}" fill="var(--panel)"/>` +
              `<circle r="1" fill="none" ${teeth(outerN, R, ref, px)}/><circle r="${t.ratio}" fill="none" ${teeth(innerN, R, ref, px)}/>` +
@@ -1143,7 +1143,7 @@ function applyCollapse(id) {                    // collapsed: only what fits on 
   all.forEach(b => b.classList.remove('fold'));
   t.hidden = true; box.append(t);
   if (!box.offsetParent || !chips.length) return;              // not on screen (filters closed / albums view): nothing to measure
-  const lab = box.previousElementSibling; if (lab && lab.classList.contains('label')) lab.style.minHeight = Math.max(24, chips[0].offsetHeight) + 'px';   // label centred on the first line
+  const lab = box.previousElementSibling; if (lab && lab.classList.contains('label')) lab.style.minHeight = Math.max(24, chips[0].offsetHeight) + 'px';   // label centered on the first line
   const top0 = chips[0].offsetTop, line1 = chips[0].offsetHeight - 1;
   const k0 = chips.findIndex(b => b.offsetTop !== top0);
   if (k0 < 0) return;                                          // everything fits on one line: no pill needed
@@ -1239,7 +1239,7 @@ function markPaperSwatches() {
 function setPaper(c) {
   $('paper').value = c; markPaperSwatches();
   document.documentElement.style.setProperty('--paper', c); scene.background.set(c);
-  if (sigs.length) fillSigSelect();              // an auto-coloured text / signature changes with the paper
+  if (sigs.length) fillSigSelect();              // an auto-colored text / signature changes with the paper
   repaintAll(); renderOverlay();
 }
 function setPalette(id) {                       // choose a palette (and its paper, if it has one); back to Auto ink
@@ -1356,7 +1356,7 @@ function material(color) {
   if (!mats.has(color)) mats.set(color, new LineMaterial({ color: new THREE.Color(color), linewidth: 1.3 * pr }));
   const m = mats.get(color); m.resolution.set(px, px); return m;
 }
-// Auto: every pattern gets its own palette color, cycling in catalog order (so neighbouring holes of one wheel differ) and stable for a
+// Auto: every pattern gets its own palette color, cycling in catalog order (so neighboring holes of one wheel differ) and stable for a
 // given pattern whatever the filters; custom parts have string keys, hashed.
 const patternSeed = p => typeof p.key === 'number' ? p.key : [...p.key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 function inkFor(p) {                            // the color a pattern is drawn in on its grid tile (and given to it as a layer)
@@ -1439,7 +1439,7 @@ function relayout() {                           // re-flow the grid but stay on 
 }
 window.addEventListener('resize', relayout);
 
-// ---------------------------------------------------------------- compose: overlay several patterns on one centre
+// ---------------------------------------------------------------- compose: overlay several patterns on one center
 const layers = new Map();                       // pattern key -> { key, p, color, visible, rot }
 const ovCache = new Map();                      // pattern key -> { geo, maxR } (raw tooth-unit curves)
 let composeOpen = false;
@@ -1477,7 +1477,7 @@ function makeLines(ls, lineWidth, resPx, curve) {
     const base = line.onBeforeRender; line.onBeforeRender = function (...a) { base.apply(this, a); this.geometry.instanceCount = this.userData.count; };
     line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
     if (l.draw) line.userData.count = drawCount(line.userData.cum, l.prog ?? 1);
-    line.position.set((l.dx || 0) / 500, -(l.dy || 0) / 500, 0);       // shift in thousandths of the picture width (it spans 2 scene units); the layer rotates about its own centre first
+    line.position.set((l.dx || 0) / 500, -(l.dy || 0) / 500, 0);       // shift in thousandths of the picture width (it spans 2 scene units); the layer rotates about its own center first
     return line;
   });
 }
@@ -1490,7 +1490,7 @@ function buildOverlay(lineWidth, resPx, phase = animPhase, bake = false) {      
   ovScene.add(...makeLines([...layers.values()].map(l => ({ ...l, rot: bake ? bakeRot(l, phase) : layerAngle(l, phase), prog: drawFraction(l, phase) })), lineWidth, resPx, ovCurve));
 }
 // ---- UI theme: dark / light (the CSS variables switch on <html data-theme>; the head script picked the first one). A click saves the choice
-// (myrograph.theme); until then the page follows the system setting live. The paper colour is separate and never changes.
+// (myrograph.theme); until then the page follows the system setting live. The paper color is separate and never changes.
 const THEME_KEY = STORAGE_PREFIX + 'theme';
 const ICON_SUN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg>';
 const ICON_MOON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M13 9.4A5.6 5.6 0 0 1 6.6 3a5.6 5.6 0 1 0 6.4 6.4z"/></svg>';
@@ -1584,7 +1584,7 @@ async function makePng(px) {
 // is WebGL (often blank in print), so on beforeprint it is re-rendered at print resolution into a plain canvas.
 const PRINT_PX = 2400;
 function printable() { return composeOpen && [...layers.values()].some(l => l.visible); }
-let printWhite = false;                          // this print only: use a white page instead of the paper colour (chosen in the dialog below)
+let printWhite = false;                          // this print only: use a white page instead of the paper color (chosen in the dialog below)
 function fillPrintCanvas() {
   const r = new THREE.WebGLRenderer({ antialias: true }), c = $('print-c');
   r.setPixelRatio(1); r.setSize(PRINT_PX, PRINT_PX, false);
@@ -1593,11 +1593,11 @@ function fillPrintCanvas() {
   if (white) ovScene.background = new THREE.Color(paper);
   r.render(ovScene, camera); ovScene.background = scene.background;
   c.width = c.height = PRINT_PX; c.getContext('2d').drawImage(r.domElement, 0, 0);
-  drawAllSignatures(c.getContext('2d'), sigs, PRINT_PX, PRINT_PX, paper);                // (an auto-coloured text picks its ink for the paper it is printed on)
+  drawAllSignatures(c.getContext('2d'), sigs, PRINT_PX, PRINT_PX, paper);                // (an auto-colored text picks its ink for the paper it is printed on)
   r.dispose(); r.forceContextLoss(); renderOverlay();
 }
 // ---- animated GIF: one loop, rendered frame by frame offscreen (own scene and a snapshot of the layers, so editing meanwhile can't disturb it).
-// The encoder (gifenc, ~10 KB, MIT) is only fetched from the CDN when you export. Each frame gets its own 256-colour palette.
+// The encoder (gifenc, ~10 KB, MIT) is only fetched from the CDN when you export. Each frame gets its own 256-color palette.
 const GIFENC_URL = 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
 async function makeGif(px, fps, onProgress = () => {}) {
   const { GIFEncoder, quantize, applyPalette } = await import(GIFENC_URL);
@@ -1677,7 +1677,7 @@ $('an-svg').onclick = saveSvg;
 $('an-save').onclick = saveGif;
 window.addEventListener('beforeprint', () => { if (printable()) { fillPrintCanvas(); document.body.classList.add('print-overlay'); } });
 window.addEventListener('afterprint', () => { document.body.classList.remove('print-overlay'); $('print-c').width = $('print-c').height = 0; printWhite = false; });
-// Printing from the button or Ctrl/Cmd+P: with a tinted or dark paper, ask first whether to print on white (the browser's own print menu can't be intercepted: it prints the paper colour).
+// Printing from the button or Ctrl/Cmd+P: with a tinted or dark paper, ask first whether to print on white (the browser's own print menu can't be intercepted: it prints the paper color).
 const prd = $('pr');
 function startPrint() {
   if (!printable()) return say('Add at least one visible layer first.');
@@ -2458,7 +2458,7 @@ const sigLum = hex => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n
 const sigInk = (inst, paper) => inst.color || (sigLum(paper) < 0.5 ? '#f2f0ea' : '#1c1c22');      // auto: light ink on dark paper, dark on light
 const sigFont = (s, px) => `${SIG_FONTS[s.font].style}${px}px ${SIG_FONTS[s.font].css}`;
 const sigLabel = d => d.name || (d.kind === 't' ? d.text : 'Drawn signature');
-function sigBox(inst, ctx, W, H) {               // where the signature sits on a W x H picture (centre, size)
+function sigBox(inst, ctx, W, H) {               // where the signature sits on a W x H picture (center, size)
   const w = inst.size / 1000 * W, cx = inst.x / 1000 * W, cy = inst.y / 1000 * H, s = inst.sig;
   if (s.kind === 't') { ctx.save(); ctx.font = sigFont(s, 100); const m = ctx.measureText(s.text).width || 1; ctx.restore(); const px = 100 * w / m; return { cx, cy, w, h: px * 1.2, px }; }
   return { cx, cy, w, h: w * s.ar / 1000, px: 0 };
@@ -2507,7 +2507,7 @@ const onSig = ev => !!sigAt(ev);
 const onHandle = ev => { if (!sigHit) return false; const p = sigPoint(ev); return Math.hypot(p.x - (sigHit.cx + sigHit.w / 2 + 6), p.y - (sigHit.cy + sigHit.h / 2 + 6)) <= 11; };
 const syncSize = () => { $('sg-size').value = sigInst.size; $('sg-pct').value = Math.round(sigInst.size / 10); };
 const sigRedraw = () => { drawSigLayer(); sigKeepInside(); drawSigLayer(); };         // draw, pull back inside the picture if it grew past an edge, draw again
-function sigKeepInside() {                       // the selected one stays fully on the picture (centred if it is bigger than the picture)
+function sigKeepInside() {                       // the selected one stays fully on the picture (centered if it is bigger than the picture)
   if (!sigInst || !sigHit) return;
   const css = ovCanvas.clientWidth, pad = 14, fit = (v, m) => m >= 500 ? 500 : Math.max(m, Math.min(1000 - m, Math.round(v)));      // pad: room for the frame and its corner handle
   sigInst.x = fit(sigInst.x, (sigHit.w / 2 + pad) / css * 1000); sigInst.y = fit(sigInst.y, (sigHit.h / 2 + pad) / css * 1000);

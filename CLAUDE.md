@@ -56,7 +56,7 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   are cached in localStorage (`myrograph.fits.v2`; bump the version if the check changes).
 - A pattern's identity in the UI is `p.key` (index in ALL); anything persisted uses part ids
   (`track|roller|hole`) instead, so files survive PARTS edits.
-- Headless Chrome screenshots taken after scrolling come out blank; verify scroll behaviour via DOM.
+- Headless Chrome screenshots taken after scrolling come out blank; verify scroll behavior via DOM.
 
 - Animation: a layer has `spin` (turns per loop, tenths, limit +/-10, slider +/-5, positive = clockwise); `loopSec` (2-60 s, default 8) is global. The picture is a function of the
   loop phase = loops since the start (`layerAngle(l, phase)` in CORE): live playback (`animTick`, rAF) never wraps the phase, so decimal speeds have no seam; it only updates
@@ -66,8 +66,8 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   (integers base 36 as before, tenths as decimals like `s1.5`), segment `loop,<s>`.
 - Albums animate: `thumbRig` builds a saved setup's lines once, `thumbDraw` draws it at a loop phase; `thAnimTick` redraws the on-screen spinning thumbnails
   round-robin within a ~12 ms/frame budget (only in the albums view, not with prefers-reduced-motion); `renderThumb` is the static phase-0 draw.
-- Theme: all UI colours are CSS variables (`:root` dark, `:root[data-theme=light]`); a <head> script sets `data-theme` before first paint (saved `myrograph.theme`,
-  else the system setting). Canvases that draw UI colours (the part maker) read them through `themeColors()`. Don't hardcode UI colours: add a variable.
+- Theme: all UI colors are CSS variables (`:root` dark, `:root[data-theme=light]`); a <head> script sets `data-theme` before first paint (saved `myrograph.theme`,
+  else the system setting). Canvases that draw UI colors (the part maker) read them through `themeColors()`. Don't hardcode UI colors: add a variable.
 - Layers have their own ids (`newLayerKey`, 'L1'...), NOT the pattern key: the same pattern can be added many times (`addLayer` / `removeLayer` / `reorderLayers`).
   `ovCache` (pattern key -> geometry + points) is shared by duplicates (`releaseCurve` frees it when the last user goes). The layer Map's order is the list order
   AND the drawing order (later draws on top; makeLines creates materials in that order). Tiles have no selected state; a click adds a layer (and flashes the tile).
@@ -78,5 +78,5 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   of the Line2 geometry, set per line in an `onBeforeRender` override because duplicate layers share one geometry). `setLineFrame` is the one place that moves a built line to a phase
   (live tick, GIF frames, album thumbnails). SVG: `pathLength="1"` + dash offset `<animate>` (`drawAttrs`). Link field `d<speed>`.
 - Printing: `startPrint` (the Print button and Ctrl/Cmd+P) asks via `<dialog id="pr">` whether to print on white when the paper is not `isNearWhite`; the choice is `printWhite` for that print only
-  (reset on afterprint) and `fillPrintCanvas` swaps the render background and the auto-ink paper for it - the stored paper is never touched. File > Print goes straight to `beforeprint` (paper colour).
-
+  (reset on afterprint) and `fillPrintCanvas` swaps the render background and the auto-ink paper for it - the stored paper is never touched. File > Print goes straight to `beforeprint` (paper color).
+- Spelling: American English everywhere (color, center, normalized, behavior, labeled ...), in code comments, UI text and docs.
