@@ -11,7 +11,7 @@ colors are adjustable. Verified by headless Chrome screenshots; the math core is
 Compose feature: header "Compose" button (static label, no layer count) slides a panel in from the right. While open, grid
 tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
 three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
-rotation, size (10-500%, a logarithmic slider) and line width (0.5-6x) sliders and remove; layers keep their real sizes relative to each other (the largest visible layer fills the picture); each layer's Size scales it. Selection is in-memory only (lost on reload).
+rotation, size (10-500%, a logarithmic slider) and line width (0.5-20x, a logarithmic slider) sliders and remove; layers keep their real sizes relative to each other (the largest visible layer fills the picture); each layer's Size scales it. Selection is in-memory only (lost on reload).
 
 Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
 (JSON, part ids + color/visible/rotation/size, paper color, base scale) in an iTXt chunk
@@ -78,6 +78,12 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-08 — Wider line-width range
+
+Layer Line width now spans 0.5-20x (was 0.5-6x). The slider is logarithmic (like Size) and rounds to quarter steps, so thin
+lines keep fine control (1x sits ~19% along). `LAYER_WIDTH` in CORE; the share-link decoder clamps to it (the link stores tenths,
+so values like 12.25 round-trip as 12.3 - only quarter steps from the slider matter and those survive). Old files/links unchanged.
 
 ### 2026-11-08 — X / Y on each layer row; live line width matched the PNG / print
 

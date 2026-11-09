@@ -673,7 +673,7 @@ function decodeShare(text) {                    // throws on anything malformed
     }
     return { track, roller, hole: +hole, color: '#' + color, visible: vis !== '0',
       rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(LAYER_SIZE.max, Math.max(LAYER_SIZE.min, Math.round(+size) || 100)),
-      width: Math.min(6, Math.max(0.5, (wd || 10) / 10)), ...(fit ? { fit: true } : {}), ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
+      width: Math.min(LAYER_WIDTH.max, Math.max(LAYER_WIDTH.min, (wd || 10) / 10)), ...(fit ? { fit: true } : {}), ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
   });
   return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(shared.length ? { parts: shared } : {}), ...(signature ? { signature } : {}) };
 }
@@ -868,6 +868,7 @@ const SIG_FONTS = {
   plain:    { label: 'Plain',     style: '600 ',  css: "-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" },
 };
 const LAYER_SIZE = { min: 10, max: 500 };         // a layer's Size, in percent
+const LAYER_WIDTH = { min: 0.5, max: 20 };        // a layer's Line width, as a multiple of the base line (kept to 0.25 steps; the link stores tenths)
 const LAYER_SHIFT = 1000;                        // a layer's X / Y shift is limited to +/- this many thousandths of the picture's width (x: right, y: down)
 const SIG_LIMITS = { text: 40, strokes: 16, points: 600, library: 12 };
 const sigId = d => 's' + fnv(d.kind === 't' ? `t|${d.font}|${d.text}` : `i|${d.ar}|${d.s.map(q => q.join(',')).join(';')}`);
@@ -1685,6 +1686,9 @@ function toggleLayer(p) {
 }
 // The Size slider is logarithmic (position 0..1000 <-> LAYER_SIZE.min..max %), so each step is a similar percentage change over the wide range.
 const posToSize = v => Math.round(LAYER_SIZE.min * (LAYER_SIZE.max / LAYER_SIZE.min) ** (v / 1000));
+// The Line slider is logarithmic too (position 0..1000 <-> LAYER_WIDTH.min..max), rounded to quarter steps, so thin lines keep fine control.
+const posToWidth = v => Math.round(LAYER_WIDTH.min * (LAYER_WIDTH.max / LAYER_WIDTH.min) ** (v / 1000) * 4) / 4;
+const widthToPos = w => Math.round(Math.log(Math.max(LAYER_WIDTH.min, Math.min(LAYER_WIDTH.max, w)) / LAYER_WIDTH.min) / Math.log(LAYER_WIDTH.max / LAYER_WIDTH.min) * 1000);
 const sizeToPos = z => Math.round(Math.log(Math.max(LAYER_SIZE.min, Math.min(LAYER_SIZE.max, z)) / LAYER_SIZE.min) / Math.log(LAYER_SIZE.max / LAYER_SIZE.min) * 1000);
 const shiftClamp = v => Math.max(-LAYER_SHIFT, Math.min(LAYER_SHIFT, Math.round(v)));
 function syncPos() {                            // the position row shows the highlighted layer's X / Y (percent of the picture width)
@@ -1719,13 +1723,13 @@ function buildLayerList() {
       `<button title="Remove">✕</button>` +
       `<div class="tune"><label><span class="tl"><span>Rotate</span><span class="tv">${l.rot}°</span></span><input type="range" data-k="rot" min="0" max="359" value="${l.rot}"></label>` +
       `<label><span class="tl"><span>Size</span><span class="tv">${l.size}%</span></span><input type="range" data-k="size" min="0" max="1000" value="${sizeToPos(l.size)}"></label>` +
-      `<label title="Line thickness of this layer"><span class="tl"><span>Line</span><span class="tv">${l.width}×</span></span><input type="range" data-k="width" min="0.5" max="6" step="0.25" value="${l.width}"></label></div>`;
+      `<label title="Line thickness of this layer"><span class="tl"><span>Line</span><span class="tv">${l.width}×</span></span><input type="range" data-k="width" min="0" max="1000" value="${widthToPos(l.width)}"></label></div>`;
     const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
       del = row.querySelector('button[title=Remove]');           // (not the first button: a layer can also carry a "keep part" button)
     vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); };
     col.oninput = () => { l.color = col.value; markTiles(); syncPos(); renderOverlay(); };
     for (const r of row.querySelectorAll('input[type=range]'))
-      r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); };
+      r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : k === 'width' ? posToWidth(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); };
     for (const r of row.querySelectorAll('.xy input'))
       r.oninput = () => { if (r.value !== '') { l[r.dataset.k] = shiftClamp(+r.value * 10); syncPos(); renderOverlay(); } };
     del.onclick = () => toggleLayer(l.p);

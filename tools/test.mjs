@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -53,7 +53,8 @@ check('share link round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare
 const rejects = ['v2/faf7f0/t', 'v1/zzzzzz/t', 'v1/faf7f0/t/a,b,x,1f4fd8,1,0,100', 'v1/faf7f0/t/a b,c,1,1f4fd8,1,0,100', 'junk'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } });
 check('line width: 1.0x is omitted from the link, others are kept; links without it decode as 1.0x',
   !C.encodeShare(st).split('/')[3].split(',')[7] && C.encodeShare(st).split('/')[4].split(',')[7] === '25' && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100').layers[0].width === 1
-  && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,99').layers[0].width === 6);
+  && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,99').layers[0].width === 9.9
+  && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,200').layers[0].width === 20 && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,900').layers[0].width === 20);
 check('malformed share links are rejected', rejects);
 
 // custom parts
