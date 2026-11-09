@@ -46,9 +46,9 @@ check('crc32 check value', C.crc32(new TextEncoder().encode('123456789')) === 0x
 check('PNG text chunk round-trips', C.readTextChunk(withMeta, 'K') === text && C.readTextChunk(png, 'K') === null && C.readTextChunk(withMeta, 'Other') === null);
 
 // share links
-const st = { app: 'myrograph', v: 1, paper: '#faf7f0', baseScale: 'fit', layers: [
+const st = { app: 'myrograph', v: 1, paper: '#faf7f0', layers: [
   { track: 'ring96-in', roller: 'cross', hole: 1, color: '#1f4fd8', visible: true, rot: 0, size: 100, width: 1 },
-  { track: 'ring144-out', roller: 'eye', hole: 6, color: '#c4242b', visible: false, rot: 40, size: 70, width: 2.5 }] };
+  { track: 'ring144-out', roller: 'eye', hole: 6, color: '#c4242b', visible: false, rot: 40, size: 70, width: 2.5, fit: true }] };
 check('share link round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(st))) === JSON.stringify(st));
 const rejects = ['v2/faf7f0/t', 'v1/zzzzzz/t', 'v1/faf7f0/t/a,b,x,1f4fd8,1,0,100', 'v1/faf7f0/t/a b,c,1,1f4fd8,1,0,100', 'junk'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } });
 check('line width: 1.0x is omitted from the link, others are kept; links without it decode as 1.0x',
@@ -162,6 +162,11 @@ check('links without a signature are unchanged (no g segment, no signature key)'
   check('a signature can be named: the name is cleaned, kept by the list, and does not change the signature\'s id', named.name === 'My bformalb one' && named.id === sigT.id && !('name' in C.canonSignature({ ...sigT, name: '<>' })) && C.parseSignatures(JSON.stringify([named]))[0].name === 'My bformalb one' && C.canonSignature({ ...sigI, name: 'Drawn 1' }).name === 'Drawn 1');
   check('names are not carried in share links (and a named signature still round-trips by content)', !C.encodeSig(C.canonSigInstance({ sig: named })).includes('formal') && C.decodeSig(C.encodeSig(C.canonSigInstance({ sig: named }))).sig.id === sigT.id);
   check('a placed signature can be scaled from 2% to 100% of the picture width', C.canonSigInstance({ sig: sigT, size: 20 }).size === 20 && C.canonSigInstance({ sig: sigT, size: 1000 }).size === 1000 && C.canonSigInstance({ sig: sigT, size: 19 }).size === 240 && C.canonSigInstance({ sig: sigT, size: 1001 }).size === 240); }
+
+// "Stretch to fit" is per layer now; the old global switch is only understood in old links
+{ const fitOnly = { ...st, layers: [{ ...st.layers[0], fit: true }, { ...st.layers[1], fit: undefined }] }; delete fitOnly.layers[1].fit;
+  check('stretch-to-fit round-trips per layer, keeping its width, and plain layers stay unflagged', JSON.stringify(C.decodeShare('#' + C.encodeShare(fitOnly))) === JSON.stringify(fitOnly) && C.encodeShare(fitOnly).split('/')[3].split(',').length === 9 && C.encodeShare(fitOnly).split('/')[4].split(',').length === 8);
+  const legacy = C.decodeShare('v1/faf7f0/f/ring96-in,w24,1,1f4fd8,1,0,100'); check('an old link whose global switch said "fit each" is still read (as baseScale fit, for the app to apply to every layer)', legacy.baseScale === 'fit' && !('fit' in legacy.layers[0]) && !('baseScale' in C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100'))); }
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

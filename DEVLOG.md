@@ -11,8 +11,8 @@ colors are adjustable. Verified by headless Chrome screenshots; the math core is
 Compose feature: header "Compose" button (static label, no layer count) slides a panel in from the right. While open, grid
 tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
 three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
-rotation, size (25-200%) and line width (0.5-6x) sliders and remove; "True size" keeps real relative sizes (tooth units), "Fit each"
-normalises every layer. Selection is in-memory only (lost on reload).
+rotation, size (25-200%) and line width (0.5-6x) sliders and remove; each layer has a "Stretch to fit" checkbox (off: it keeps its real size relative to the other layers, in tooth units; on: it fills
+the picture by itself). Selection is in-memory only (lost on reload).
 
 Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
 (JSON, part ids + color/visible/rotation/size, paper color, base scale) in an iTXt chunk
@@ -80,6 +80,19 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-08 — "Stretch to fit" per layer replaces the global Base scale
+
+The global "Base scale: True size / Fit each" switch was confusing (see the measurements in the chat: real pattern sizes span 3.9-59.3 teeth, so the Size
+slider alone cannot even out a 4x difference) and all-or-nothing. Replaced by a "Stretch to fit" checkbox on each layer (`l.fit`). Sizing in `makeLines`: the shared
+scale is still set by the largest layer by REAL size (so real proportions hold), a layer with `fit` fills the picture by itself (`0.92 / ownMaxR`), and its Size
+slider scales from there. Deliberately the shared scale ignores `fit` when picking the largest layer, so ticking a box changes only that layer (the first version
+excluded stretched layers, which made the others grow when you stretched the biggest; reverted). Compatibility: `overlayState` no longer writes `baseScale`; files and
+links that carry the old `baseScale: 'fit'` / `v1/<paper>/f/...` open with every layer stretched (`legacyFit` in `applyState`, `st.baseScale` in thumbnails); share links
+carry the flag as an optional 9th layer field (`...,width,1`; width is then always written), links without it are unchanged. Found along the way: in `buildLayerList` the remove button was
+located with `querySelector('button')`, which returns the "＋ keep part" button when a layer has one, so keeping a part also removed the layer; now `button[title=Remove]`.
+
+
 
 ### 2026-11-08 — Compose panel: tabs and compact layers; click-to-toggle pen removed
 
