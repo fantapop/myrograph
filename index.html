@@ -994,8 +994,9 @@ function holePoints(r) {                        // where to draw the pen holes: 
   const n = r.holes.length;
   return r.holes.map(([x], k) => { const d = Math.abs(x), a = TAU * SPIRAL_TURNS * k / Math.max(1, n - 1); return [d * Math.cos(a), d * Math.sin(a)]; });
 }
-function trackIcon(t, ref = 0, box = 1.15) {
-  const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}:${box.toFixed(2)}`, px = ref ? 56 : 28;
+const fitW = (s, box) => Math.min(box, s * 1.1 + 0.06);      // an icon box just wide enough for its piece (filter rows: chips only as wide as their picture)
+function trackIcon(t, ref = 0, box = 1.15, tight = false) {
+  const s = ref ? trackRadius(t) / ref : 1, k = 1 / s, key = `t${t.id}:${s.toFixed(3)}:${box.toFixed(2)}${tight ? 'w' : ''}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     let body;
     if (t.kind === 'ring') {                    // the ring, plus a small wheel where it would roll: inside the opening, or against the outer edge
@@ -1009,17 +1010,17 @@ function trackIcon(t, ref = 0, box = 1.15) {
       body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (o === t.o ? `<path d="${d}" fill="none" ${teeth(o.N, rm, ref, px)}/>` : crossTeeth(rm, ref, px)) +
              holeDots(holePoints(t), rm, k);              // a fixed piece has the same pen holes as its moving twin
     }
-    iconCache.set(key, svg(scaled(body, s), Math.max(box, t.kind === 'rack' ? s + 0.15 : 0), box));   // only the rack is wider than the row's box
+    iconCache.set(key, svg(scaled(body, s), t.kind === 'rack' ? s + 0.15 : tight ? fitW(s, box) : box, box));   // only the rack is wider than the row's box
   }
   return iconCache.get(key);
 }
-function rollerIcon(r, hole, ref = 0, box = 1.15) {         // hole: 1-based highlighted hole, or 0 for none
-  const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}:${box.toFixed(2)}`, px = ref ? 56 : 28;
+function rollerIcon(r, hole, ref = 0, box = 1.15, tight = false) {         // hole: 1-based highlighted hole, or 0 for none; tight: box only as wide as the piece
+  const s = ref ? rollerRadius(r) / ref : 1, k = 1 / s, key = `r${r.id}:${hole}:${s.toFixed(3)}:${box.toFixed(2)}${tight ? 'w' : ''}`, px = ref ? 56 : 28;
   if (!iconCache.has(key)) {
     const { d, rm } = outlinePath(r.body);
     const body = `<path d="${d}" fill="currentColor" fill-opacity=".18"/>` + (r.body === r.o ? `<path d="${d}" fill="none" ${teeth(r.o.N, rm, ref, px)}/>` : crossTeeth(rm, ref, px)) +
                  holeDots(holePoints(r), rm, k, hole);
-    iconCache.set(key, svg(scaled(body, s), box, box));
+    iconCache.set(key, svg(scaled(body, s), tight ? fitW(s, box) : box, box));
   }
   return iconCache.get(key);
 }
@@ -1064,10 +1065,10 @@ function buildFilters() {
   const ref = Math.max(...CAT.rollers.map(rollerRadius)), boxFixed = Math.max(...CAT.tracks.filter(t => t.kind !== 'rack').map(t => trackRadius(t) / ref)) + 0.15;
   for (const t of CAT.tracks) {                  // a ring has two sets of teeth, so two chips: label them by ring and side
     const label = t.kind === 'ring' ? t.name.replace(' (', '<br>(') : t.name.replace(/^Wheel /, '');
-    chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, ref, boxFixed)}<span class="lbl">${label}</span>`, true,
+    chip('f-fixed', filters.fixed, t.id, `${trackIcon(t, ref, boxFixed, true)}<span class="lbl">${label}</span>`, true,
       t.kind === 'ring' ? `${t.name}: its ${t.inside ? 'inner' : 'outer'} teeth (${t.o.N}); wheels roll ${t.inside ? 'inside it' : 'around the outside'}` : `${t.name}: ${t.o.N} teeth`);
   }
-  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0, ref)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
+  for (const r of CAT.rollers) chip('f-roller', filters.roller, r.id, `${rollerIcon(r, 0, ref, 1.15, true)}${r.name.replace(/^Wheel /, '')}`, true, `${r.name}: ${r.N} teeth, ${r.holes.length} pen holes`);
   rowToggle('f-fixed'); rowToggle('f-roller');
   const maxHoles = Math.max(...CAT.rollers.map(r => r.holes.length));
   for (let k = 1; k <= maxHoles; k++) chip('f-hole', filters.hole, k, k);

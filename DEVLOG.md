@@ -79,6 +79,14 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — Filter chips only as wide as their picture
+
+The Fixed / Moving piece chips drew each icon in the row's one shared square box (sized for the largest piece), so a 24-tooth
+wheel took as much width as an 84-tooth one. Icons are still to scale (same pixels per tooth in both rows), but each box is now
+only as wide as its piece (`fitW`, `tight` flag on `trackIcon` / `rollerIcon`; the height stays uniform so rows stay tidy;
+the rack was already wider). Chip widths went from ~70 px to 32-70 px: at 1300 px the whole Moving row fits on one line
+(was 8 chips + "+11 more"); at 900 px 13 chips show (was ~6). The layer list and other icons (no `tight`) are unchanged.
+
 ### 2026-11-08 — Wider line-width range
 
 Layer Line width now spans 0.5-20x (was 0.5-6x). The slider is logarithmic (like Size) and rounds to quarter steps, so thin
