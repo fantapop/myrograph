@@ -63,7 +63,7 @@ Next steps / not done:
   localhost link works only on the same computer (the copy message says so).
 - Albums live per browser profile and per origin (file:// vs http://localhost are separate
   stores) - export is the backup path. No drag-reorder of items, no multi-select.
-- Compose: no SVG export, no layer reordering.
+- Compose: no SVG export, no layer reordering; animation is GIF only (see the 2026-11-08 animation entry).
 - Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
   overlapping combos"). In the photo the Bar has teeth only on its short ends; modelled with teeth
   all round, so Bar-in-ring is probably more permissive on the real toy.
@@ -78,6 +78,22 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-08 — Animation: per-layer spin, loop length, GIF export
+
+Design: a layer's `spin` = whole turns per loop (-10..10, + clockwise); one global loop length `loopSec` (2-60 s, default 8). Integer
+turns keep every GIF seamless; the loop length is the speed knob (1 turn / 8 s = 7.5 rpm; 60 s = 1 rpm). Rotation is about each
+layer's own origin, which is where X / Y shift moves it, so the centre of rotation travels with the layer. Chosen over free deg/s speeds
+because fractional speeds don't loop; if finer speeds are wanted later, allow half turns for symmetric patterns.
+Implementation: CORE `layerAngle` / `bakeRot` / `LAYER_SPIN` / `LOOP_SEC`, share link `s<b36>` layer field and `loop,<s>` segment. UI: a 4th
+"Spin" slider in each layer row (row height unchanged), ▶/⏸ button on the picture (shown only when something spins), an Animate tab (loop
+seconds, Save GIF, size 480/640/800, fps 10/20/25). Playing only sets each line's `rotation.z` per frame (`animTick`); edits rebuild the scene at the
+current `animPhase`. Save PNG / Print capture the frame on screen; the PNG is saved with baked whole-degree angles (spin kept) so
+reopening it shows the same picture. Albums / links / thumbnails use phase 0. GIF: gifenc (CDN, imported on first export), per-frame
+256-colour palette, own scene + layer snapshot so edits during export can't interfere, infinite loop. Measured: 40 frames at
+240-300 px decode in Chrome's ImageDecoder, frames differ, repeat = infinite (~360 KB at 300 px / 40 frames).
+Testing note: headless virtual time doesn't fire requestAnimationFrame; the driver shims it with setTimeout.
+Not done: no APNG/WebM, no scrubber, no spin in album thumbnails, GIF not embedded with the setup (use Save PNG for that).
 
 ### 2026-11-08 — Filter chips only as wide as their picture
 

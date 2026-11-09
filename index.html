@@ -21,7 +21,8 @@
   Dark-background palettes (Neon, Midnight, Chalkboard, or your own with "Paper" ticked) also set the paper.
   "Edit…" / "+ New" build custom palettes, kept in localStorage (myrograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (they start on a shared centre) with per-layer color,
-  visibility, rotation, size (10-500%), line width and X / Y shift (drag the picture or type %; the highlighted layer moves); layers keep their real sizes relative to each other. "Save PNG"
+  visibility, rotation, size (10-500%), line width, X / Y shift (drag the picture or type %; the highlighted layer moves) and Spin (whole turns per loop,
+  + clockwise: the layer rotates about its own centre while the picture animates; "Animate" tab: loop length, Save GIF via gifenc, fetched from the CDN on demand); layers keep their real sizes relative to each other. "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
   ("Myrograph", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
   they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
@@ -144,6 +145,7 @@
   #pm-compat button.on { background: #44444e; outline: 2px solid var(--accent); }
   .layer .keep { padding: 0 6px; font-size: 11px; margin-top: 2px; }
   #ovwrap { position: relative; flex: none; width: min(100%, 42vh); margin: 0 auto; }      /* a shorter picture on short screens, so the lists below keep room */
+  #ov-play { position: absolute; left: 8px; bottom: 8px; z-index: 2; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: #1b1b1fd0; line-height: 1; font-size: 13px; }
   #ov-tabs { display: flex; gap: 4px; padding: 6px 12px; border-top: 1px solid #000; border-bottom: 1px solid #000; flex: none; }
   #ov-tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
   #compose .pane > .ch:first-child { border-top: none; }
@@ -213,7 +215,7 @@
   .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff4; display: inline-block; flex: none; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
   .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
-  .layer .tune { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }      /* Rotate / Size / Line side by side: a layer row is ~85px, not ~120px */
+  .layer .tune { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }      /* Rotate / Size / Line / Spin side by side: a layer row is ~85px, not ~120px */
   .layer .tune label { display: block; min-width: 0; color: var(--dim); font-size: 11px; }
   .layer .tune .tl { display: flex; justify-content: space-between; }
   .layer .tune input { width: 100%; margin: 2px 0 0; display: block; }
@@ -262,9 +264,9 @@
 <aside id="compose">
   <div class="ch"><b>Overlay</b><span class="sp"></span>
     <button id="ov-close">✕</button></div>
-  <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas></div>
+  <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas><button id="ov-play" hidden title="Pause / play the animation">⏸</button></div>
   <div id="ov-msg"></div>
-  <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Signature</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
+  <div id="ov-tabs"><button data-tab="layers" class="on">Layers</button><button data-tab="sign">Signature</button><button data-tab="anim">Animate</button><button data-tab="share">Save &amp; share</button><span class="sp" style="flex:1"></span><button id="ov-clear" title="Remove every layer">Clear</button></div>
   <div id="tab-layers" class="pane">
     <div class="ch" id="pos-row" hidden><span style="color:var(--dim)">Move</span><span id="pos-dot" class="dot" title="The highlighted layer"></span>
       <label title="Shift the highlighted layer right (+) or left (-), in percent of the picture's width. You can also drag the picture." style="display:inline-flex;align-items:center;gap:3px">X <input type="number" id="pos-x" step="0.5" min="-100" max="100" style="width:4.8em">%</label>
@@ -288,6 +290,15 @@
       <button id="sg-reset" title="Put it back in the bottom right corner">Reset</button>
       <span style="font-size:11px;color:var(--dim);flex-basis:100%">Drag the signature to move it, drag its corner handle or scroll / pinch over it to resize.</span></div>
     <p class="hint" id="sg-hint">Pick one of your signatures, or make a new one, to sign this piece. You can only have one signature on a piece.</p>
+  </div>
+  <div id="tab-anim" class="pane" hidden>
+    <div class="ch"><label style="color:var(--dim)" title="The time one full loop of the animation takes">One loop lasts</label>
+      <input type="number" id="an-loop" min="2" max="60" step="1" value="8" style="width:4.2em"> seconds
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Each layer's <b>Spin</b> (Layers tab) is how many whole turns it makes in one loop: ↻ clockwise, ↺ counter-clockwise. A layer turns about its own centre, so it keeps spinning in place wherever you move it. Whole turns make the animation repeat seamlessly.</span></div>
+    <div class="ch"><button id="an-save" title="Render one loop as an animated GIF (a few seconds of work)">Save GIF</button>
+      <select id="an-px" title="Picture size"><option value="480">480 px</option><option value="640" selected>640 px</option><option value="800">800 px</option></select>
+      <select id="an-fps" title="Frames per second"><option value="10">10 fps</option><option value="20" selected>20 fps</option><option value="25">25 fps</option></select>
+      <span style="font-size:11px;color:var(--dim);flex-basis:100%">Save PNG and Print capture the frame you see; Copy link and albums keep the spin settings.</span></div>
   </div>
   <div id="tab-share" class="pane" hidden>
     <div class="ch"><button id="ov-save" title="Save the overlay as a PNG with the layer setup embedded">Save PNG</button>
@@ -643,7 +654,8 @@ function readTextChunk(png, keyword) {          // text of the first uncompresse
 }
 
 // ---- share links: overlay setup <-> compact URL-fragment text
-// v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size[,width x10 if not 1.0][,x<shift>][,y<shift>]>/...   shifts in thousandths of the picture, base 36, only if not 0
+// v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size[,width x10 if not 1.0][,x<shift>][,y<shift>][,s<spin>]>/...   shifts in thousandths of the picture, spin in turns per loop, base 36, only if not 0
+// then optionally loop,<seconds> (only if not the default)
 // (the t|f segment and an optional layer field `1` are only
 // READ, from links made when layers could stretch to fit: the app converts them to sizes, see bakeLegacyFit)
 // then optionally one p,... segment per custom part the layers use (see encodePart), and one g,... segment for the signature (see encodeSig)
@@ -651,7 +663,8 @@ function encodeShare(st) {
   return ['v1', st.paper.replace('#', ''), 't',
     ...st.layers.map(l => [l.track, l.roller, l.hole, l.color.replace('#', ''), l.visible === false ? 0 : 1,
       Math.round(l.rot || 0), Math.round(l.size || 100), ...(Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)]),
-      ...(l.dx ? ['x' + Math.round(l.dx).toString(36)] : []), ...(l.dy ? ['y' + Math.round(l.dy).toString(36)] : [])].join(',')),
+      ...(l.dx ? ['x' + Math.round(l.dx).toString(36)] : []), ...(l.dy ? ['y' + Math.round(l.dy).toString(36)] : []), ...(l.spin ? ['s' + Math.round(l.spin).toString(36)] : [])].join(',')),
+    ...(st.loop && Math.round(st.loop) !== LOOP_SEC.def ? ['loop,' + Math.round(st.loop)] : []),
     ...(st.parts || []).map(encodePart), ...(st.signature ? [encodeSig(st.signature)] : [])].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
 }
 function decodeShare(text) {                    // throws on anything malformed
@@ -662,20 +675,21 @@ function decodeShare(text) {                    // throws on anything malformed
   for (const x of partSegs) { const d = decodePart(x); if (!d) throw bad(); shared.push(d); }
   const signature = sigSegs.length ? decodeSig(sigSegs[0]) : null;
   if (sigSegs.length && !signature) throw bad();
-  const layers = segs.filter(x => !x.startsWith('p,') && !x.startsWith('g,')).map(str => {
+  const loopSeg = segs.find(x => /^loop,\d+$/.test(x)), loop = loopSeg ? Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, +loopSeg.slice(5))) : 0;
+  const layers = segs.filter(x => !x.startsWith('p,') && !x.startsWith('g,') && !/^loop,/.test(x)).map(str => {
     const f = str.split(','), [track, roller, hole, color, vis, rot, size] = f;
     if (!/^[\w-]+$/.test(track || '') || !/^[\w-]+$/.test(roller || '') || !/^\d+$/.test(hole || '') || !hex.test(color || '')) throw bad();
-    let i = 7, wd = 10, fit = false, dx = 0, dy = 0;
+    let i = 7, wd = 10, fit = false, dx = 0, dy = 0, spin = 0;
     if (/^\d+$/.test(f[i] || '')) wd = +f[i++];                              // optional line width (tenths)
     for (; i < f.length; i++) {                                              // then flags, in any order: "1" = stretch (old links), x<shift>, y<shift>; unknown ones are ignored
       const t = f[i], num = () => Math.max(-LAYER_SHIFT, Math.min(LAYER_SHIFT, parseInt(t.slice(1), 36) || 0));
-      if (t === '1') fit = true; else if (/^x-?[0-9a-z]+$/.test(t)) dx = num(); else if (/^y-?[0-9a-z]+$/.test(t)) dy = num();
+      if (t === '1') fit = true; else if (/^x-?[0-9a-z]+$/.test(t)) dx = num(); else if (/^y-?[0-9a-z]+$/.test(t)) dy = num(); else if (/^s-?[0-9a-z]+$/.test(t)) spin = Math.max(-LAYER_SPIN, Math.min(LAYER_SPIN, parseInt(t.slice(1), 36) || 0));
     }
     return { track, roller, hole: +hole, color: '#' + color, visible: vis !== '0',
       rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(LAYER_SIZE.max, Math.max(LAYER_SIZE.min, Math.round(+size) || 100)),
-      width: Math.min(LAYER_WIDTH.max, Math.max(LAYER_WIDTH.min, (wd || 10) / 10)), ...(fit ? { fit: true } : {}), ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
+      width: Math.min(LAYER_WIDTH.max, Math.max(LAYER_WIDTH.min, (wd || 10) / 10)), ...(fit ? { fit: true } : {}), ...(dx ? { dx } : {}), ...(dy ? { dy } : {}), ...(spin ? { spin } : {}) };
   });
-  return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(shared.length ? { parts: shared } : {}), ...(signature ? { signature } : {}) };
+  return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(loop ? { loop } : {}), ...(shared.length ? { parts: shared } : {}), ...(signature ? { signature } : {}) };
 }
 
 // ---- ink palettes: ordered color sets. The active one feeds the grid's Auto ink (one color per moving
@@ -870,6 +884,12 @@ const SIG_FONTS = {
 const LAYER_SIZE = { min: 10, max: 500 };         // a layer's Size, in percent
 const LAYER_WIDTH = { min: 0.5, max: 20 };        // a layer's Line width, as a multiple of the base line (kept to 0.25 steps; the link stores tenths)
 const LAYER_SHIFT = 1000;                        // a layer's X / Y shift is limited to +/- this many thousandths of the picture's width (x: right, y: down)
+const LAYER_SPIN = 10;                           // a layer's Spin: whole turns per loop, +/- this many (positive = clockwise)
+const LOOP_SEC = { min: 2, max: 60, def: 8 };    // how long one animation loop lasts, in seconds
+// A layer's angle at `phase` (0..1 through the loop) in degrees, counter-clockwise on screen as three.js draws it (a positive Spin turns clockwise).
+// Whole turns per loop make phase 1 look like phase 0, so the animation repeats seamlessly. bakeRot: the same, as a whole 0..359 for saving.
+const layerAngle = (l, phase) => (l.rot || 0) - 360 * (l.spin || 0) * phase;
+const bakeRot = (l, phase) => ((Math.round(layerAngle(l, phase)) % 360) + 360) % 360;
 const SIG_LIMITS = { text: 40, strokes: 16, points: 600, library: 12 };
 const sigId = d => 's' + fnv(d.kind === 't' ? `t|${d.font}|${d.text}` : `i|${d.ar}|${d.s.map(q => q.join(',')).join(';')}`);
 const sigName = raw => { const name = cleanName(raw.name); return name ? { name } : {}; };     // the label shown in the list (letters, digits, spaces and . , ( ) + - only)
@@ -1364,10 +1384,39 @@ function makeLines(ls, lineWidth, resPx, curve) {
     return line;
   });
 }
-function buildOverlay(lineWidth, resPx) {      // (re)fill ovScene from the layers; lineWidth in px of a resPx-wide image
+function buildOverlay(lineWidth, resPx, phase = animPhase, bake = false) {      // (re)fill ovScene from the layers; lineWidth in px of a resPx-wide image; the layers at loop phase `phase` (bake: whole-degree angles, as saved)
   for (const o of [...ovScene.children]) { ovScene.remove(o); o.material.dispose(); }
-  ovScene.add(...makeLines([...layers.values()], lineWidth, resPx, ovCurve));
+  ovScene.add(...makeLines([...layers.values()].map(l => ({ ...l, rot: bake ? bakeRot(l, phase) : layerAngle(l, phase) })), lineWidth, resPx, ovCurve));
 }
+// ---- animation: a layer's Spin is whole turns per loop (+ clockwise); one loop lasts `loopSec`. Playing only moves each existing line's rotation
+// (the scene is rebuilt only when something is edited); the picture is a function of the loop phase, so Save PNG / Print can capture any frame.
+let loopSec = LOOP_SEC.def, playing = true, animPhase = 0, animRaf = 0, animT0 = 0, exporting = false;
+const spinLabel = v => v ? (v > 0 ? '↻' : '↺') + Math.abs(v) : '0';
+const anySpin = () => [...layers.values()].some(l => l.visible && l.spin);
+function setLoop(v) {                           // a loop length from a file / link / the box; keeps the picture where it is
+  loopSec = Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, Math.round(+v) || LOOP_SEC.def)); $('an-loop').value = loopSec;
+  animT0 = performance.now() - animPhase * loopSec * 1000;
+}
+function animTick(now) {
+  animRaf = 0;
+  if (!composeOpen || !playing || exporting || !anySpin()) return animSync();
+  animPhase = ((((now - animT0) / 1000 / loopSec) % 1) + 1) % 1;      // (a frame's timestamp can precede the performance.now() the loop was anchored with)
+  const vis = [...layers.values()].filter(l => l.visible);
+  if (ovScene.children.length === vis.length) {
+    vis.forEach((l, i) => { ovScene.children[i].rotation.z = layerAngle(l, animPhase) * Math.PI / 180; });
+    ov.render(ovScene, camera);
+  }
+  animRaf = requestAnimationFrame(animTick);
+}
+function animSync() {                           // start / stop the frame loop to match the state, and show the play button only when something spins
+  const spin = anySpin(), run = composeOpen && playing && spin && !exporting;
+  $('ov-play').hidden = !composeOpen || !spin; $('ov-play').textContent = playing ? '⏸' : '▶';
+  if (run && !animRaf) { animT0 = performance.now() - animPhase * loopSec * 1000; animRaf = requestAnimationFrame(animTick); }
+  if (!run && animRaf) { cancelAnimationFrame(animRaf); animRaf = 0; }
+}
+$('ov-play').onclick = () => { playing = !playing; animSync(); };
+$('an-loop').oninput = e => { if (e.target.value !== '') setLoop(e.target.value), $('an-loop').value = e.target.value; };      // (don't rewrite the box while typing)
+$('an-loop').onchange = () => setLoop($('an-loop').value);
 function renderOverlay() {
   const css = ovCanvas.clientWidth;
   if (!composeOpen || !css) return;
@@ -1379,18 +1428,20 @@ function renderOverlay() {
 
 // ---- save / open
 const say = (msg, ms = 4000) => { $('ov-msg').textContent = msg; if (ms) setTimeout(() => { if ($('ov-msg').textContent === msg) $('ov-msg').textContent = ''; }, ms); };
-function overlayState() {
+function overlayState(ph = 0) {                 // ph: the loop phase to capture (Save PNG saves the frame on screen); links, albums and the like use 0
   const used = new Set([...layers.values()].map(l => customIdOf(l.p)).filter(Boolean));
   return { app: APP_ID, v: 1, paper: $('paper').value,
     layers: [...layers.values()].map(l => ({ track: l.p.track.id, roller: l.p.roller.id, hole: l.p.hole,
-      color: l.color, visible: l.visible, rot: l.rot, size: l.size, width: l.width, ...(l.dx ? { dx: l.dx } : {}), ...(l.dy ? { dy: l.dy } : {}) })),
+      color: l.color, visible: l.visible, rot: ph ? bakeRot(l, ph) : l.rot, size: l.size, width: l.width, ...(l.dx ? { dx: l.dx } : {}), ...(l.dy ? { dy: l.dy } : {}), ...(l.spin ? { spin: l.spin } : {}) })),
+    ...(loopSec !== LOOP_SEC.def ? { loop: loopSec } : {}),
     ...(used.size ? { parts: [...used].map(id => registry.get(id)).filter(Boolean) } : {}),     // custom parts travel with the setup
     ...(sigInst ? { signature: sigInst } : {}) };                                              // so does the signature
 }
 async function makePng(px) {
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   r.setPixelRatio(1); r.setSize(px, px, false);
-  buildOverlay(1.6 * px / (ovCanvas.clientWidth || 440), px);   // same line weight relative to the picture as on screen
+  const ph = animPhase;                                           // the frame on screen: saved with whole-degree angles so reopening it gives the same picture
+  buildOverlay(1.6 * px / (ovCanvas.clientWidth || 440), px, ph, true);   // same line weight relative to the picture as on screen
   r.render(ovScene, camera);
   const flat = document.createElement('canvas'); flat.width = flat.height = px;          // the picture plus the signature, as one image
   const g2 = flat.getContext('2d'); g2.drawImage(r.domElement, 0, 0);
@@ -1398,7 +1449,7 @@ async function makePng(px) {
   const blob = await new Promise(res => flat.toBlob(res, 'image/png'));
   r.dispose(); r.forceContextLoss();
   renderOverlay();
-  return addTextChunk(new Uint8Array(await blob.arrayBuffer()), CHUNK, JSON.stringify(overlayState()));
+  return addTextChunk(new Uint8Array(await blob.arrayBuffer()), CHUNK, JSON.stringify(overlayState(ph)));
 }
 // ---- print: while the Compose panel is open, printing (button or Ctrl/Cmd+P) outputs just the overlay. The live canvas
 // is WebGL (often blank in print), so on beforeprint it is re-rendered at print resolution into a plain canvas.
@@ -1413,6 +1464,44 @@ function fillPrintCanvas() {
   if (sigInst) drawSignature(c.getContext('2d'), sigInst, PRINT_PX, PRINT_PX, $('paper').value);
   r.dispose(); r.forceContextLoss(); renderOverlay();
 }
+// ---- animated GIF: one loop, rendered frame by frame offscreen (own scene and a snapshot of the layers, so editing meanwhile can't disturb it).
+// The encoder (gifenc, ~10 KB, MIT) is only fetched from the CDN when you export. Each frame gets its own 256-colour palette.
+const GIFENC_URL = 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
+async function makeGif(px, fps, onProgress = () => {}) {
+  const { GIFEncoder, quantize, applyPalette } = await import(GIFENC_URL);
+  const n = Math.max(2, Math.round(loopSec * fps)), delay = Math.round(1000 / fps);
+  const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }), sc = new THREE.Scene(), enc = GIFEncoder();
+  r.setPixelRatio(1); r.setSize(px, px, false); sc.background = new THREE.Color($('paper').value);
+  const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l })), sig = sigInst, paper = $('paper').value;
+  const lines = makeLines(vis, 1.6 * px / (ovCanvas.clientWidth || 440), px, ovCurve); sc.add(...lines);
+  const flat = document.createElement('canvas'); flat.width = flat.height = px;
+  const g2 = flat.getContext('2d', { willReadFrequently: true });
+  try {
+    for (let i = 0; i < n; i++) {
+      vis.forEach((l, k) => { lines[k].rotation.z = layerAngle(l, i / n) * Math.PI / 180; });
+      r.render(sc, camera); g2.drawImage(r.domElement, 0, 0);
+      if (sig) drawSignature(g2, sig, px, px, paper);
+      const { data } = g2.getImageData(0, 0, px, px), palette = quantize(data, 256);
+      enc.writeFrame(applyPalette(data, palette), px, px, { palette, delay });
+      onProgress(i + 1, n); if (i % 3 === 2) await new Promise(res => setTimeout(res));      // let the page breathe (and show progress)
+    }
+    enc.finish();
+  } finally { for (const l of lines) l.material.dispose(); r.dispose(); r.forceContextLoss(); }
+  return { bytes: enc.bytes(), frames: n };
+}
+async function saveGif() {
+  if (!anySpin()) return say('Give at least one visible layer a Spin first (Layers tab).');
+  const btn = $('an-save'); btn.disabled = true; exporting = true; animSync();
+  try {
+    const { bytes, frames } = await makeGif(+$('an-px').value, +$('an-fps').value, (i, n) => say(`Rendering GIF… ${i} / ${n}`, 0));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' })); a.download = `myrograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.gif`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    say(`Saved ${a.download} (${frames} frames, ${(bytes.length / 1048576).toFixed(1)} MB)`, 8000);
+  } catch (err) { say('Could not make the GIF: ' + err.message, 8000); }
+  finally { btn.disabled = false; exporting = false; renderOverlay(); animSync(); }
+}
+$('an-save').onclick = saveGif;
 window.addEventListener('beforeprint', () => { if (printable()) { fillPrintCanvas(); document.body.classList.add('print-overlay'); } });
 window.addEventListener('afterprint', () => { document.body.classList.remove('print-overlay'); $('print-c').width = $('print-c').height = 0; });
 $('ov-print').onclick = () => printable() ? window.print() : say('Add at least one visible layer first.');
@@ -1457,14 +1546,16 @@ function applyState(meta) {                     // replace the overlay with a sa
   for (const l of meta.layers || []) {
     const p = lookup(l);
     if (!p) { missing++; continue; }
-    layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0 });
+    layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0,
+      spin: Math.max(-LAYER_SPIN, Math.min(LAYER_SPIN, Math.round(+l.spin) || 0)) });
     legacyFlags.push(!!(l.fit ?? legacyFit));
   }
   sigInst = canonSigInstance(meta.signature); fillSigSelect();           // the signature a saved piece was signed with (null if unsigned)
   bakeLegacyFit([...layers.values()], legacyFlags, ovCurve);
   activeKey = [...layers.keys()].at(-1) ?? null;
+  setLoop(meta.loop); animPhase = 0;
   if (!composeOpen) setCompose(true);
-  markTiles(); buildLayerList(); renderOverlay(); repaintAll();
+  markTiles(); buildLayerList(); renderOverlay(); repaintAll(); animSync();
   say(`Opened ${layers.size} layer${layers.size === 1 ? '' : 's'}` + (missing ? ` (${missing} skipped: part not in this set)` : '') +
     (gotParts ? ` - includes ${gotParts} custom part${gotParts === 1 ? '' : 's'} (use "keep part" in the layer list to add one to your library)` : ''), gotParts ? 9000 : 4000);
 }
@@ -1663,7 +1754,7 @@ window.addEventListener('hashchange', () => {
   if (layers.size && !confirm('Open the shared overlay and replace the current one?')) return;
   applyHash();
 });
-window.__myro = { sig: { inst: () => sigInst, lib: () => sigLib, box: () => sigHit, strokes: () => sgStrokes, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
+window.__myro = { anim: { setPhase(p) { animPhase = p; renderOverlay(); }, phase: () => animPhase, play(b) { playing = b; animSync(); }, running: () => !!animRaf, loop: () => loopSec, setLoop, makeGif, saveGif }, sig: { inst: () => sigInst, lib: () => sigLib, box: () => sigHit, strokes: () => sgStrokes, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
   encodeShare, decodeShare, readTextChunk, addTextChunk,
   parts: { open: d => openMaker(d), pv: () => pv, pvState: () => pvState, ed: () => ed, library: () => library, registry, CUSTOM: () => CUSTOM, keepPart, edSave, edDraw, edSync, lookup,
     forget(id) { library = library.filter(d => d.id !== id); registry.delete(id); pieceMemo.delete(id); guestCombos.clear(); libraryChanged(); } } };   // forget: test hook   // test hook
@@ -1678,12 +1769,12 @@ const markTiles = () => { for (const e of tiles.values()) markTile(e); };
 function toggleLayer(p) {
   if (layers.has(p.key)) { layers.delete(p.key); ovCache.get(p.key)?.geo.dispose(); ovCache.delete(p.key); }
   else {
-    layers.set(p.key, { key: p.key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1, dx: 0, dy: 0 });   // same color the tile is drawn in
+    layers.set(p.key, { key: p.key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1, dx: 0, dy: 0, spin: 0 });   // same color the tile is drawn in
     activeKey = p.key;                                                                                                  // the new layer is the one that moves
     setOvTab('layers');                                                                                                 // show the list the new layer went into
   }
   if (!layers.has(activeKey)) activeKey = [...layers.keys()].at(-1) ?? null;
-  markTiles(); buildLayerList(); renderOverlay();
+  markTiles(); buildLayerList(); renderOverlay(); animSync();
 }
 // The Size slider is logarithmic (position 0..1000 <-> LAYER_SIZE.min..max %), so each step is a similar percentage change over the wide range.
 const posToSize = v => Math.round(LAYER_SIZE.min * (LAYER_SIZE.max / LAYER_SIZE.min) ** (v / 1000));
@@ -1724,13 +1815,14 @@ function buildLayerList() {
       `<button title="Remove">✕</button>` +
       `<div class="tune"><label><span class="tl"><span>Rotate</span><span class="tv">${l.rot}°</span></span><input type="range" data-k="rot" min="0" max="359" value="${l.rot}"></label>` +
       `<label><span class="tl"><span>Size</span><span class="tv">${l.size}%</span></span><input type="range" data-k="size" min="0" max="1000" value="${sizeToPos(l.size)}"></label>` +
-      `<label title="Line thickness of this layer"><span class="tl"><span>Line</span><span class="tv">${l.width}×</span></span><input type="range" data-k="width" min="0" max="1000" value="${widthToPos(l.width)}"></label></div>`;
+      `<label title="Line thickness of this layer"><span class="tl"><span>Line</span><span class="tv">${l.width}×</span></span><input type="range" data-k="width" min="0" max="1000" value="${widthToPos(l.width)}"></label>` +
+      `<label title="Whole turns per loop: right of the middle turns clockwise, left counter-clockwise (see the Animate tab)"><span class="tl"><span>Spin</span><span class="tv">${spinLabel(l.spin)}</span></span><input type="range" data-k="spin" min="${-LAYER_SPIN}" max="${LAYER_SPIN}" step="1" value="${l.spin || 0}"></label></div>`;
     const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
       del = row.querySelector('button[title=Remove]');           // (not the first button: a layer can also carry a "keep part" button)
-    vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); };
+    vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); animSync(); };
     col.oninput = () => { l.color = col.value; markTiles(); syncPos(); renderOverlay(); };
     for (const r of row.querySelectorAll('input[type=range]'))
-      r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : k === 'width' ? posToWidth(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); };
+      r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : k === 'width' ? posToWidth(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = k === 'spin' ? spinLabel(l.spin) : l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); animSync(); };
     for (const r of row.querySelectorAll('.xy input'))
       r.oninput = () => { if (r.value !== '') { l[r.dataset.k] = shiftClamp(+r.value * 10); syncPos(); renderOverlay(); } };
     del.onclick = () => toggleLayer(l.p);
@@ -1741,14 +1833,14 @@ function buildLayerList() {
 }
 function setOvTab(name) {                       // the panel under the picture shows one tab at a time, so the layer list gets all the leftover height
   for (const b of document.querySelectorAll('#ov-tabs button')) b.classList.toggle('on', b.dataset.tab === name);
-  for (const id of ['layers', 'sign', 'share']) $('tab-' + id).hidden = id !== name;
+  for (const id of ['layers', 'sign', 'anim', 'share']) $('tab-' + id).hidden = id !== name;
 }
 document.querySelectorAll('#ov-tabs button').forEach(b => { b.onclick = () => setOvTab(b.dataset.tab); });
 function setCompose(open) {
   composeOpen = open;
   document.body.classList.toggle('compose-open', open);
   $('compose-btn').classList.toggle('on', open);
-  relayout(); renderOverlay();
+  relayout(); renderOverlay(); animSync();
 }
 $('compose-btn').onclick = () => setCompose(!composeOpen);
 $('ov-close').onclick = () => setCompose(false);

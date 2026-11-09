@@ -55,3 +55,8 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
 - A pattern's identity in the UI is `p.key` (index in ALL); anything persisted uses part ids
   (`track|roller|hole`) instead, so files survive PARTS edits.
 - Headless Chrome screenshots taken after scrolling come out blank; verify scroll behaviour via DOM.
+
+- Animation: a layer has `spin` (whole turns per loop, +/-10, positive = clockwise); `loopSec` (2-60 s, default 8) is global. The picture is a function of the
+  loop phase (`layerAngle(l, phase)` in CORE): playing (`animTick`, rAF) only updates each existing line's rotation; edits rebuild the scene at `animPhase`.
+  Save PNG captures the frame on screen (`bakeRot` -> whole-degree angles, spin kept); links/albums store phase 0. Save GIF (`makeGif`) renders offscreen from
+  a snapshot with its own scene; the encoder (gifenc) is imported from the CDN only on export. Share link: layer field `s<b36>`, segment `loop,<s>`.

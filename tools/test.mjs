@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -179,6 +179,17 @@ check('links without a signature are unchanged (no g segment, no signature key)'
   const clamp = C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,xzzzz,y-zzzz,qq9').layers[0];
   check('absurd shifts are clamped, and unknown tokens are ignored rather than rejected', clamp.dx === C.LAYER_SHIFT && clamp.dy === -C.LAYER_SHIFT && C.LAYER_SHIFT === 1000);
   check('a shift can follow a width, a stretch flag from old links, or nothing', C.decodeShare('v1/faf7f0/t/a,b,1,1f4fd8,1,0,100,x5').layers[0].dx === 5 && C.decodeShare('v1/faf7f0/t/a,b,1,1f4fd8,1,0,100,25,x5,y6').layers[0].width === 2.5 && C.decodeShare('v1/faf7f0/t/a,b,1,1f4fd8,1,0,100,10,1,y6').layers[0].fit === true); }
+
+// animation: per-layer Spin (whole turns per loop, + = clockwise) and the loop length
+{ const spun = { ...st, loop: 12, layers: [{ ...st.layers[0], spin: -3 }, { ...st.layers[1], dx: 40, spin: 10 }, { ...st.layers[0], track: 'ring105-in' }] };
+  const link = C.encodeShare(spun), back = C.decodeShare('#' + link);
+  check('spin and loop length round-trip through a share link (negative, with a shift, absent)', JSON.stringify(back) === JSON.stringify(spun), link.split('/').slice(3).join('  '));
+  check('no spin and the default loop add nothing to a link', !/,s[0-9a-z-]/.test(C.encodeShare({ ...st, loop: C.LOOP_SEC.def })) && !C.encodeShare({ ...st, loop: C.LOOP_SEC.def }).includes('loop') && !('loop' in C.decodeShare('#' + C.encodeShare(st))));
+  const wild = C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,szzzz/ring96-in,w24,2,1f4fd8,1,0,100,s-zzzz/loop,9999');
+  check('spin and loop are clamped when read, and the loop segment is not mistaken for a layer', wild.layers.length === 2 && wild.layers[0].spin === C.LAYER_SPIN && wild.layers[1].spin === -C.LAYER_SPIN && wild.loop === C.LOOP_SEC.max);
+  check('links from before animation decode without spin or loop', !('spin' in C.decodeShare('#' + C.encodeShare(st)).layers[0]) && !('loop' in C.decodeShare('#' + C.encodeShare(st)))); }
+check('a positive Spin turns clockwise (the angle falls), whole turns repeat after one loop, and baked angles are 0..359',
+  C.layerAngle({ rot: 10, spin: 1 }, 0.25) === -80 && C.layerAngle({ rot: 10, spin: 2 }, 1) === 10 - 720 && C.bakeRot({ rot: 10, spin: 1 }, 0.25) === 280 && C.bakeRot({ rot: 0, spin: 0 }, 0.7) === 0 && C.bakeRot({ rot: 359, spin: -1 }, 0.5) === 179);
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
