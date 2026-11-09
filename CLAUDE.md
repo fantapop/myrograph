@@ -77,3 +77,6 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   at exact whole cycles (phase 0) it is the finished shape, so static views never show an empty layer. The pen is constant speed by ARC LENGTH (`cumLengths` / `drawCount` -> `instanceCount`
   of the Line2 geometry, set per line in an `onBeforeRender` override because duplicate layers share one geometry). `setLineFrame` is the one place that moves a built line to a phase
   (live tick, GIF frames, album thumbnails). SVG: `pathLength="1"` + dash offset `<animate>` (`drawAttrs`). Link field `d<speed>`.
+- Printing: `startPrint` (the Print button and Ctrl/Cmd+P) asks via `<dialog id="pr">` whether to print on white when the paper is not `isNearWhite`; the choice is `printWhite` for that print only
+  (reset on afterprint) and `fillPrintCanvas` swaps the render background and the auto-ink paper for it - the stored paper is never touched. File > Print goes straight to `beforeprint` (paper colour).
+

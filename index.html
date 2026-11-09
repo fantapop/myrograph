@@ -36,7 +36,8 @@
   PNG adds it to the album). Opening an album item loads it into the Compose panel.
   "Print" (button, or Ctrl/Cmd+P while the panel is open) prints just the overlay on a clean page: on beforeprint it is
   re-rendered at 2400 px into a plain canvas (a WebGL canvas can print blank); with the panel closed or no visible
-  layers the browser prints the page as usual.
+  layers the browser prints the page as usual. With a tinted or dark paper (not near white, see isNearWhite) the button / Ctrl+P first asks whether to print on
+  white instead (that print only; the stored paper colour is never changed; the browser's own File > Print can't be intercepted and prints the paper colour).
   Text & signature: plain text is typed straight into the tab (Enter adds it; no saving, edit it in place afterwards, optionally "Save" it); signatures (drawn by hand, or a
   typed name) are kept in a saved list (localStorage) to reuse; put as many as you like (up to 8) on the overlay, each draggable / resizable / coloured on the picture; they appear in PNGs, prints, GIF / SVG, album thumbnails and share links.
   Save & share tab: PNG, link, print, album, and the animation exports (GIF, SVG); the loop length sits next to Pause in the panel header.
@@ -173,6 +174,11 @@
   #sigc { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; }
   dialog#sg { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 8px; padding: 0; width: min(620px, 96vw); }
   dialog#sg::backdrop { background: rgba(0,0,0,.65); }
+  dialog#pr { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 8px; padding: 16px 18px; width: min(460px, 96vw); }
+  dialog#pr::backdrop { background: rgba(0,0,0,.65); }
+  dialog#pr p { margin: 0 0 10px; }
+  dialog#pr .btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  dialog#pr .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); vertical-align: -2px; }
   .sg-body { padding: 12px 14px 14px; }
   .sg-body .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
   .sg-body input[type=text], .sg-body select { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
@@ -356,6 +362,12 @@
 </aside>
 
 <div id="print-sheet"><canvas id="print-c"></canvas></div>
+<dialog id="pr">
+  <p><b>Print on a white background?</b></p>
+  <p>Your paper is <span class="sw" id="pr-sw"></span> <span id="pr-hex"></span>, so the whole page would print in that colour. You can print on plain white instead. Your paper colour is not changed.</p>
+  <p style="color:var(--dim);font-size:12px">Pale lines may look faint on white.</p>
+  <div class="btns"><button id="pr-cancel">Cancel</button><button id="pr-paper">Print with the paper colour</button><button id="pr-white" class="chip on" style="font-weight:600">Print on white</button></div>
+</dialog>
 <dialog id="sg">
   <div class="pm-head"><b>New signature</b><span class="sp"></span>
     <button id="sg-save" class="primary">Save and add</button><button id="sg-x" title="Close">✕</button></div>
@@ -933,6 +945,9 @@ const cleanSpeed = (v, max) => Math.max(-max, Math.min(max, Math.round(+v * 10) 
 const LOOP_SEC = { min: 2, max: 60, def: 8 };    // how long one animation loop lasts, in seconds
 // A layer's angle at `phase` (loops since the start: it keeps counting past 1, so live playback never has a seam) in degrees, counter-clockwise on screen as three.js
 // draws it (a positive Spin turns clockwise). Whole turns per loop make phase 1 look like phase 0 (see loopMultiple for GIFs). bakeRot: as a whole 0..359 for saving.
+// Is this paper colour (#rrggbb) close enough to white that printing it as it is costs nothing? The default cream is; anything noticeably tinted or dark is not (the Print
+// button then offers a white background instead).
+const isNearWhite = hex => /^#[0-9a-f]{6}$/i.test(hex) && [1, 3, 5].every(i => parseInt(hex.slice(i, i + 2), 16) >= 0xE6);
 const layerAngle = (l, phase) => (l.rot || 0) - 360 * (l.spin || 0) * phase;
 const bakeRot = (l, phase) => ((Math.round(layerAngle(l, phase)) % 360) + 360) % 360;
 // A layer's Draw: how many times per loop its curve is drawn out by a pen (tenths allowed; 0 = off, always complete). Each cycle draws from nothing to the
@@ -1569,13 +1584,16 @@ async function makePng(px) {
 // is WebGL (often blank in print), so on beforeprint it is re-rendered at print resolution into a plain canvas.
 const PRINT_PX = 2400;
 function printable() { return composeOpen && [...layers.values()].some(l => l.visible); }
+let printWhite = false;                          // this print only: use a white page instead of the paper colour (chosen in the dialog below)
 function fillPrintCanvas() {
   const r = new THREE.WebGLRenderer({ antialias: true }), c = $('print-c');
   r.setPixelRatio(1); r.setSize(PRINT_PX, PRINT_PX, false);
   buildOverlay(1.6 * PRINT_PX / (ovCanvas.clientWidth || 440), PRINT_PX);
-  r.render(ovScene, camera);
+  const white = printWhite && !isNearWhite($('paper').value), paper = white ? '#ffffff' : $('paper').value;      // the stored paper is never touched: only this print is white
+  if (white) ovScene.background = new THREE.Color(paper);
+  r.render(ovScene, camera); ovScene.background = scene.background;
   c.width = c.height = PRINT_PX; c.getContext('2d').drawImage(r.domElement, 0, 0);
-  drawAllSignatures(c.getContext('2d'), sigs, PRINT_PX, PRINT_PX, $('paper').value);
+  drawAllSignatures(c.getContext('2d'), sigs, PRINT_PX, PRINT_PX, paper);                // (an auto-coloured text picks its ink for the paper it is printed on)
   r.dispose(); r.forceContextLoss(); renderOverlay();
 }
 // ---- animated GIF: one loop, rendered frame by frame offscreen (own scene and a snapshot of the layers, so editing meanwhile can't disturb it).
@@ -1658,8 +1676,19 @@ function saveSvg() {
 $('an-svg').onclick = saveSvg;
 $('an-save').onclick = saveGif;
 window.addEventListener('beforeprint', () => { if (printable()) { fillPrintCanvas(); document.body.classList.add('print-overlay'); } });
-window.addEventListener('afterprint', () => { document.body.classList.remove('print-overlay'); $('print-c').width = $('print-c').height = 0; });
-$('ov-print').onclick = () => printable() ? window.print() : say('Add at least one visible layer first.');
+window.addEventListener('afterprint', () => { document.body.classList.remove('print-overlay'); $('print-c').width = $('print-c').height = 0; printWhite = false; });
+// Printing from the button or Ctrl/Cmd+P: with a tinted or dark paper, ask first whether to print on white (the browser's own print menu can't be intercepted: it prints the paper colour).
+const prd = $('pr');
+function startPrint() {
+  if (!printable()) return say('Add at least one visible layer first.');
+  const paper = $('paper').value;
+  if (isNearWhite(paper)) { printWhite = false; return window.print(); }
+  $('pr-sw').style.background = paper; $('pr-hex').textContent = paper; prd.showModal(); $('pr-white').focus();
+}
+const printNow = white => { prd.close(); printWhite = white; window.print(); };
+$('pr-white').onclick = () => printNow(true); $('pr-paper').onclick = () => printNow(false); $('pr-cancel').onclick = () => prd.close();
+$('ov-print').onclick = startPrint;
+window.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'p' && composeOpen && !prd.open && printable() && !isNearWhite($('paper').value)) { e.preventDefault(); startPrint(); } });
 async function savePng() {
   if (!layers.size) return say('Add at least one layer first.');
   say('Rendering…', 0);

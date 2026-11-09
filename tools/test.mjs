@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_DRAW, cleanSpeed, loopMultiple, drawFraction, isMoving, cumLengths, drawCount, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, canonSigInstances, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_DRAW, isNearWhite, cleanSpeed, loopMultiple, drawFraction, isMoving, cumLengths, drawCount, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, canonSigInstances, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -218,6 +218,9 @@ check('loops needed for an exact repeat: whole numbers 1, halves 2, fifths 5, ot
   check('cumulative length and the number of segments drawn at a fraction of it (arc length, not sample count)', cum.join() === '0,1,4,8' && C.drawCount(cum, 0) === 0 && C.drawCount(cum, 1) === 3 && C.drawCount(cum, 0.12) === 0 && C.drawCount(cum, 0.13) === 1 && C.drawCount(cum, 0.5) === 2 && C.drawCount(cum, 0.99) === 2);
   check('a layer is "moving" if it spins or draws', C.isMoving({ spin: 1 }) && C.isMoving({ draw: 2 }) && !C.isMoving({}) && !C.isMoving({ spin: 0, draw: 0 })); }
 
+// printing on white: which papers count as white enough to print as they are
+check('near-white papers (white, the cream default, light greys) print as they are; tinted, dark and bad values ask',
+  C.isNearWhite('#ffffff') && C.isNearWhite('#faf7f0') && C.isNearWhite('#F2F0EA') && C.isNearWhite('#e6e6e6') && !C.isNearWhite('#e5ffff') && !C.isNearWhite('#fff3b0') && !C.isNearWhite('#1c2233') && !C.isNearWhite('#000000') && !C.isNearWhite('white') && !C.isNearWhite(''));
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);
 const saved = [{ id: 'u-1', name: ' Mine ', colors: ['#ABCDEF', 'red', '#123456'], paper: '#101010' }, { id: 'u-4', name: 'Bad paper', colors: ['#000000'], paper: 'black' }, { id: 'bad id', name: 'x', colors: ['#000000'] }, { id: 'u-2', name: '', colors: ['#000000'] }, { id: 'u-3', name: 'none', colors: ['nope'] }, null, 7];

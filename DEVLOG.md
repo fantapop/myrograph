@@ -79,6 +79,15 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Print on white when the paper is tinted or dark
+
+- The Print button and Ctrl/Cmd+P now ask "Print on a white background?" when the paper isn't near white (`isNearWhite`: every channel >= 0xE6, so the cream default, white and light greys
+  print straight away; anything tinted or dark asks). Three choices: Print on white / Print with the paper colour / Cancel. Per-print only: `printWhite` is set just for that print and cleared on
+  afterprint, and `fillPrintCanvas` swaps the render background (and the paper used for auto-coloured text, so it prints dark on white) - the stored paper colour, state, links and PNGs are untouched.
+- Limits: the browser's own File > Print menu can't be intercepted (it fires beforeprint with no chance to ask), so it prints the paper colour; pale line colours chosen for a dark paper
+  can look faint on white (the dialog says so; no automatic recolouring). Tested with `window.print` stubbed (cream/white print straight away; dark asks; each button; paper unchanged;
+  Ctrl+P intercepted; beforeprint path; white page + dark auto text sampled from the print canvas) and a node test for `isNearWhite`.
+
 ### 2026-11-09 — Clicking a pattern opens the overlay
 
 A tile click with the overlay closed now opens it (`setCompose(true)`) and adds that pattern as a layer; with it open it adds another layer as before. Tiles always show a pointer cursor.
