@@ -202,11 +202,14 @@
   .card .meta { padding: 0 8px 7px; font-size: 11px; color: var(--dim); }
   .card .nm button { padding: 0 5px; border-radius: 4px; background: none; border: none; color: var(--dim); }
   .card .nm button:hover { color: var(--ink); }
-  .layer { padding: 8px 4px 8px 6px; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 6px 8px; align-items: center; }
+  .layer { padding: 8px 4px 8px 6px; border-bottom: 1px solid #33333b; display: grid; grid-template-columns: auto auto auto 1fr auto auto; gap: 6px 8px; align-items: center; }
   .layer.off { opacity: .5; }
   .layer.active { box-shadow: inset 3px 0 0 var(--accent); background: rgba(233,180,76,.07); }
   #pos-row { padding: 6px 12px; gap: 4px 10px; }
-  #pos-row input[type=number] { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 4px; }
+  .layer .xy { display: flex; align-items: center; gap: 3px; color: var(--dim); font-size: 11px; }
+  .layer .xy input { width: 42px; }
+  .layer .xy .sep { width: 4px; }
+  #pos-row input[type=number], .layer .xy input { font: inherit; color: var(--ink); background: #33333b; border: 1px solid #44444e; border-radius: 4px; padding: 2px 4px; }
   .dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff4; display: inline-block; flex: none; }
   .layer svg { width: 26px; height: 26px; color: var(--dim); }
   .layer .ltxt { font-size: 11px; line-height: 1.25; min-width: 0; }
@@ -1366,7 +1369,7 @@ function buildOverlay(lineWidth, resPx) {      // (re)fill ovScene from the laye
 function renderOverlay() {
   const css = ovCanvas.clientWidth;
   if (!composeOpen || !css) return;
-  ov.setPixelRatio(pr); ov.setSize(css, css, false);
+  ov.setPixelRatio(1); ov.setSize(css * pr, css * pr, false);   // size in device px (ratio 1): LineMaterial reads its resolution from the viewport in CSS px, so a ratio of 2 drew lines twice as thick as the PNG / print
   buildOverlay(1.6 * pr, css * pr);
   ov.render(ovScene, camera);
   drawSigLayer();
@@ -1686,7 +1689,11 @@ const sizeToPos = z => Math.round(Math.log(Math.max(LAYER_SIZE.min, Math.min(LAY
 const shiftClamp = v => Math.max(-LAYER_SHIFT, Math.min(LAYER_SHIFT, Math.round(v)));
 function syncPos() {                            // the position row shows the highlighted layer's X / Y (percent of the picture width)
   const l = layers.get(activeKey); $('pos-row').hidden = !l; $('sigc').style.cursor = l ? 'move' : 'default';
-  if (l) { $('pos-x').value = (l.dx || 0) / 10; $('pos-y').value = (l.dy || 0) / 10; $('pos-dot').style.background = l.color; }
+  if (!l) return;
+  const set = (el, v) => { if (el !== document.activeElement) el.value = v; };       // never rewrite the box being typed in
+  set($('pos-x'), (l.dx || 0) / 10); set($('pos-y'), (l.dy || 0) / 10); $('pos-dot').style.background = l.color;
+  const row = document.querySelector(`#layers .layer[data-key="${CSS.escape(String(l.key))}"]`);
+  if (row) for (const r of row.querySelectorAll('.xy input')) set(r, (l[r.dataset.k] || 0) / 10);
 }
 function setActive(key) {
   if (String(key) === String(activeKey)) return;
@@ -1694,20 +1701,21 @@ function setActive(key) {
   for (const r of document.querySelectorAll('#layers .layer')) r.classList.toggle('active', r.dataset.key === String(activeKey));
   syncPos();
 }
-$('pos-x').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dx = shiftClamp(+e.target.value * 10); renderOverlay(); } };
-$('pos-y').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dy = shiftClamp(+e.target.value * 10); renderOverlay(); } };
+$('pos-x').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dx = shiftClamp(+e.target.value * 10); syncPos(); renderOverlay(); } };
+$('pos-y').oninput = e => { const l = layers.get(activeKey); if (l && e.target.value !== '') { l.dy = shiftClamp(+e.target.value * 10); syncPos(); renderOverlay(); } };
 $('pos-reset').onclick = () => { const l = layers.get(activeKey); if (l) { l.dx = l.dy = 0; syncPos(); renderOverlay(); } };
 function buildLayerList() {
   $('ov-hint').style.display = layers.size ? 'none' : '';
   const box = $('layers'); box.innerHTML = '';
   for (const l of layers.values()) {
     const row = document.createElement('div'); row.className = 'layer' + (l.visible ? '' : ' off') + (String(l.key) === String(activeKey) ? ' active' : ''); row.dataset.key = String(l.key);
-    row.addEventListener('pointerdown', () => setActive(l.key));                  // touching a layer's row (or its sliders) makes it the one that moves
+    row.addEventListener('pointerdown', () => setActive(l.key)); row.addEventListener('focusin', () => setActive(l.key));                  // touching a layer's row (or its sliders) makes it the one that moves
     row.innerHTML = `<input type="checkbox" title="Show / hide this layer" ${l.visible ? 'checked' : ''}>` +
       `<input type="color" value="${l.color}" title="Layer color"><span style="display:flex">${trackIcon(l.p.track)}${rollerIcon(l.p.roller, l.p.hole)}</span>` +
       `<span class="ltxt"><b>${l.p.track.name}</b>${l.p.track.kind === 'ring' ? '' : ' · outside'}<br>${l.p.roller.name} · hole ${l.p.hole}` +
       `${keepable(l.p) ? '<br><button class="keep" title="Add this custom part to your library (Custom parts filter)">＋ keep part</button>' : ''}` +
       `</span>` +
+      `<span class="xy" title="Shift this layer (percent of the picture width; or drag the picture)">X<input type="number" data-k="dx" step="0.5" value="${(l.dx || 0) / 10}"><i class="sep"></i>Y<input type="number" data-k="dy" step="0.5" value="${(l.dy || 0) / 10}"></span>` +
       `<button title="Remove">✕</button>` +
       `<div class="tune"><label><span class="tl"><span>Rotate</span><span class="tv">${l.rot}°</span></span><input type="range" data-k="rot" min="0" max="359" value="${l.rot}"></label>` +
       `<label><span class="tl"><span>Size</span><span class="tv">${l.size}%</span></span><input type="range" data-k="size" min="0" max="1000" value="${sizeToPos(l.size)}"></label>` +
@@ -1718,6 +1726,8 @@ function buildLayerList() {
     col.oninput = () => { l.color = col.value; markTiles(); syncPos(); renderOverlay(); };
     for (const r of row.querySelectorAll('input[type=range]'))
       r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); };
+    for (const r of row.querySelectorAll('.xy input'))
+      r.oninput = () => { if (r.value !== '') { l[r.dataset.k] = shiftClamp(+r.value * 10); syncPos(); renderOverlay(); } };
     del.onclick = () => toggleLayer(l.p);
     row.querySelector('.keep')?.addEventListener('click', () => keepPart(customIdOf(l.p)));
     box.append(row);

@@ -79,6 +79,19 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-08 — X / Y on each layer row; live line width matched the PNG / print
+
+- Each layer row now has small X / Y boxes between the name and the remove button (row height unchanged at 88px). They,
+  the top position row and the picture drag all stay in sync (`syncPos` updates whichever box isn't being typed in); focusing
+  or touching a row makes it the active layer.
+- Bug (reported via the user's son): the picture on screen had thicker lines than the print. Cause: the live overlay renderer used
+  `setPixelRatio(pr)` + `setSize(css)`, but three r170's `LineSegments2.onBeforeRender` overwrites `LineMaterial.resolution`
+  with the renderer *viewport in CSS px*, so on a retina screen (pr 2) the line was 2x too thick relative to the picture. PNG, print
+  and the tile/thumbnail renderer use ratio 1 and were right. Fix: the live overlay now renders at ratio 1 with `setSize(css*pr)`.
+  Measured ink coverage of screen vs the 2400 px print canvas at device scale 2: 0.01286 vs 0.00644 before, 0.00636 vs 0.00644
+  after (0.00628 at scale 1). Consequence: on retina screens lines look half as heavy as before, now what the PNG always had.
+  If a heavier look is wanted, raise the 1.6 in `renderOverlay` / `makePng` / `fillPrintCanvas` together.
+
 ### 2026-11-08 — Per-layer X / Y shift
 
 Plan/outcome: each layer gets `dx`/`dy` (thousandths of the picture width, +/-1000, x right, y down; 0 = centred).
