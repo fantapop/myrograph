@@ -30,7 +30,8 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   carries a LIST: `sigs` (max `SIG_LIMITS.placed` = 8), `sigInst` = the selected one. It lives in `overlayState().signatures` (PNG / album / link carry copies; one
   `g,...` link segment each; older files have a single `signature`, read by `canonSigInstances`) and is painted by `drawSignature()` onto the live layer `#sigc`, the PNG,
   the print canvas, the GIF / SVG and album thumbnails (`drawAllSignatures`). The UI calls them "Text & signature".
-  The list is `sigLib` (localStorage `myrograph.signatures.v1`, max 12). Typed text is never put in innerHTML.
+  Two ways in: ad hoc text (`addText`: typed in the tab, Enter adds, no library; the Edit row (`editText`) changes the selected typed item in place, `Save` copies it to the library) and saved
+  signatures (`sigLib`, localStorage `myrograph.signatures.v1`, max 12; the New… dialog draws or types one, saves it and adds it). Typed text is never put in innerHTML.
 
 ## Working here
 - Run: open `index.html`, or `python3 -m http.server` and visit localhost:8000.

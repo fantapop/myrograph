@@ -79,6 +79,19 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Text and signatures split: ad hoc text needs no saving
+
+- Feedback: the feature was built around signatures (saved, reused) but was being used for plain text, which shouldn't have to be saved first. The tab now has two clear paths:
+  **Text** row on top (type, pick a font, Enter / ＋ Add: goes mid-picture, sized to its length, staggered) and a **Saved** (signatures) row (dropdown + Add / New… / rename / Delete).
+  Placed items live in the list either way; selecting a typed one shows an **Edit** row (text box + font, changes it in place; an empty box keeps the old text) and a **Save**
+  button that copies it into Signatures (shows "Saved ✓" when it is already there). Drawn signatures have no text editor. The "New…" dialog is back to being "New signature" (draw or type
+  a name, saves it and adds it).
+- No data format change: a placed text is the same `{kind:'t', text, font}` as before; the library is just no longer a prerequisite. Drive-by: selects / text inputs in these tabs now use the
+  theme's control colours instead of the browser default.
+- Tested in Chrome (library stays empty after adding text; Enter adds; blank refused; edit only the selected; font in place; Save -> Saved ✓ -> Add again from the list; drawn signature has no editor;
+  New… still saves and adds). Old drivers that added text through the dialog (d108 / d111) are stale.
+- Not done: nothing to rotate, align or reorder text yet (later = on top).
+
 ### 2026-11-09 — Finer Spin / Draw speeds; the draw restarts instantly
 
 - Feedback: the integer 1x / 2x steps were too coarse, and the 20% hold on the finished shape was a visible gap. Now **Spin** and **Draw** step by 0.1 (sliders +/-5 and 0..5; the stored

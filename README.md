@@ -9,7 +9,7 @@ pen-hole layouts of a Deluxe-style set. No build step, no server: open `index.ht
 - **Compose** several patterns into one overlay (per-layer color, rotation, size, X/Y shift, spin, pen-draw) and export an animated GIF or SVG (saved albums animate too); light and dark UI themes.
 - **Save** an overlay as a PNG with its setup embedded, and re-import it later to keep editing.
 - Keep named **albums** in the browser (localStorage), export/import them as files.
-- **Text & signatures**: type a name or any text in a handwriting-style font, or draw a signature by hand, keep a list of them, and put several on the overlay
+- **Text & signatures**: type text straight onto the overlay (choose a font, edit it in place, no saving needed), or draw a signature by hand and keep it in a list to reuse; put several on the overlay
   (drag, resize, recolor each). They are saved with the PNG, album item and share link, and appear in prints and exports.
 - **Print** the overlay with the Print button or Ctrl/Cmd+P (with the Compose panel open): just the picture, scaled to the page.
 - **Share** an overlay as a link: the data lives in the URL fragment.

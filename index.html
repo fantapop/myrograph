@@ -37,8 +37,8 @@
   "Print" (button, or Ctrl/Cmd+P while the panel is open) prints just the overlay on a clean page: on beforeprint it is
   re-rendered at 2400 px into a plain canvas (a WebGL canvas can print blank); with the panel closed or no visible
   layers the browser prints the page as usual.
-  Text & signature: a name or any text typed in a handwriting-style font, or a signature drawn by hand, kept in a list (localStorage); put as many as
-  you like (up to 8) on the overlay, each draggable / resizable / coloured on the picture; they appear in PNGs, prints, GIF / SVG, album thumbnails and share links.
+  Text & signature: plain text is typed straight into the tab (Enter adds it; no saving, edit it in place afterwards, optionally "Save" it); signatures (drawn by hand, or a
+  typed name) are kept in a saved list (localStorage) to reuse; put as many as you like (up to 8) on the overlay, each draggable / resizable / coloured on the picture; they appear in PNGs, prints, GIF / SVG, album thumbnails and share links.
   Save & share tab: PNG, link, print, album, and the animation exports (GIF, SVG); the loop length sits next to Pause in the panel header.
   Share links: "Copy link" (panel) / the link button on an album item puts the overlay into the
   URL fragment (#v1/paper/scale/layer/layer..., ~35 chars per layer, never sent to a server);
@@ -236,6 +236,7 @@
   .layer .grip svg { width: 10px; height: 16px; }
   .layer.dragging { background: var(--sunk); box-shadow: 0 2px 10px rgba(0,0,0,.35); position: relative; z-index: 1; }
   .sec { padding: 10px 12px 2px; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim); }
+  #tab-sign select, #tab-sign input[type=text], #tab-share select { font: inherit; color: var(--ink); background: var(--ctl); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
   #sg-list { padding: 4px 12px 0; }
   .sgrow { display: flex; align-items: center; gap: 8px; padding: 5px 4px 5px 8px; border-bottom: 1px solid var(--sep); cursor: pointer; }
   .sgrow.active { box-shadow: inset 3px 0 0 var(--accent); background: rgba(233,180,76,.07); }
@@ -308,22 +309,30 @@
     <p class="hint" id="ov-hint">Click patterns in the grid to add them as layers (click one again to add another copy). Layers start on one centre; drag the picture (or use X / Y) to move the highlighted layer, drag a layer's grip to reorder. Drop a saved PNG here to re-open it.</p>
   </div>
   <div id="tab-sign" class="pane" hidden>
-    <div class="ch"><label style="color:var(--dim)">Saved</label>
-      <select id="sg-sel" title="Your saved texts and signatures" style="flex:1;min-width:90px"></select>
-      <button id="sg-add" title="Put the selected one on the picture (as many as you like)">＋ Add</button>
-      <button id="sg-new" title="Make a new text or signature: type it or draw it by hand, then it goes on the picture">＋ New…</button>
-      <button id="sg-ren" title="Rename the selected saved item">✎</button>
-      <button id="sg-del" title="Delete the selected item from your saved list (copies on the picture stay)">Delete</button></div>
+    <div class="ch"><label style="color:var(--dim)">Text</label>
+      <input type="text" id="tx-in" maxlength="40" placeholder="Type some text, press Enter" style="flex:1;min-width:100px">
+      <select id="tx-font" title="Font (uses fonts installed on this device)"></select>
+      <button id="tx-add" title="Put this text on the picture (you can change it afterwards)">＋ Add</button></div>
+    <div class="ch"><label style="color:var(--dim)" title="Signatures you have saved, to use again">Saved</label>
+      <select id="sg-sel" title="Your saved signatures, to use again" style="flex:1;min-width:90px"></select>
+      <button id="sg-add" title="Put the selected signature on the picture">＋ Add</button>
+      <button id="sg-new" title="Draw or type a signature to keep and reuse">＋ New…</button>
+      <button id="sg-ren" title="Rename the selected signature">✎</button>
+      <button id="sg-del" title="Delete the selected signature from your saved list (copies on the picture stay)">Delete</button></div>
     <div id="sg-list"></div>
+    <div class="ch" id="sg-edit" hidden><label style="color:var(--dim)">Edit</label>
+      <input type="text" id="sg-etx" maxlength="40" style="flex:1;min-width:100px" title="Change the highlighted text">
+      <select id="sg-efont" title="Font"></select>
+      <button id="sg-keep" title="Keep this text in your Signatures list to use it again">Save</button></div>
     <div class="ch" id="sg-ctl" hidden><label style="color:var(--dim)">Size</label>
-      <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Size of the highlighted text or signature">
+      <input type="range" id="sg-size" min="20" max="1000" step="5" style="flex:1;min-width:80px" title="Size of the highlighted item">
       <label title="Width as a percentage of the picture (it scales like a font size)" style="display:inline-flex;align-items:center;gap:2px"><input type="number" id="sg-pct" min="2" max="100" step="1" style="width:3.6em">%</label>
       <span class="pick" title="Colour"><input type="color" id="sg-color"></span>
       <button id="sg-auto" title="Black or white, whichever suits the paper">Auto</button>
       <button id="sg-dup" title="Make another copy of the highlighted one">Copy</button>
       <button id="sg-reset" title="Put it back in the bottom right corner">Reset</button>
       <span style="font-size:11px;color:var(--dim);flex-basis:100%">Click one in the picture or the list to select it. Drag it to move it, drag its corner handle or scroll / pinch over it to resize.</span></div>
-    <p class="hint" id="sg-hint">Pick a saved text or signature and press Add, or make a new one with New… (type it, or draw it by hand). You can put several on the picture.</p>
+    <p class="hint" id="sg-hint">Type some text above and press Enter, or add a saved signature. Text needs no saving; keep a signature to use it again. You can put several on the picture.</p>
   </div>
   <div id="tab-share" class="pane" hidden>
     <div class="ch"><button id="ov-save" title="Save the overlay as a PNG with the layer setup embedded">Save PNG</button>
@@ -348,12 +357,12 @@
 
 <div id="print-sheet"><canvas id="print-c"></canvas></div>
 <dialog id="sg">
-  <div class="pm-head"><b>New text or signature</b><span class="sp"></span>
+  <div class="pm-head"><b>New signature</b><span class="sp"></span>
     <button id="sg-save" class="primary">Save and add</button><button id="sg-x" title="Close">✕</button></div>
   <div class="sg-body">
     <div class="ctl"><label style="color:var(--dim)">Name</label><input type="text" id="sg-name" maxlength="24" size="36" placeholder="Name in your list (optional)"></div>
     <div class="pm-tabs"><button id="sg-t-type" class="on">Type</button><button id="sg-t-draw">Draw</button></div>
-    <div id="sg-p-type" class="ctl"><input type="text" id="sg-text" maxlength="40" placeholder="Your name, or any text" size="22">
+    <div id="sg-p-type" class="ctl"><input type="text" id="sg-text" maxlength="40" placeholder="Your name" size="22">
       <select id="sg-font" title="Handwriting style (uses fonts installed on this device)"></select></div>
     <div id="sg-p-draw" hidden><div class="ctl"><button id="sg-undo">Undo stroke</button><button id="sg-clear">Clear</button></div>
       <div style="font-size:11px;color:var(--dim);margin-bottom:6px">Draw with your mouse, finger or pen. On a trackpad, <b>hold Space or Shift</b> and just move the pointer: the pen is down while the key is held.</div></div>
@@ -2519,7 +2528,7 @@ let sigLibSel = '';                             // the saved item chosen in the 
 function fillSigSelect() {
   const sel = $('sg-sel'); sel.textContent = '';
   for (const d of sigLib) sel.add(new Option(sigLabel(d), d.id));
-  if (!sigLib.length) sel.add(new Option('Nothing saved yet: use New…', ''));
+  if (!sigLib.length) sel.add(new Option('None saved yet', ''));
   if (!sigLib.some(d => d.id === sigLibSel)) sigLibSel = sigLib[0]?.id || '';
   sel.value = sigLibSel; $('sg-add').disabled = $('sg-ren').disabled = $('sg-del').disabled = !sigLibSel;
   const list = $('sg-list'); list.textContent = '';
@@ -2532,17 +2541,44 @@ function fillSigSelect() {
     list.append(row);
   }
   $('sg-ctl').hidden = !sigInst; $('sg-hint').hidden = sigs.length > 0;
+  const typed = !!sigInst && sigInst.sig.kind === 't'; $('sg-edit').hidden = !typed;
+  if (typed) {
+    if (document.activeElement !== $('sg-etx')) $('sg-etx').value = sigInst.sig.text;
+    $('sg-efont').value = sigInst.sig.font; const saved = sigLib.some(d => d.id === sigInst.sig.id);
+    $('sg-keep').textContent = saved ? 'Saved ✓' : 'Save'; $('sg-keep').disabled = saved;
+  }
   if (sigInst) {
     const c = sigInk(sigInst, $('paper').value); syncSize(); $('sg-color').value = c;
     $('sg-color').parentElement.style.setProperty('--pc', c); $('sg-auto').classList.toggle('on', !sigInst.color);
   }
 }
-function addSig(def) {                          // put a saved text / signature on the picture (a new copy each time)
+function addSig(def, { text = false } = {}) {   // put a text / signature on the picture (a new copy each time)
   if (sigs.length >= SIG_LIMITS.placed) return say(`A picture can carry ${SIG_LIMITS.placed} texts / signatures: take one off first.`, 6000);
-  const g = canonSigInstance({ sig: def }); sigs.push(g); sigInst = g; fillSigSelect(); drawSigLayer();
-  if (sigs.length === 1) $('sg-reset').click();                                          // the first goes bottom right, like a signature
-  else { g.x = 500; g.y = 200 + 100 * ((sigs.length - 2) % 6); sigRedraw(); }           // the next ones start mid-picture, staggered
+  const n = sigs.length, g = canonSigInstance({ sig: def, ...(text ? { x: 500, y: 300 + 110 * (n % 5), size: Math.min(850, 120 + 38 * def.text.length) } : {}) });
+  sigs.push(g); sigInst = g; fillSigSelect(); drawSigLayer();
+  if (text) sigRedraw();                                                                 // typed text starts mid-picture, staggered, sized to its length
+  else if (n === 0) $('sg-reset').click();                                               // a first signature goes bottom right
+  else { g.x = 500; g.y = 200 + 100 * ((n - 1) % 6); sigRedraw(); }                      // later ones start mid-picture, staggered
 }
+{ for (const id of ['tx-font', 'sg-efont']) for (const [k, v] of Object.entries(SIG_FONTS)) $(id).add(new Option(v.label, k)); }
+function addText() {                            // ad hoc text: no saving needed, it is edited in place afterwards
+  const def = canonSignature({ kind: 't', text: $('tx-in').value, font: $('tx-font').value });
+  if (!def) { say('Type some text first.'); $('tx-in').focus(); return; }
+  addSig(def, { text: true }); $('tx-in').value = ''; $('tx-in').focus();
+}
+$('tx-add').onclick = addText;
+$('tx-in').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addText(); } });
+function editText() {                           // the Edit row changes the highlighted typed text in place (an empty box keeps the old text until there is some)
+  if (!sigInst || sigInst.sig.kind !== 't') return;
+  const def = canonSignature({ kind: 't', text: $('sg-etx').value.trim() ? $('sg-etx').value : sigInst.sig.text, font: $('sg-efont').value }); if (!def) return;
+  sigInst.sig = def; fillSigSelect(); sigRedraw();
+}
+$('sg-etx').oninput = editText; $('sg-efont').onchange = editText;
+$('sg-keep').onclick = () => {                  // keep a typed text as a signature, to use again
+  const d = sigInst?.sig; if (!d || d.kind !== 't' || sigLib.some(x => x.id === d.id)) return;
+  if (sigLib.length >= SIG_LIMITS.library) return say(`Your signatures list is full (${SIG_LIMITS.library}): delete one first.`, 6000);
+  sigLib.push(canonSignature({ ...d })); saveSigs(); sigLibSel = d.id; fillSigSelect(); say(`Saved "${sigLabel(d)}" in your signatures`);
+};
 function removeSig(g) {
   sigs = sigs.filter(x => x !== g); if (sigInst === g) sigInst = sigs.at(-1) ?? null; if (sigHover === g) sigHover = null;
   fillSigSelect(); drawSigLayer();
@@ -2646,7 +2682,7 @@ function strokesToInk(strokes) {                 // canvas strokes -> a compact 
 }
 $('sg-save').onclick = () => {
   let def;
-  if (sgMode === 'type') { def = canonSignature({ kind: 't', text: $('sg-text').value, font: $('sg-font').value }); if (!def) return sgMsg('Type some text first.'); }
+  if (sgMode === 'type') { def = canonSignature({ kind: 't', text: $('sg-text').value, font: $('sg-font').value }); if (!def) return sgMsg('Type your name first.'); }
   else {
     if (!sgStrokes.length) return sgMsg('Draw your signature first.');
     def = canonSignature(strokesToInk(sgStrokes)); if (!def) return sgMsg('That signature is too small or too narrow; draw it larger.');
