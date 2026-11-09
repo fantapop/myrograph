@@ -64,4 +64,9 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   round-robin within a ~12 ms/frame budget (only in the albums view, not with prefers-reduced-motion); `renderThumb` is the static phase-0 draw.
 - Theme: all UI colours are CSS variables (`:root` dark, `:root[data-theme=light]`); a <head> script sets `data-theme` before first paint (saved `myrograph.theme`,
   else the system setting). Canvases that draw UI colours (the part maker) read them through `themeColors()`. Don't hardcode UI colours: add a variable.
+- Layers have their own ids (`newLayerKey`, 'L1'...), NOT the pattern key: the same pattern can be added many times (`addLayer` / `removeLayer` / `reorderLayers`).
+  `ovCache` (pattern key -> geometry + points) is shared by duplicates (`releaseCurve` frees it when the last user goes). The layer Map's order is the list order
+  AND the drawing order (later draws on top; makeLines creates materials in that order). Tiles have no selected state; a click adds a layer (and flashes the tile).
+- Export formats: PNG (static, embeds the setup), GIF (`makeGif`, gifenc from the CDN), animated SVG (`makeSvg`: one scaled path per layer, `<animateTransform>` rotate,
+  SVG angles are the negative of three.js's). Collapsible filter rows (`applyCollapse`) work on a row's direct children; give one the class `nofold` to keep it visible.
 

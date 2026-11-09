@@ -79,6 +79,27 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Duplicate layers, reordering, tabs, custom-parts collapse, animated SVG
+
+1. Duplicate layers: layers are keyed by their own id (`L<n>`), not the pattern, so the same pattern can be added again (copies can be sized / moved / coloured /
+   spun separately). Grid tiles lost their selected state (outline + check badge, and the tile-takes-layer-colour repaint); clicking a tile always adds a layer and
+   flashes it. Share links, PNGs, albums already stored layers as a list, so duplicates round-trip with no format change. Geometry is cached per pattern and
+   shared by copies (`releaseCurve`). Removal is the row's X; "Clear" removes all.
+2. Custom parts row now collapses to one line with "+N more" like the other rows (`applyCollapse` now works on a row's direct children so a part's chip and its
+   edit button fold together; "＋ Make a part…" moved to the front and is `nofold`). A selected part stays visible when folded (same rule as other rows).
+3. Tabs: the top Patterns / Albums and the Compose panel's Layers / Signature / Animate / Save & share are now plain text tabs with an underline on the current
+   one (not buttons); Clear stays a button. (The part maker's Shape / Pen holes tabs are still pill buttons - not asked for.)
+4. Formats: GIF is 256 colours, ~9 KB/frame (a 40-frame 300 px loop = 360 KB, 640 px much more), repeats forever (Netscape loop extension, verified) but some viewers
+   (e.g. Preview) show it once. Added **animated SVG** (`makeSvg`): each layer is one path of its real curve with an `<animateTransform>` rotate (repeatCount indefinite),
+   ~28 KB for 3 layers, vector-sharp at any size, exact timing; plays in browsers / as <img>, not in chat apps or image editors. Verified: parses, turn counts/direction,
+   and still frames match the WebGL render (overlap 0.93-0.94 at three phases). Considered and not built: animated WebP (canvas can't encode animated WebP; Safari
+   can't encode WebP at all, we'd need our own muxer of per-frame WebP stills, and lossy frames blur thin lines), APNG (lossless but bigger than GIF for this),
+   MP4/WebM via WebCodecs + a muxer (smallest by far and shareable everywhere, but lossy on thin lines and no built-in loop - the likely next addition if wanted).
+5. Reordering: a grip at the left of each layer row; drag it up/down (the list follows the pointer, applied on release) or use the arrow keys when it has focus.
+   List order = drawing order (later = on top; verified by pixels). Row grid got a column: gaps/boxes trimmed so rows stay 88 px.
+Testing: headless drivers for each (the same pattern twice, link / reopen round trip, drag + key reorder with red-over-blue pixel check, custom row with 8 parts,
+SVG vs WebGL). Old drivers that used the removed Move row (`pos-x`) are stale.
+
 ### 2026-11-09 — Dedicated Move row removed
 
 The position row at the top of the Layers tab (X / Y boxes, Center button, "or drag the picture") is gone: dragging the picture moves
