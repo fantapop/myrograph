@@ -80,3 +80,8 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
 - Printing: `startPrint` (the Print button and Ctrl/Cmd+P) asks via `<dialog id="pr">` whether to print on white when the paper is not `isNearWhite`; the choice is `printWhite` for that print only
   (reset on afterprint) and `fillPrintCanvas` swaps the render background and the auto-ink paper for it - the stored paper is never touched. File > Print goes straight to `beforeprint` (paper color).
 - Spelling: American English everywhere (color, center, normalized, behavior, labeled ...), in code comments, UI text and docs.
+- Canvas shape: `canvasDim` {w, h} (CORE `cleanCanvas`, default {1,1} = square, not written to files; `cv,<w>,<h>` link segment; `canvas` in saved state; 6:1 limit). The overlay scene is 2 units tall and 2a wide
+  (a = w/h): `ovCam` / `camFor(a)` (the grid tiles keep the square `camera`), layers fit the shorter side (`0.92 * min(1, a)`), a layer's X / Y shift is thousandths of the WIDTH on both axes
+  (`position = dx * a / 500`), text / signature x / y are shares of width / height. `exportDims(canvas, longEdge)` gives pixel sizes (PNG / GIF / SVG / print / thumbnails; "Exact" export only for a typed
+  Custom size >= 100 px). #ovwrap's CSS aspect-ratio (`--ar`) sets the live shape; #ovc is absolutely positioned so its own size can't override it. Don't assume a square picture.
+

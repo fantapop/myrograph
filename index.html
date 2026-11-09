@@ -13,6 +13,9 @@
   Theme: the UI has a dark and a light theme (CSS variables on <html data-theme>; the header's sun/moon button switches, the choice is kept in
   localStorage myrograph.theme, otherwise the system setting is followed). The paper color patterns are drawn on is separate and never changes with it.
 
+  Canvas: the picture's shape is chosen in the Compose panel header (square, screen shapes, Letter / A4, or a custom pixel size); layers fit the shorter side, X / Y shifts are
+  thousandths of the width, text / signatures are positioned by x / y shares. PNG, print (landscape page for a wide canvas), GIF, SVG, albums and links all follow the shape.
+
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
 
@@ -161,7 +164,10 @@
   #pm-compat button.ok { border-color: #3f9b62; } #pm-compat button.bad { border-color: #c4553a; opacity: .75; } #pm-compat button.wait { border-style: dotted; }
   #pm-compat button.on { background: var(--line); outline: 2px solid var(--accent); }
   .layer .keep { padding: 0 6px; font-size: 11px; margin-top: 2px; }
-  #ovwrap { position: relative; flex: none; width: min(100%, 42vh); margin: 0 auto; }      /* a shorter picture on short screens, so the lists below keep room */
+  #ovwrap { --ar: 1; position: relative; flex: none; width: min(100%, calc(42vh * var(--ar))); aspect-ratio: var(--ar); margin: 0 auto; }      /* the canvas shape; a tall one is limited to 42vh high */
+  #cv-sel { max-width: 150px; }
+  #cv-custom { display: inline-flex; align-items: center; gap: 3px; color: var(--dim); }
+  #cv-custom input { width: 4.4em; }      /* a shorter picture on short screens, so the lists below keep room */
   #ov-anim { display: inline-flex; align-items: center; gap: 8px; }
   #ov-play { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; }
   #ov-play[hidden] { display: none; }
@@ -209,7 +215,7 @@
   body.compose-open #compose { transform: none; }
   #compose .ch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 12px; border-bottom: 1px solid var(--edge); }
   #compose .ch .sp { flex: 1; }
-  #ovc { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); flex: none; }
+  #ovc { position: absolute; left: 0; top: 0; display: block; width: 100%; height: 100%; background: var(--paper); }      /* out of flow: #ovwrap's aspect-ratio sets the shape, not the canvas's own size */
   [hidden] { display: none !important; }
   .pane { flex: 1; overflow: auto; min-height: 0; }
   #layers { padding: 4px 12px 0; }
@@ -228,7 +234,7 @@
   .ab select { max-width: 40%; font-size: 14px; }
   .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding-top: 14px; }
   .card { background: var(--sunk); border-radius: 6px; overflow: hidden; }
-  .card canvas { display: block; width: 100%; aspect-ratio: 1; background: var(--paper); cursor: pointer; }
+  .card canvas { display: block; width: 100%; height: auto; background: var(--paper); cursor: pointer; }
   .card .nm { display: flex; align-items: center; gap: 2px; padding: 5px 6px 2px 8px; font-size: 13px; }
   .card .nm span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card .meta { padding: 0 8px 7px; font-size: 11px; color: var(--dim); }
@@ -304,7 +310,10 @@
   <div id="al-items" class="thumbs"></div>
 </section>
 <aside id="compose">
-  <div class="ch"><b>Overlay</b><span id="ov-anim" hidden><button id="ov-play" title="Pause / play the animation"></button>
+  <div class="ch"><b>Overlay</b>
+      <select id="cv-sel" title="The shape of the picture (the canvas)"><optgroup label="Screen"><option value="1:1">Square 1:1</option><option value="4:3">Landscape 4:3</option><option value="3:2">Landscape 3:2</option><option value="16:9">Wide 16:9</option><option value="3:4">Portrait 3:4</option><option value="2:3">Portrait 2:3</option><option value="9:16">Tall 9:16</option></optgroup>
+        <optgroup label="Paper"><option value="17:22">Letter portrait</option><option value="22:17">Letter landscape</option><option value="210:297">A4 portrait</option><option value="297:210">A4 landscape</option></optgroup><option value="custom">Custom size…</option></select>
+      <span id="cv-custom" hidden title="A size in pixels: the picture takes this shape, and Save PNG can export exactly this size"><input type="number" id="cv-w" min="1" max="9999" step="1"> × <input type="number" id="cv-h" min="1" max="9999" step="1"> px</span><span id="ov-anim" hidden><button id="ov-play" title="Pause / play the animation"></button>
       <label title="The time one full loop of the animation takes (each layer's Spin is whole turns per loop)" style="color:var(--dim)">Loop <input type="number" id="an-loop" min="2" max="60" step="1" value="8" style="width:3.6em"> s</label></span><span class="sp"></span>
     <button id="ov-close">✕</button></div>
   <div id="ovwrap"><canvas id="ovc"></canvas><canvas id="sigc"></canvas></div>
@@ -361,6 +370,7 @@
   </div>
 </aside>
 
+<style id="page-style"></style>
 <div id="print-sheet"><canvas id="print-c"></canvas></div>
 <dialog id="pr">
   <p><b>We recommend you print in white to save ink.</b></p>
@@ -709,7 +719,7 @@ function readTextChunk(png, keyword) {          // text of the first uncompresse
 
 // ---- share links: overlay setup <-> compact URL-fragment text
 // v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size[,width x10 if not 1.0][,x<shift>][,y<shift>][,s<spin>][,d<draws>]>/...   shifts in thousandths of the picture, spin in turns per loop, draws per loop, base 36, only if not 0
-// then optionally loop,<seconds> (only if not the default)
+// then optionally loop,<seconds> (only if not the default) and cv,<w>,<h> (the canvas shape, only if not the default square)
 // (the t|f segment and an optional layer field `1` are only
 // READ, from links made when layers could stretch to fit: the app converts them to sizes, see bakeLegacyFit)
 // then optionally one p,... segment per custom part the layers use (see encodePart), and one g,... segment per text / signature (see encodeSig)
@@ -721,6 +731,7 @@ function encodeShare(st) {
       Math.round(l.rot || 0), Math.round(l.size || 100), ...(Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)]),
       ...(l.dx ? ['x' + Math.round(l.dx).toString(36)] : []), ...(l.dy ? ['y' + Math.round(l.dy).toString(36)] : []), ...(l.spin ? ['s' + speedTok(l.spin)] : []), ...(l.draw ? ['d' + speedTok(l.draw)] : [])].join(',')),
     ...(st.loop && Math.round(st.loop) !== LOOP_SEC.def ? ['loop,' + Math.round(st.loop)] : []),
+    ...(st.canvas && !isDefaultCanvas(cleanCanvas(st.canvas)) ? ['cv,' + cleanCanvas(st.canvas).w + ',' + cleanCanvas(st.canvas).h] : []),
     ...(st.parts || []).map(encodePart), ...canonSigInstances(st).map(encodeSig)].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
 }
 function decodeShare(text) {                    // throws on anything malformed
@@ -732,7 +743,8 @@ function decodeShare(text) {                    // throws on anything malformed
   const signatures = sigSegs.map(decodeSig);
   if (signatures.some(g => !g)) throw bad();
   const loopSeg = segs.find(x => /^loop,\d+$/.test(x)), loop = loopSeg ? Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, +loopSeg.slice(5))) : 0;
-  const layers = segs.filter(x => !x.startsWith('p,') && !x.startsWith('g,') && !/^loop,/.test(x)).map(str => {
+  const cvSeg = segs.find(x => /^cv,\d+,\d+$/.test(x)), canvas = cvSeg ? cleanCanvas({ w: +cvSeg.split(',')[1], h: +cvSeg.split(',')[2] }) : null;
+  const layers = segs.filter(x => !x.startsWith('p,') && !x.startsWith('g,') && !/^loop,/.test(x) && !/^cv,/.test(x)).map(str => {
     const f = str.split(','), [track, roller, hole, color, vis, rot, size] = f;
     if (!/^[\w-]+$/.test(track || '') || !/^[\w-]+$/.test(roller || '') || !/^\d+$/.test(hole || '') || !hex.test(color || '')) throw bad();
     let i = 7, wd = 10, fit = false, dx = 0, dy = 0, spin = 0, draw = 0;
@@ -745,7 +757,7 @@ function decodeShare(text) {                    // throws on anything malformed
       rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(LAYER_SIZE.max, Math.max(LAYER_SIZE.min, Math.round(+size) || 100)),
       width: Math.min(LAYER_WIDTH.max, Math.max(LAYER_WIDTH.min, (wd || 10) / 10)), ...(fit ? { fit: true } : {}), ...(dx ? { dx } : {}), ...(dy ? { dy } : {}), ...(spin ? { spin } : {}), ...(draw ? { draw } : {}) };
   });
-  return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(loop ? { loop } : {}), ...(shared.length ? { parts: shared } : {}), ...(signatures.length ? { signatures } : {}) };
+  return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(loop ? { loop } : {}), ...(canvas && !isDefaultCanvas(canvas) ? { canvas } : {}), ...(shared.length ? { parts: shared } : {}), ...(signatures.length ? { signatures } : {}) };
 }
 
 // ---- ink palettes: ordered color sets. The active one feeds the grid's Auto ink (one color per moving
@@ -948,6 +960,20 @@ const LOOP_SEC = { min: 2, max: 60, def: 8 };    // how long one animation loop 
 // Is this paper color (#rrggbb) close enough to white that printing it as it is costs nothing? The default cream is; anything noticeably tinted or dark is not (the Print
 // button then offers a white background instead).
 const isNearWhite = hex => /^#[0-9a-f]{6}$/i.test(hex) && [1, 3, 5].every(i => parseInt(hex.slice(i, i + 2), 16) >= 0xE6);
+// The canvas (the picture's shape): { w, h }, whole numbers. Only the ratio matters on screen and in previews; typed pixel sizes ("Custom") also allow an exact-size export.
+// {1,1} is the default square and is not written to files or links. Extreme shapes are limited to 6:1.
+const CANVAS_DEFAULT = { w: 1, h: 1 }, CANVAS_MAX = 9999, CANVAS_ASPECT_MAX = 6;
+function cleanCanvas(raw) {
+  let w = Math.round(+raw?.w), h = Math.round(+raw?.h);
+  if (!(w >= 1 && h >= 1)) return { ...CANVAS_DEFAULT };
+  w = Math.min(w, CANVAS_MAX); h = Math.min(h, CANVAS_MAX);
+  if (w > h * CANVAS_ASPECT_MAX) h = Math.ceil(w / CANVAS_ASPECT_MAX); else if (h > w * CANVAS_ASPECT_MAX) w = Math.ceil(h / CANVAS_ASPECT_MAX);
+  return { w, h };
+}
+const isDefaultCanvas = c => c.w === CANVAS_DEFAULT.w && c.h === CANVAS_DEFAULT.h;
+function exportDims(c, longEdge) {              // pixel size of an export whose longest side is `longEdge`
+  const a = c.w / c.h; return a >= 1 ? { W: longEdge, H: Math.max(1, Math.round(longEdge / a)) } : { H: longEdge, W: Math.max(1, Math.round(longEdge * a)) };
+}
 const layerAngle = (l, phase) => (l.rot || 0) - 360 * (l.spin || 0) * phase;
 const bakeRot = (l, phase) => ((Math.round(layerAngle(l, phase)) % 360) + 360) % 360;
 // A layer's Draw: how many times per loop its curve is drawn out by a pen (tenths allowed; 0 = off, always complete). Each cycle draws from nothing to the
@@ -1348,8 +1374,11 @@ const gl = new THREE.WebGLRenderer({ antialias: true });
 gl.setPixelRatio(1);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#faf7f0');
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);      // the square one: grid tiles
 camera.position.z = 1;
+const camFor = a => { const c = new THREE.OrthographicCamera(-a, a, 1, -1, 0.1, 10); c.position.z = 1; return c; };     // the picture is 2 scene units tall and 2a wide (a = width / height)
+let canvasDim = { ...CANVAS_DEFAULT }, ovCam = camFor(1);   // the overlay's canvas shape (see cleanCanvas) and its camera
+const canvasAR = () => canvasDim.w / canvasDim.h;
 const mats = new Map();
 let px = 0;                                     // tile size in device pixels
 function material(color) {
@@ -1465,19 +1494,19 @@ function bakeLegacyFit(ls, flags, curve) {
   const maxAll = Math.max(0.001, ...ls.filter(l => l.visible).map(l => curve(l.p).maxR));
   ls.forEach((l, i) => { if (flags[i]) l.size = Math.max(LAYER_SIZE.min, Math.min(LAYER_SIZE.max, Math.round(l.size * maxAll / Math.max(0.001, curve(l.p).maxR)))); });
 }
-function makeLines(ls, lineWidth, resPx, curve) {
+function makeLines(ls, lineWidth, resPx, curve, aspect = 1) {      // aspect = picture width / height; layers fit the shorter side
   const vis = ls.filter(l => l.visible), cs = vis.map(l => curve(l.p));
   const maxAll = Math.max(0.001, ...cs.map(c => c.maxR));
   return vis.map((l, i) => {
     const m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: lineWidth * (l.width || 1) });
-    m.resolution.set(resPx, resPx);
-    const line = new Line2(cs[i].geo, m), sc = 0.92 / maxAll * l.size / 100;
+    m.resolution.set(resPx, resPx / aspect);
+    const line = new Line2(cs[i].geo, m), sc = 0.92 * Math.min(1, aspect) / maxAll * l.size / 100;
     // How many segments to draw is set on the (shared) geometry right before THIS line draws, so copies of one pattern can be drawn to different lengths.
     line.userData = { cum: l.draw ? (cs[i].cum ??= cumLengths(cs[i].pts)) : null, count: Infinity };
     const base = line.onBeforeRender; line.onBeforeRender = function (...a) { base.apply(this, a); this.geometry.instanceCount = this.userData.count; };
     line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
     if (l.draw) line.userData.count = drawCount(line.userData.cum, l.prog ?? 1);
-    line.position.set((l.dx || 0) / 500, -(l.dy || 0) / 500, 0);       // shift in thousandths of the picture width (it spans 2 scene units); the layer rotates about its own center first
+    line.position.set((l.dx || 0) * aspect / 500, -(l.dy || 0) * aspect / 500, 0);       // shift in thousandths of the picture WIDTH, both ways (the width is 2 * aspect scene units); the layer rotates about its own center first
     return line;
   });
 }
@@ -1487,7 +1516,7 @@ function setLineFrame(line, l, phase) {        // move one built line to loop ph
 }
 function buildOverlay(lineWidth, resPx, phase = animPhase, bake = false) {      // (re)fill ovScene from the layers; lineWidth in px of a resPx-wide image; the layers at loop phase `phase` (bake: whole-degree angles, as saved)
   for (const o of [...ovScene.children]) { ovScene.remove(o); o.material.dispose(); }
-  ovScene.add(...makeLines([...layers.values()].map(l => ({ ...l, rot: bake ? bakeRot(l, phase) : layerAngle(l, phase), prog: drawFraction(l, phase) })), lineWidth, resPx, ovCurve));
+  ovScene.add(...makeLines([...layers.values()].map(l => ({ ...l, rot: bake ? bakeRot(l, phase) : layerAngle(l, phase), prog: drawFraction(l, phase) })), lineWidth, resPx, ovCurve, canvasAR()));
 }
 // ---- UI theme: dark / light (the CSS variables switch on <html data-theme>; the head script picked the first one). A click saves the choice
 // (myrograph.theme); until then the page follows the system setting live. The paper color is separate and never changes.
@@ -1531,7 +1560,7 @@ function animTick(now) {
   const vis = [...layers.values()].filter(l => l.visible);
   if (ovScene.children.length === vis.length) {
     vis.forEach((l, i) => setLineFrame(ovScene.children[i], l, animPhase));
-    ov.render(ovScene, camera);
+    ov.render(ovScene, ovCam);
   }
   animRaf = requestAnimationFrame(animTick);
 }
@@ -1547,13 +1576,42 @@ $('ov-play').onclick = () => { playing = !playing; animSync(); };
 $('an-loop').oninput = e => { if (e.target.value !== '') setLoop(e.target.value), $('an-loop').value = e.target.value; };      // (don't rewrite the box while typing)
 $('an-loop').onchange = () => setLoop($('an-loop').value);
 function renderOverlay() {
-  const css = ovCanvas.clientWidth;
-  if (!composeOpen || !css) return;
-  ov.setPixelRatio(1); ov.setSize(css * pr, css * pr, false);   // size in device px (ratio 1): LineMaterial reads its resolution from the viewport in CSS px, so a ratio of 2 drew lines twice as thick as the PNG / print
+  const css = ovCanvas.clientWidth, cssH = ovCanvas.clientHeight;
+  if (!composeOpen || !css || !cssH) return;
+  ov.setPixelRatio(1); ov.setSize(css * pr, cssH * pr, false);   // size in device px (ratio 1): LineMaterial reads its resolution from the viewport in CSS px, so a ratio of 2 drew lines twice as thick as the PNG / print
   buildOverlay(1.6 * pr, css * pr);
-  ov.render(ovScene, camera);
+  ov.render(ovScene, ovCam);
   drawSigLayer();
 }
+
+// ---- the canvas: its shape is chosen in the panel header (presets, or Custom pixel size). The scene is 2 units tall and 2a wide (a = w / h), layers fit the shorter side, X / Y
+// shifts stay in thousandths of the width, and text / signature positions are thousandths of the width (x) and height (y), so a picture keeps its look when the shape changes.
+const cvPresets = () => [...$('cv-sel').options].map(o => o.value).filter(v => v !== 'custom');
+let cvCustom = false;                           // the Custom boxes are showing (sticky while you type, so passing through a preset shape doesn't hide them)
+function syncCanvasUI() {
+  const key = `${canvasDim.w}:${canvasDim.h}`, isPreset = cvPresets().includes(key);
+  $('cv-sel').value = cvCustom || !isPreset ? 'custom' : key; $('cv-custom').hidden = !(cvCustom || !isPreset);
+  if (document.activeElement !== $('cv-w')) $('cv-w').value = canvasDim.w;
+  if (document.activeElement !== $('cv-h')) $('cv-h').value = canvasDim.h;
+  const px = $('ov-px'), ex = px.querySelector('option[value=exact]'), can = (cvCustom || !isPreset) && Math.min(canvasDim.w, canvasDim.h) >= 100 && Math.max(canvasDim.w, canvasDim.h) <= 8192;
+  if (can && !ex) px.add(new Option('Exact size', 'exact')); if (!can && ex) { if (px.value === 'exact') px.value = '2048'; ex.remove(); }
+  if (can) px.querySelector('option[value=exact]').text = `Exact ${canvasDim.w}×${canvasDim.h}`;
+}
+function setCanvas(c, { render = true } = {}) {
+  canvasDim = cleanCanvas(c); ovCam = camFor(canvasAR());
+  $('ovwrap').style.setProperty('--ar', canvasAR());
+  cvCustom = !cvPresets().includes(`${canvasDim.w}:${canvasDim.h}`); syncCanvasUI();
+  if (render) renderOverlay();                  // (the picture's size changes too, which the resize observer also notices)
+}
+$('cv-sel').onchange = e => {
+  if (e.target.value === 'custom') { const d = exportDims(canvasDim, 2048); cvCustom = true; canvasDim = cleanCanvas({ w: d.W, h: d.H }); ovCam = camFor(canvasAR()); $('ovwrap').style.setProperty('--ar', canvasAR()); syncCanvasUI(); renderOverlay(); }
+  else { const [w, h] = e.target.value.split(':').map(Number); setCanvas({ w, h }); }
+};
+for (const id of ['cv-w', 'cv-h']) $(id).oninput = () => {
+  const w = +$('cv-w').value, h = +$('cv-h').value; if (!(w >= 1 && h >= 1)) return;
+  canvasDim = cleanCanvas({ w, h }); ovCam = camFor(canvasAR()); $('ovwrap').style.setProperty('--ar', canvasAR()); syncCanvasUI(); renderOverlay();
+};
+for (const id of ['cv-w', 'cv-h']) $(id).onchange = () => { $(id).value = canvasDim[id === 'cv-w' ? 'w' : 'h']; };      // show what the limits made of it
 
 // ---- save / open
 const say = (msg, ms = 4000) => { $('ov-msg').textContent = msg; if (ms) setTimeout(() => { if ($('ov-msg').textContent === msg) $('ov-msg').textContent = ''; }, ms); };
@@ -1563,18 +1621,22 @@ function overlayState(ph = 0) {                 // ph: the loop phase to capture
     layers: [...layers.values()].map(l => ({ track: l.p.track.id, roller: l.p.roller.id, hole: l.p.hole,
       color: l.color, visible: l.visible, rot: ph ? bakeRot(l, ph) : l.rot, size: l.size, width: l.width, ...(l.dx ? { dx: l.dx } : {}), ...(l.dy ? { dy: l.dy } : {}), ...(l.spin ? { spin: l.spin } : {}), ...(l.draw ? { draw: l.draw } : {}) })),
     ...(loopSec !== LOOP_SEC.def ? { loop: loopSec } : {}),
+    ...(isDefaultCanvas(canvasDim) ? {} : { canvas: { ...canvasDim } }),
     ...(used.size ? { parts: [...used].map(id => registry.get(id)).filter(Boolean) } : {}),     // custom parts travel with the setup
     ...(sigs.length ? { signatures: sigs.map(g => ({ ...g })) } : {}) };                       // so do the texts / signatures
 }
-async function makePng(px) {
+// Pixel size of an export from a size menu value: a number is the longest side, "exact" is the typed canvas size (only offered for Custom sizes).
+const dimsFor = sel => sel === 'exact' ? { W: canvasDim.w, H: canvasDim.h } : exportDims(canvasDim, +sel);
+async function makePng(sel) {
+  const { W, H } = dimsFor(sel);
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  r.setPixelRatio(1); r.setSize(px, px, false);
+  r.setPixelRatio(1); r.setSize(W, H, false);
   const ph = animPhase;                                           // the frame on screen: saved with whole-degree angles so reopening it gives the same picture
-  buildOverlay(1.6 * px / (ovCanvas.clientWidth || 440), px, ph, true);   // same line weight relative to the picture as on screen
-  r.render(ovScene, camera);
-  const flat = document.createElement('canvas'); flat.width = flat.height = px;          // the picture plus the signature, as one image
+  buildOverlay(1.6 * W / (ovCanvas.clientWidth || 440), W, ph, true);   // same line weight relative to the picture as on screen
+  r.render(ovScene, ovCam);
+  const flat = document.createElement('canvas'); flat.width = W; flat.height = H;          // the picture plus the signature, as one image
   const g2 = flat.getContext('2d'); g2.drawImage(r.domElement, 0, 0);
-  drawAllSignatures(g2, sigs, px, px, $('paper').value);
+  drawAllSignatures(g2, sigs, W, H, $('paper').value);
   const blob = await new Promise(res => flat.toBlob(res, 'image/png'));
   r.dispose(); r.forceContextLoss();
   renderOverlay();
@@ -1586,20 +1648,22 @@ const PRINT_PX = 2400;
 function printable() { return composeOpen && [...layers.values()].some(l => l.visible); }
 let printWhite = false;                          // this print only: use a white page instead of the paper color (chosen in the dialog below)
 function fillPrintCanvas() {
-  const r = new THREE.WebGLRenderer({ antialias: true }), c = $('print-c');
-  r.setPixelRatio(1); r.setSize(PRINT_PX, PRINT_PX, false);
-  buildOverlay(1.6 * PRINT_PX / (ovCanvas.clientWidth || 440), PRINT_PX);
+  const r = new THREE.WebGLRenderer({ antialias: true }), c = $('print-c'), { W, H } = exportDims(canvasDim, PRINT_PX);
+  r.setPixelRatio(1); r.setSize(W, H, false);
+  buildOverlay(1.6 * W / (ovCanvas.clientWidth || 440), W);
   const white = printWhite && !isNearWhite($('paper').value), paper = white ? '#ffffff' : $('paper').value;      // the stored paper is never touched: only this print is white
   if (white) ovScene.background = new THREE.Color(paper);
-  r.render(ovScene, camera); ovScene.background = scene.background;
-  c.width = c.height = PRINT_PX; c.getContext('2d').drawImage(r.domElement, 0, 0);
-  drawAllSignatures(c.getContext('2d'), sigs, PRINT_PX, PRINT_PX, paper);                // (an auto-colored text picks its ink for the paper it is printed on)
+  r.render(ovScene, ovCam); ovScene.background = scene.background;
+  c.width = W; c.height = H; c.getContext('2d').drawImage(r.domElement, 0, 0);
+  $('page-style').textContent = W > H ? '@page { size: landscape; }' : '@page { size: portrait; }';      // a wide canvas prints on a landscape page (browsers that support it)
+  drawAllSignatures(c.getContext('2d'), sigs, W, H, paper);                // (an auto-colored text picks its ink for the paper it is printed on)
   r.dispose(); r.forceContextLoss(); renderOverlay();
 }
 // ---- animated GIF: one loop, rendered frame by frame offscreen (own scene and a snapshot of the layers, so editing meanwhile can't disturb it).
 // The encoder (gifenc, ~10 KB, MIT) is only fetched from the CDN when you export. Each frame gets its own 256-color palette.
 const GIFENC_URL = 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
-async function makeGif(px, fps, onProgress = () => {}) {
+async function makeGif(long, fps, onProgress = () => {}) {
+  const { W, H } = exportDims(canvasDim, long), asp = canvasAR();
   const { GIFEncoder, quantize, applyPalette } = await import(GIFENC_URL);
   const delay = Math.round(1000 / fps), vis0 = [...layers.values()].filter(l => l.visible);
   // A GIF is one loop long and repeats seamlessly only if every layer is back where it started. Whole-number speeds do that every loop; speeds in tenths need 2, 5 or 10 loops
@@ -1607,18 +1671,18 @@ async function makeGif(px, fps, onProgress = () => {}) {
   const MAX_GIF_FRAMES = 600, want = loopMultiple(vis0), mult = want * loopSec * fps <= MAX_GIF_FRAMES ? want : 1, seamless = mult === want;
   const n = Math.max(2, Math.round(loopSec * mult * fps));
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }), sc = new THREE.Scene(), enc = GIFEncoder();
-  r.setPixelRatio(1); r.setSize(px, px, false); sc.background = new THREE.Color($('paper').value);
+  r.setPixelRatio(1); r.setSize(W, H, false); sc.background = new THREE.Color($('paper').value); const cam = camFor(asp);
   const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l })), sigList = sigs.map(g => ({ ...g })), paper = $('paper').value;
-  const lines = makeLines(vis, 1.6 * px / (ovCanvas.clientWidth || 440), px, ovCurve); sc.add(...lines);
-  const flat = document.createElement('canvas'); flat.width = flat.height = px;
+  const lines = makeLines(vis, 1.6 * W / (ovCanvas.clientWidth || 440), W, ovCurve, asp); sc.add(...lines);
+  const flat = document.createElement('canvas'); flat.width = W; flat.height = H;
   const g2 = flat.getContext('2d', { willReadFrequently: true });
   try {
     for (let i = 0; i < n; i++) {
       vis.forEach((l, k) => setLineFrame(lines[k], l, (i + 0.5) / n * mult));      // (half a frame in: a draw never lands exactly on its restart)
-      r.render(sc, camera); g2.drawImage(r.domElement, 0, 0);
-      drawAllSignatures(g2, sigList, px, px, paper);
-      const { data } = g2.getImageData(0, 0, px, px), palette = quantize(data, 256);
-      enc.writeFrame(applyPalette(data, palette), px, px, { palette, delay });
+      r.render(sc, cam); g2.drawImage(r.domElement, 0, 0);
+      drawAllSignatures(g2, sigList, W, H, paper);
+      const { data } = g2.getImageData(0, 0, W, H), palette = quantize(data, 256);
+      enc.writeFrame(applyPalette(data, palette), W, H, { palette, delay });
       onProgress(i + 1, n); if (i % 3 === 2) await new Promise(res => setTimeout(res));      // let the page breathe (and show progress)
     }
     enc.finish();
@@ -1648,20 +1712,21 @@ function drawAttrs(l, phase) {
   return `${base} stroke-dashoffset="0"><animate attributeName="stroke-dashoffset" values="1;0" dur="${+(loopSec / l.draw).toFixed(4)}s" repeatCount="indefinite"/></path>`;
 }
 function makeSvg({ px = 800, phase = null } = {}) {
+  const { W, H } = exportDims(canvasDim, px), a = canvasAR();      // the picture is 2a wide and 2 tall, centered on 0
   const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l, c: ovCurve(l.p) }));
   const maxAll = Math.max(0.001, ...vis.map(l => l.c.maxR)), css = ovCanvas.clientWidth || 440, f = n => +n.toFixed(3);
-  const out = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" width="${px}" height="${px}">`, `<rect x="-1" y="-1" width="2" height="2" fill="${$('paper').value}"/>`];
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(-a)} -1 ${f(2 * a)} 2" width="${W}" height="${H}">`, `<rect x="${f(-a)}" y="-1" width="${f(2 * a)}" height="2" fill="${$('paper').value}"/>`];
   for (const l of vis) {
-    const sc = 0.92 / maxAll * l.size / 100, p = l.c.pts, d = [];
+    const sc = 0.92 * Math.min(1, a) / maxAll * l.size / 100, p = l.c.pts, d = [];
     for (let i = 0; i < p.length; i += 3) d.push((i ? 'L' : 'M') + f(p[i] * sc) + ' ' + f(-p[i + 1] * sc));
-    const sw = +(2 * 1.6 * (l.width || 1) / css).toFixed(5), a0 = -(phase == null ? l.rot : layerAngle(l, phase));
+    const sw = +(2 * a * 1.6 * (l.width || 1) / css).toFixed(5), a0 = -(phase == null ? l.rot : layerAngle(l, phase));
     const anim = phase == null && l.spin ? `<animateTransform attributeName="transform" type="rotate" from="${f(a0)} 0 0" to="${f(a0 + 360 * Math.sign(l.spin))} 0 0" dur="${+(loopSec / Math.abs(l.spin)).toFixed(4)}s" repeatCount="indefinite"/>` : '';     // one turn per period, each layer on its own, so any speed repeats
-    out.push(`<g transform="translate(${f((l.dx || 0) / 500)} ${f((l.dy || 0) / 500)})"><g transform="rotate(${f(a0)} 0 0)">${anim}` +
+    out.push(`<g transform="translate(${f((l.dx || 0) * a / 500)} ${f((l.dy || 0) * a / 500)})"><g transform="rotate(${f(a0)} 0 0)">${anim}` +
       `<path d="${d.join('')}" fill="none" stroke="${l.color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${drawAttrs(l, phase)}</g></g>`);
   }
   if (sigs.length) {                            // the texts / signatures ride along as one transparent picture (they don't move)
-    const c = document.createElement('canvas'); c.width = c.height = 1024; drawAllSignatures(c.getContext('2d'), sigs, 1024, 1024, $('paper').value);
-    out.push(`<image x="-1" y="-1" width="2" height="2" href="${c.toDataURL('image/png')}"/>`);
+    const sz = exportDims(canvasDim, 1024), c = document.createElement('canvas'); c.width = sz.W; c.height = sz.H; drawAllSignatures(c.getContext('2d'), sigs, sz.W, sz.H, $('paper').value);
+    out.push(`<image x="${f(-a)}" y="-1" width="${f(2 * a)}" height="2" href="${c.toDataURL('image/png')}"/>`);
   }
   out.push('</svg>');
   return out.join('\n');
@@ -1676,7 +1741,7 @@ function saveSvg() {
 $('an-svg').onclick = saveSvg;
 $('an-save').onclick = saveGif;
 window.addEventListener('beforeprint', () => { if (printable()) { fillPrintCanvas(); document.body.classList.add('print-overlay'); } });
-window.addEventListener('afterprint', () => { document.body.classList.remove('print-overlay'); $('print-c').width = $('print-c').height = 0; printWhite = false; });
+window.addEventListener('afterprint', () => { document.body.classList.remove('print-overlay'); $('print-c').width = $('print-c').height = 0; $('page-style').textContent = ''; printWhite = false; });
 // Printing from the button or Ctrl/Cmd+P: with a tinted or dark paper, ask first whether to print on white (the browser's own print menu can't be intercepted: it prints the paper color).
 const prd = $('pr');
 function startPrint() {
@@ -1692,7 +1757,7 @@ window.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && !e.alt
 async function savePng() {
   if (!layers.size) return say('Add at least one layer first.');
   say('Rendering…', 0);
-  const bytes = await makePng(+$('ov-px').value);
+  const bytes = await makePng($('ov-px').value === 'exact' ? 'exact' : +$('ov-px').value);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
   a.download = `myrograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.png`;
@@ -1724,6 +1789,7 @@ function applyState(meta) {                     // replace the overlay with a sa
   const gotParts = registerParts(meta.parts);
   layers.clear(); clearCurves();
   if (meta.paper) { $('paper').value = meta.paper; markPaperSwatches(); document.documentElement.style.setProperty('--paper', meta.paper); scene.background.set(meta.paper); }
+  setCanvas(meta.canvas, { render: false });                    // the picture's shape (square for files from before canvases)
   const legacyFit = meta.baseScale === 'fit';                 // files made when sizing was one global switch: every layer stretches
   let missing = 0; const legacyFlags = [];
   for (const l of meta.layers || []) {
@@ -1789,29 +1855,29 @@ const thScene = new THREE.Scene(); thScene.background = new THREE.Color('#faf7f0
 const thQueue = []; let thPumping = false;
 // A saved setup ready to draw at thumbnail size: its lines are built once, so a spinning thumbnail only re-sets rotations per frame.
 function thumbRig(item) {
-  const st = item.state, geos = [], T = Math.round(220 * pr);
+  const st = item.state, geos = [], T = Math.round(220 * pr), cv = cleanCanvas(st.canvas), { W, H } = exportDims(cv, T), asp = cv.w / cv.h;      // T = the longest side
   registerParts(st.parts);
   const ls = (st.layers || []).map(l => ({ p: lookup(l), color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, dx: l.dx || 0, dy: l.dy || 0, spin: cleanSpeed(l.spin, LAYER_SPIN), draw: Math.max(0, cleanSpeed(l.draw, LAYER_DRAW)), fit: !!(l.fit ?? st.baseScale === 'fit') })).filter(l => l.p);
   const curve = p => { const { pts, maxR } = traceRaw(p.track.o, p.roller.o, p.track.inside, p.roller.holes[p.hole - 1]);
     const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR, pts }; };
   bakeLegacyFit(ls, ls.map(l => l.fit), curve);
   const vis = ls.filter(l => l.visible);
-  return { st, T, geos, vis, lines: makeLines(ls, 1.5 * pr, T, curve), sigs: canonSigInstances(st), paper: st.paper || '#faf7f0',
+  return { st, T, W, H, cam: camFor(asp), geos, vis, lines: makeLines(ls, 1.5 * pr * W / T, W, curve, asp), sigs: canonSigInstances(st), paper: st.paper || '#faf7f0',
     loop: Math.max(LOOP_SEC.min, Math.min(LOOP_SEC.max, Math.round(+st.loop) || LOOP_SEC.def)), spins: vis.some(isMoving) };
 }
 function thumbDispose(rig) { for (const l of rig.lines) l.material.dispose(); rig.geos.forEach(g => g.dispose()); }
-function thumbDraw(rig, canvas, phase) {        // the caller has sized gl to rig.T (and puts it back to the tile size afterwards)
+function thumbDraw(rig, canvas, phase) {        // the caller has sized gl to rig.W x rig.H (and puts it back to the tile size afterwards)
   thScene.background.set(rig.paper);
   rig.vis.forEach((l, i) => setLineFrame(rig.lines[i], l, phase));
-  thScene.add(...rig.lines); gl.render(thScene, camera);
-  if (canvas.width !== rig.T) canvas.width = canvas.height = rig.T;
-  const g = canvas.getContext('2d'); g.drawImage(gl.domElement, 0, 0, rig.T, rig.T);
-  drawAllSignatures(g, rig.sigs, rig.T, rig.T, rig.paper);
+  thScene.add(...rig.lines); gl.render(thScene, rig.cam);
+  if (canvas.width !== rig.W || canvas.height !== rig.H) { canvas.width = rig.W; canvas.height = rig.H; }
+  const g = canvas.getContext('2d'); g.drawImage(gl.domElement, 0, 0, rig.W, rig.H);
+  drawAllSignatures(g, rig.sigs, rig.W, rig.H, rig.paper);
   for (const l of rig.lines) thScene.remove(l);
 }
 function renderThumb(item, canvas) {
   const rig = thumbRig(item);
-  gl.setSize(rig.T, rig.T, false); thumbDraw(rig, canvas, 0); gl.setSize(px, px, false);        // (gl goes back to the grid's tile size)
+  gl.setSize(rig.W, rig.H, false); thumbDraw(rig, canvas, 0); gl.setSize(px, px, false);        // (gl goes back to the grid's tile size)
   thumbDispose(rig);
 }
 // Albums: setups with a Spin animate in place (only the ones on screen, round-robin within a ~12 ms budget per frame, so a big album slows
@@ -1828,12 +1894,12 @@ function thAnimTick(now) {
     return it && thumbs.get(it.id) === c && r.bottom > 0 && r.top < innerHeight && stateSpins(it.state);
   });
   if (cs.length) {
-    const t0 = performance.now(); let T = 0;
+    const t0 = performance.now(); let T = '';
     for (let k = 0; k < cs.length; k++) {
       const c = cs[(thRR + k) % cs.length], id = c._item.id;
       if (!thRigs.has(id)) thRigs.set(id, thumbRig(c._item));
       const rig = thRigs.get(id);
-      if (rig.T !== T) { T = rig.T; gl.setSize(T, T, false); }
+      if (rig.W + 'x' + rig.H !== T) { T = rig.W + 'x' + rig.H; gl.setSize(rig.W, rig.H, false); }
       thumbDraw(rig, c, Math.max(0, (now - thAnimT0) / 1000 / rig.loop));
       if (performance.now() - t0 > 12) { thRR = (thRR + k + 1) % cs.length; break; }
     }
@@ -1855,7 +1921,7 @@ function thPump() {
 }
 function thumbFor(item) {
   let c = thumbs.get(item.id);
-  if (!c) { c = document.createElement('canvas'); c.width = c.height = Math.round(220 * pr); thumbs.set(item.id, c); thQueue.push([item, c]); if (!thPumping) { thPumping = true; requestAnimationFrame(thPump); } }
+  if (!c) { c = document.createElement('canvas'); const d = exportDims(cleanCanvas(item.state.canvas), Math.round(220 * pr)); c.width = d.W; c.height = d.H; thumbs.set(item.id, c); thQueue.push([item, c]); if (!thPumping) { thPumping = true; requestAnimationFrame(thPump); } }
   return c;
 }
 function fillAlbumSelects() {                   // the Albums view and the Compose panel share one album selection
@@ -1981,7 +2047,7 @@ window.addEventListener('hashchange', () => {
   if (layers.size && !confirm('Open the shared overlay and replace the current one?')) return;
   applyHash();
 });
-window.__myro = { anim: { makeSvg, setPhase(p) { animPhase = p; renderOverlay(); }, phase: () => animPhase, play(b) { playing = b; animSync(); }, running: () => !!animRaf, loop: () => loopSec, setLoop, makeGif, saveGif }, sig: { all: () => sigs, inst: () => sigInst, lib: () => sigLib, box: () => sigHit, strokes: () => sgStrokes, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
+window.__myro = { canvas: { set: setCanvas, dim: () => ({ ...canvasDim }), dimsFor }, anim: { makeSvg, setPhase(p) { animPhase = p; renderOverlay(); }, phase: () => animPhase, play(b) { playing = b; animSync(); }, running: () => !!animRaf, loop: () => loopSec, setLoop, makeGif, saveGif }, sig: { all: () => sigs, inst: () => sigInst, lib: () => sigLib, box: () => sigHit, strokes: () => sgStrokes, draw: (...a) => drawSignature(...a) }, makePng, applyState, openFile, overlayState, layers, albumPayload, importFile, getAlbums: () => albums,
   encodeShare, decodeShare, readTextChunk, addTextChunk,
   parts: { open: d => openMaker(d), pv: () => pv, pvState: () => pvState, ed: () => ed, library: () => library, registry, CUSTOM: () => CUSTOM, keepPart, edSave, edDraw, edSync, lookup,
     forget(id) { library = library.filter(d => d.id !== id); registry.delete(id); pieceMemo.delete(id); guestCombos.clear(); libraryChanged(); } } };   // forget: test hook   // test hook
@@ -2483,11 +2549,11 @@ function drawSignature(ctx, inst, W, H, paper) { // paints the signature onto an
 // -- the live layer over the picture: shows the texts / signatures and lets you select, drag and resize them
 const sigC = $('sigc'); let sigBoxes = new Map(), sigHit = null, sigDrag = null, sigHover = null;      // sigBoxes: each one's box on the live picture (CSS px); sigHit: the selected one's; sigHover: the one under the pointer
 function drawSigLayer() {
-  const css = ovCanvas.clientWidth; sigBoxes = new Map(); sigHit = null;
-  if (!css) return;
-  if (sigC.width !== Math.round(css * pr)) sigC.width = sigC.height = Math.round(css * pr);
-  const ctx = sigC.getContext('2d'); ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.clearRect(0, 0, css, css);
-  for (const g of sigs) sigBoxes.set(g, drawSignature(ctx, g, css, css, $('paper').value));
+  const css = ovCanvas.clientWidth, cssH = ovCanvas.clientHeight; sigBoxes = new Map(); sigHit = null;
+  if (!css || !cssH) return;
+  if (sigC.width !== Math.round(css * pr) || sigC.height !== Math.round(cssH * pr)) { sigC.width = Math.round(css * pr); sigC.height = Math.round(cssH * pr); }
+  const ctx = sigC.getContext('2d'); ctx.setTransform(pr, 0, 0, pr, 0, 0); ctx.clearRect(0, 0, css, cssH);
+  for (const g of sigs) sigBoxes.set(g, drawSignature(ctx, g, css, cssH, $('paper').value));
   sigHit = sigBoxes.get(sigInst) || null;
   const framed = sigDrag ? sigInst : sigHover || (ovTab === 'sign' ? sigInst : null), b = framed && sigBoxes.get(framed);
   if (b) {                                      // a frame (and, on the selected one, a corner handle): editing aids, never exported
@@ -2509,8 +2575,8 @@ const syncSize = () => { $('sg-size').value = sigInst.size; $('sg-pct').value = 
 const sigRedraw = () => { drawSigLayer(); sigKeepInside(); drawSigLayer(); };         // draw, pull back inside the picture if it grew past an edge, draw again
 function sigKeepInside() {                       // the selected one stays fully on the picture (centered if it is bigger than the picture)
   if (!sigInst || !sigHit) return;
-  const css = ovCanvas.clientWidth, pad = 14, fit = (v, m) => m >= 500 ? 500 : Math.max(m, Math.min(1000 - m, Math.round(v)));      // pad: room for the frame and its corner handle
-  sigInst.x = fit(sigInst.x, (sigHit.w / 2 + pad) / css * 1000); sigInst.y = fit(sigInst.y, (sigHit.h / 2 + pad) / css * 1000);
+  const css = ovCanvas.clientWidth, cssH = ovCanvas.clientHeight, pad = 14, fit = (v, m) => m >= 500 ? 500 : Math.max(m, Math.min(1000 - m, Math.round(v)));      // pad: room for the frame and its corner handle
+  sigInst.x = fit(sigInst.x, (sigHit.w / 2 + pad) / css * 1000); sigInst.y = fit(sigInst.y, (sigHit.h / 2 + pad) / cssH * 1000);
 }
 function selectSig(g) { sigInst = g; fillSigSelect(); drawSigLayer(); }
 let layerDrag = null;                           // dragging the picture moves the highlighted layer (unless the pointer is on a text / signature)
@@ -2532,7 +2598,7 @@ sigC.addEventListener('pointerdown', ev => {
 sigC.addEventListener('pointermove', ev => {
   const p = sigPoint(ev);
   if (layerDrag) {
-    layerDrag.l.dx = shiftClamp(layerDrag.dx + (p.x - layerDrag.x) / p.w * 1000); layerDrag.l.dy = shiftClamp(layerDrag.dy + (p.y - layerDrag.y) / p.h * 1000);
+    layerDrag.l.dx = shiftClamp(layerDrag.dx + (p.x - layerDrag.x) / p.w * 1000); layerDrag.l.dy = shiftClamp(layerDrag.dy + (p.y - layerDrag.y) / p.w * 1000);      // (both in thousandths of the width)
     syncPos(); renderOverlay(); return;
   }
   if (sigDrag && sigDrag.mode === 'size') {

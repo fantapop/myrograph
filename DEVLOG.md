@@ -79,6 +79,23 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Canvas shape: wide, tall, Letter / A4, or custom pixel size
+
+- New select in the Compose header (next to "Overlay"): Square (default), Landscape 4:3 / 3:2, Wide 16:9, Portrait 3:4 / 2:3, Tall 9:16, Letter / A4 portrait + landscape, and **Custom size…**
+  (width x height boxes in pixels). The canvas is `{w, h}` (CORE `cleanCanvas`: whole numbers up to 9999, at most 6:1; square = default and is not written anywhere, so old files and links are untouched).
+  It is saved in the setup (PNG / album / link `cv,<w>,<h>`).
+- Geometry: the scene is 2 units tall and 2a wide. Layers fit the SHORTER side (so a pattern is the same size in a landscape or portrait canvas of the same short side); a layer's X / Y shift is
+  thousandths of the WIDTH on both axes (square files unchanged); text / signatures keep x / y as shares of width / height, so a signature stays in "its corner" when the shape changes.
+  Line weight stays relative to the width. Every output follows the shape: PNG (`dimsFor`: longest side 1024 / 2048 / 4096, or "Exact W x H" for a typed Custom size >= 100 px), print (2400 px longest side,
+  `@page` landscape / portrait set while printing), GIF, SVG (viewBox 2a x 2), album thumbnails (and the albums grid keeps each aspect).
+- Bug found on the way: the canvas element's own size beat the wrapper's CSS aspect-ratio (the picture stayed square); #ovc is now absolutely positioned.
+- Interpretation: "larger / custom sized" = any shape plus exact pixel export; export resolution was already up to 4096 px. A taller canvas is limited to 42vh high in the panel like before.
+- Tested in Chrome: 16:9 live size and signature layer, PNG 400x225 with the pattern fitting the height and centered, X 20% / Y 10% shifts as shares of the width, text landing at its x / y, portrait PNG,
+  Custom 1920x1080 stays Custom and exports exactly, SVG 800x450, GIF 320x180, print canvas 2400x1350 + landscape page, thumbnail 16:9, old files open square, saved shape restored; node tests for
+  cleanCanvas / exportDims / the link segment. Old square behavior re-checked with the earlier drivers.
+- Not done: no physical units (inches / mm) or DPI, no "fit the canvas to the page" print settings beyond orientation, no canvas background other than the paper color, no resizing the canvas
+  around the layers (changing shape keeps each layer's own size and shift).
+
 ### 2026-11-09 — American spelling; wording of the print question
 
 - Replaced every British spelling (colour, centre / centred, normalised, behaviour, labelled, modelled, neighbouring, recognised, grey, travelling, re-centred / `recentredHoles` -> `recenteredHoles`) with the
