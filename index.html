@@ -21,7 +21,7 @@
   Dark-background palettes (Neon, Midnight, Chalkboard, or your own with "Paper" ticked) also set the paper.
   "Edit…" / "+ New" build custom palettes, kept in localStorage (myrograph.palettes.v1). "Compose" opens a panel on the right and turns the grid into a picker:
   click patterns to add them as layers of one overlay (shared centre) with per-layer color,
-  visibility, rotation, size and line width, and a per-layer "Stretch to fit" checkbox (otherwise every layer keeps its real size relative to the others). "Save PNG"
+  visibility, rotation, size (10-500%) and line width; layers keep their real sizes relative to each other. "Save PNG"
   exports the overlay as an image with the whole layer setup embedded in an iTXt chunk
   ("Myrograph", JSON); "Open…" (or dropping such a PNG on the page) restores the layers so
   they can be adjusted again. Layers are stored by part ids (ring/wheel/hole), not grid indices.
@@ -143,7 +143,6 @@
   #pm-compat button.ok { border-color: #3f9b62; } #pm-compat button.bad { border-color: #c4553a; opacity: .75; } #pm-compat button.wait { border-style: dotted; }
   #pm-compat button.on { background: #44444e; outline: 2px solid var(--accent); }
   .layer .keep { padding: 0 6px; font-size: 11px; margin-top: 2px; }
-  .layer .fitbox { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); margin-top: 2px; cursor: pointer; }
   #ovwrap { position: relative; flex: none; width: min(100%, 42vh); margin: 0 auto; }      /* a shorter picture on short screens, so the lists below keep room */
   #ov-tabs { display: flex; gap: 4px; padding: 6px 12px; border-top: 1px solid #000; border-bottom: 1px solid #000; flex: none; }
   #ov-tabs button.on { background: var(--accent); color: #1b1b1f; border-color: var(--accent); }
@@ -632,12 +631,13 @@ function readTextChunk(png, keyword) {          // text of the first uncompresse
 }
 
 // ---- share links: overlay setup <-> compact URL-fragment text
-// v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size[,width x10 if not 1.0[,1 = stretch to fit]]>/...   (f = every layer stretches: old links)
+// v1/<paper hex>/<t|f>/<track,roller,hole,colorHex,visible,rot,size[,width x10 if not 1.0]>/...   (the t|f segment and an optional 9th layer field `1` are only
+// READ, from links made when layers could stretch to fit: the app converts them to sizes, see bakeLegacyFit)
 // then optionally one p,... segment per custom part the layers use (see encodePart), and one g,... segment for the signature (see encodeSig)
 function encodeShare(st) {
-  return ['v1', st.paper.replace('#', ''), st.baseScale === 'fit' ? 'f' : 't',                // (only old callers/files set baseScale: it is now a per-layer `fit`)
+  return ['v1', st.paper.replace('#', ''), 't',
     ...st.layers.map(l => [l.track, l.roller, l.hole, l.color.replace('#', ''), l.visible === false ? 0 : 1,
-      Math.round(l.rot || 0), Math.round(l.size || 100), ...(l.fit ? [Math.round((l.width || 1) * 10), 1] : Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)])].join(',')),
+      Math.round(l.rot || 0), Math.round(l.size || 100), ...(Math.round((l.width || 1) * 10) === 10 ? [] : [Math.round(l.width * 10)])].join(',')),
     ...(st.parts || []).map(encodePart), ...(st.signature ? [encodeSig(st.signature)] : [])].join('/');      // custom parts the layers use: "p,name,N,k,n,mir,radii,holes"
 }
 function decodeShare(text) {                    // throws on anything malformed
@@ -652,7 +652,7 @@ function decodeShare(text) {                    // throws on anything malformed
     const [track, roller, hole, color, vis, rot, size, wd, fit] = str.split(',');
     if (!/^[\w-]+$/.test(track || '') || !/^[\w-]+$/.test(roller || '') || !/^\d+$/.test(hole || '') || !hex.test(color || '')) throw bad();
     return { track, roller, hole: +hole, color: '#' + color, visible: vis !== '0',
-      rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(200, Math.max(25, Math.round(+size) || 100)),
+      rot: Math.min(359, Math.max(0, Math.round(+rot) || 0)), size: Math.min(LAYER_SIZE.max, Math.max(LAYER_SIZE.min, Math.round(+size) || 100)),
       width: Math.min(6, Math.max(0.5, (Math.round(+wd) || 10) / 10)), ...(fit === '1' ? { fit: true } : {}) };
   });
   return { app: 'myrograph', v: 1, paper: '#' + parts[1], ...(parts[2] === 'f' ? { baseScale: 'fit' } : {}), layers, ...(shared.length ? { parts: shared } : {}), ...(signature ? { signature } : {}) };
@@ -847,6 +847,7 @@ const SIG_FONTS = {
   serif:    { label: 'Serif italic', style: 'italic ', css: "Georgia,'Times New Roman',serif" },
   plain:    { label: 'Plain',     style: '600 ',  css: "-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" },
 };
+const LAYER_SIZE = { min: 10, max: 500 };         // a layer's Size, in percent
 const SIG_LIMITS = { text: 40, strokes: 16, points: 600, library: 12 };
 const sigId = d => 's' + fnv(d.kind === 't' ? `t|${d.font}|${d.text}` : `i|${d.ar}|${d.s.map(q => q.join(',')).join(';')}`);
 const sigName = raw => { const name = cleanName(raw.name); return name ? { name } : {}; };     // the label shown in the list (letters, digits, spaces and . , ( ) + - only)
@@ -1318,17 +1319,22 @@ function ovCurve(p) {
   }
   return c;
 }
-// Lines for a list of layers ({ p, color, visible, rot, size, width, fit }); curve(p) -> { geo, maxR }. width multiplies lineWidth.
-// Sizing: layers share one scale, set by the largest layer (by real size), so their real proportions hold. A layer with `fit` ("Stretch to fit")
-// ignores that scale and fills the picture by itself; its Size then scales from there. The shared scale still counts every layer's real size, so
-// ticking one layer's box changes only that layer.
+// Lines for a list of layers ({ p, color, visible, rot, size, width }); curve(p) -> { geo, maxR }. width multiplies lineWidth.
+// Sizing: layers share one scale, set by the largest visible layer (by real size), so their real proportions hold; each layer's Size scales it.
+// Older files stretched layers to fill the picture (a global "Fit each" switch, later a per-layer checkbox). Both are gone; a layer that
+// stretched gets the Size that draws the same picture under the one remaining rule (clamped to the Size range). flags[i]: layer i stretched.
+function bakeLegacyFit(ls, flags, curve) {
+  if (!flags.some(Boolean)) return;
+  const maxAll = Math.max(0.001, ...ls.filter(l => l.visible).map(l => curve(l.p).maxR));
+  ls.forEach((l, i) => { if (flags[i]) l.size = Math.max(LAYER_SIZE.min, Math.min(LAYER_SIZE.max, Math.round(l.size * maxAll / Math.max(0.001, curve(l.p).maxR)))); });
+}
 function makeLines(ls, lineWidth, resPx, curve) {
   const vis = ls.filter(l => l.visible), cs = vis.map(l => curve(l.p));
   const maxAll = Math.max(0.001, ...cs.map(c => c.maxR));
   return vis.map((l, i) => {
     const m = new LineMaterial({ color: new THREE.Color(l.color), linewidth: lineWidth * (l.width || 1) });
     m.resolution.set(resPx, resPx);
-    const line = new Line2(cs[i].geo, m), sc = 0.92 / (l.fit ? cs[i].maxR : maxAll) * l.size / 100;
+    const line = new Line2(cs[i].geo, m), sc = 0.92 / maxAll * l.size / 100;
     line.frustumCulled = false; line.scale.set(sc, sc, 1); line.rotation.z = l.rot * Math.PI / 180;
     return line;
   });
@@ -1352,7 +1358,7 @@ function overlayState() {
   const used = new Set([...layers.values()].map(l => customIdOf(l.p)).filter(Boolean));
   return { app: APP_ID, v: 1, paper: $('paper').value,
     layers: [...layers.values()].map(l => ({ track: l.p.track.id, roller: l.p.roller.id, hole: l.p.hole,
-      color: l.color, visible: l.visible, rot: l.rot, size: l.size, width: l.width, ...(l.fit ? { fit: true } : {}) })),
+      color: l.color, visible: l.visible, rot: l.rot, size: l.size, width: l.width })),
     ...(used.size ? { parts: [...used].map(id => registry.get(id)).filter(Boolean) } : {}),     // custom parts travel with the setup
     ...(sigInst ? { signature: sigInst } : {}) };                                              // so does the signature
 }
@@ -1422,13 +1428,15 @@ function applyState(meta) {                     // replace the overlay with a sa
   layers.clear();
   if (meta.paper) { $('paper').value = meta.paper; markPaperSwatches(); document.documentElement.style.setProperty('--paper', meta.paper); scene.background.set(meta.paper); }
   const legacyFit = meta.baseScale === 'fit';                 // files made when sizing was one global switch: every layer stretches
-  let missing = 0;
+  let missing = 0; const legacyFlags = [];
   for (const l of meta.layers || []) {
     const p = lookup(l);
     if (!p) { missing++; continue; }
-    layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1, fit: !!(l.fit ?? legacyFit) });
+    layers.set(p.key, { key: p.key, p, color: l.color, visible: l.visible !== false, rot: l.rot || 0, size: l.size || 100, width: l.width || 1 });
+    legacyFlags.push(!!(l.fit ?? legacyFit));
   }
   sigInst = canonSigInstance(meta.signature); fillSigSelect();           // the signature a saved piece was signed with (null if unsigned)
+  bakeLegacyFit([...layers.values()], legacyFlags, ovCurve);
   if (!composeOpen) setCompose(true);
   markTiles(); buildLayerList(); renderOverlay(); repaintAll();
   say(`Opened ${layers.size} layer${layers.size === 1 ? '' : 's'}` + (missing ? ` (${missing} skipped: part not in this set)` : '') +
@@ -1486,6 +1494,7 @@ function renderThumb(item, canvas) {
     const geo = new LineGeometry(); geo.setPositions(pts); geos.push(geo); return { geo, maxR }; };
   gl.setSize(T, T, false);
   thScene.background.set(st.paper || '#faf7f0');
+  bakeLegacyFit(ls, ls.map(l => l.fit), curve);
   const lines = makeLines(ls, 1.5 * pr, T, curve);
   thScene.add(...lines); gl.render(thScene, camera);
   canvas.width = canvas.height = T; canvas.getContext('2d').drawImage(gl.domElement, 0, 0, T, T);
@@ -1643,11 +1652,14 @@ const markTiles = () => { for (const e of tiles.values()) markTile(e); };
 function toggleLayer(p) {
   if (layers.has(p.key)) { layers.delete(p.key); ovCache.get(p.key)?.geo.dispose(); ovCache.delete(p.key); }
   else {
-    layers.set(p.key, { key: p.key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1, fit: false });   // same color the tile is drawn in
+    layers.set(p.key, { key: p.key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1 });   // same color the tile is drawn in
     setOvTab('layers');                                                                                    // show the list the new layer went into
   }
   markTiles(); buildLayerList(); renderOverlay();
 }
+// The Size slider is logarithmic (position 0..1000 <-> LAYER_SIZE.min..max %), so each step is a similar percentage change over the wide range.
+const posToSize = v => Math.round(LAYER_SIZE.min * (LAYER_SIZE.max / LAYER_SIZE.min) ** (v / 1000));
+const sizeToPos = z => Math.round(Math.log(Math.max(LAYER_SIZE.min, Math.min(LAYER_SIZE.max, z)) / LAYER_SIZE.min) / Math.log(LAYER_SIZE.max / LAYER_SIZE.min) * 1000);
 function buildLayerList() {
   $('ov-hint').style.display = layers.size ? 'none' : '';
   const box = $('layers'); box.innerHTML = '';
@@ -1657,18 +1669,17 @@ function buildLayerList() {
       `<input type="color" value="${l.color}" title="Layer color"><span style="display:flex">${trackIcon(l.p.track)}${rollerIcon(l.p.roller, l.p.hole)}</span>` +
       `<span class="ltxt"><b>${l.p.track.name}</b>${l.p.track.kind === 'ring' ? '' : ' · outside'}<br>${l.p.roller.name} · hole ${l.p.hole}` +
       `${keepable(l.p) ? '<br><button class="keep" title="Add this custom part to your library (Custom parts filter)">＋ keep part</button>' : ''}` +
-      `<br><label class="fitbox" title="Stretch this layer to fill the picture, whatever its real size (its Size slider then scales from there). Off: it keeps its real size next to the other layers."><input type="checkbox" data-fit ${l.fit ? 'checked' : ''}> Stretch to fit</label></span>` +
+      `</span>` +
       `<button title="Remove">✕</button>` +
       `<div class="tune"><label><span class="tl"><span>Rotate</span><span class="tv">${l.rot}°</span></span><input type="range" data-k="rot" min="0" max="359" value="${l.rot}"></label>` +
-      `<label><span class="tl"><span>Size</span><span class="tv">${l.size}%</span></span><input type="range" data-k="size" min="25" max="200" value="${l.size}"></label>` +
+      `<label><span class="tl"><span>Size</span><span class="tv">${l.size}%</span></span><input type="range" data-k="size" min="0" max="1000" value="${sizeToPos(l.size)}"></label>` +
       `<label title="Line thickness of this layer"><span class="tl"><span>Line</span><span class="tv">${l.width}×</span></span><input type="range" data-k="width" min="0.5" max="6" step="0.25" value="${l.width}"></label></div>`;
     const vis = row.querySelector('input[type=checkbox]'), col = row.querySelector('input[type=color]'),
       del = row.querySelector('button[title=Remove]');           // (not the first button: a layer can also carry a "keep part" button)
     vis.onchange = () => { l.visible = vis.checked; row.classList.toggle('off', !l.visible); renderOverlay(); };
     col.oninput = () => { l.color = col.value; markTiles(); renderOverlay(); };
-    row.querySelector('[data-fit]').onchange = e => { l.fit = e.target.checked; renderOverlay(); };
     for (const r of row.querySelectorAll('input[type=range]'))
-      r.oninput = () => { l[r.dataset.k] = +r.value; r.previousElementSibling.querySelector('.tv').textContent = r.value + { rot: '°', size: '%', width: '×' }[r.dataset.k]; renderOverlay(); };
+      r.oninput = () => { const k = r.dataset.k; l[k] = k === 'size' ? posToSize(+r.value) : +r.value; r.previousElementSibling.querySelector('.tv').textContent = l[k] + { rot: '°', size: '%', width: '×' }[k]; renderOverlay(); };
     del.onclick = () => toggleLayer(l.p);
     row.querySelector('.keep')?.addEventListener('click', () => keepPart(customIdOf(l.p)));
     box.append(row);

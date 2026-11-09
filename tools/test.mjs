@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -48,7 +48,7 @@ check('PNG text chunk round-trips', C.readTextChunk(withMeta, 'K') === text && C
 // share links
 const st = { app: 'myrograph', v: 1, paper: '#faf7f0', layers: [
   { track: 'ring96-in', roller: 'cross', hole: 1, color: '#1f4fd8', visible: true, rot: 0, size: 100, width: 1 },
-  { track: 'ring144-out', roller: 'eye', hole: 6, color: '#c4242b', visible: false, rot: 40, size: 70, width: 2.5, fit: true }] };
+  { track: 'ring144-out', roller: 'eye', hole: 6, color: '#c4242b', visible: false, rot: 40, size: 70, width: 2.5 }] };
 check('share link round-trips', JSON.stringify(C.decodeShare('#' + C.encodeShare(st))) === JSON.stringify(st));
 const rejects = ['v2/faf7f0/t', 'v1/zzzzzz/t', 'v1/faf7f0/t/a,b,x,1f4fd8,1,0,100', 'v1/faf7f0/t/a b,c,1,1f4fd8,1,0,100', 'junk'].every(b => { try { C.decodeShare(b); return false; } catch { return true; } });
 check('line width: 1.0x is omitted from the link, others are kept; links without it decode as 1.0x',
@@ -163,10 +163,12 @@ check('links without a signature are unchanged (no g segment, no signature key)'
   check('names are not carried in share links (and a named signature still round-trips by content)', !C.encodeSig(C.canonSigInstance({ sig: named })).includes('formal') && C.decodeSig(C.encodeSig(C.canonSigInstance({ sig: named }))).sig.id === sigT.id);
   check('a placed signature can be scaled from 2% to 100% of the picture width', C.canonSigInstance({ sig: sigT, size: 20 }).size === 20 && C.canonSigInstance({ sig: sigT, size: 1000 }).size === 1000 && C.canonSigInstance({ sig: sigT, size: 19 }).size === 240 && C.canonSigInstance({ sig: sigT, size: 1001 }).size === 240); }
 
-// "Stretch to fit" is per layer now; the old global switch is only understood in old links
-{ const fitOnly = { ...st, layers: [{ ...st.layers[0], fit: true }, { ...st.layers[1], fit: undefined }] }; delete fitOnly.layers[1].fit;
-  check('stretch-to-fit round-trips per layer, keeping its width, and plain layers stay unflagged', JSON.stringify(C.decodeShare('#' + C.encodeShare(fitOnly))) === JSON.stringify(fitOnly) && C.encodeShare(fitOnly).split('/')[3].split(',').length === 9 && C.encodeShare(fitOnly).split('/')[4].split(',').length === 8);
-  const legacy = C.decodeShare('v1/faf7f0/f/ring96-in,w24,1,1f4fd8,1,0,100'); check('an old link whose global switch said "fit each" is still read (as baseScale fit, for the app to apply to every layer)', legacy.baseScale === 'fit' && !('fit' in legacy.layers[0]) && !('baseScale' in C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100'))); }
+// layers keep real sizes now (no stretching); links from the versions that had it are still READ, and a layer's Size runs 10-500%
+{ const sz = n => C.decodeShare(`v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,${n}`).layers[0].size;
+  check('a layer\'s Size is read from 10 to 500% and clamped outside that', sz(10) === 10 && sz(500) === 500 && sz(9) === 10 && sz(900) === 500 && sz(100) === 100 && C.LAYER_SIZE.min === 10 && C.LAYER_SIZE.max === 500);
+  check('stretch-to-fit is never written to a link, even for a layer that still carries the flag', C.encodeShare({ ...st, layers: [{ ...st.layers[0], fit: true }] }).split('/')[3].split(',').length === 7);
+  const old9 = C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100,10,1'), oldF = C.decodeShare('v1/faf7f0/f/ring96-in,w24,1,1f4fd8,1,0,100');
+  check('old links: the layer flag and the global "fit each" segment are still read, for the app to convert', old9.layers[0].fit === true && oldF.baseScale === 'fit' && !('fit' in oldF.layers[0]) && !('baseScale' in C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100'))); }
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

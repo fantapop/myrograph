@@ -11,8 +11,7 @@ colors are adjustable. Verified by headless Chrome screenshots; the math core is
 Compose feature: header "Compose" button (static label, no layer count) slides a panel in from the right. While open, grid
 tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
 three.js overlay canvas (all layers share the centre), and a layer list with show/hide, color,
-rotation, size (25-200%) and line width (0.5-6x) sliders and remove; each layer has a "Stretch to fit" checkbox (off: it keeps its real size relative to the other layers, in tooth units; on: it fills
-the picture by itself). Selection is in-memory only (lost on reload).
+rotation, size (10-500%, a logarithmic slider) and line width (0.5-6x) sliders and remove; layers keep their real sizes relative to each other (the largest visible layer fills the picture); each layer's Size scales it. Selection is in-memory only (lost on reload).
 
 Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
 (JSON, part ids + color/visible/rotation/size, paper color, base scale) in an iTXt chunk
@@ -80,6 +79,20 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 `CLAUDE.md` is the short orientation file for a fresh session.
 
 ## Log
+
+### 2026-11-08 — Stretch to fit removed; wider Size range
+
+The per-layer "Stretch to fit" checkbox (added a few hours earlier, replacing the global Base scale) was judged not useful: it rarely changed anything, Size can do the
+same, and it cost layer-row height (88 -> 110 px). Removed together with all the plumbing (`l.fit`, the checkbox, the flag in `overlayState` and links). Sizing is
+one rule now: the largest visible layer, by real size, fills the picture and every layer's Size scales its own copy. Size now runs 10-500% (`LAYER_SIZE`; real pattern
+sizes span 3.9-59.3 teeth, 3.9x inside one ring, so matching a small pattern to a big one needs ~330-390%) on a LOGARITHMIC slider (position 0..1000 <->
+10..500%, `posToSize`/`sizeToPos`, 100% at ~589) so a step is a similar percentage change everywhere; `decodeShare` clamps to the same range.
+Old files are converted, not broken: a file or album item that stretched layers (global `baseScale: 'fit'`, the `/f/` link segment, or the briefly existing per-layer
+flag, still READ by `decodeShare`) gets, per stretched layer, the Size that draws the same picture (`bakeLegacyFit`, clamped to the range; used by `applyState` and
+album thumbnails; saving again writes plain sizes). Verified: an old "Fit each" file opens with Sizes 100% / 340% and both layers fill as before; its album thumbnail
+too (93% vs 27% for a "True size" item). The earlier `keep part` fix (remove button located by `button[title=Remove]`) stays.
+
+
 
 ### 2026-11-08 — "Stretch to fit" per layer replaces the global Base scale
 
