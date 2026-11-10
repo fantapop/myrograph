@@ -182,6 +182,12 @@
   #ov-play[hidden] { display: none; }
   #sync-btn { position: absolute; right: 152px; top: 6px; padding: 3px 8px; display: inline-flex; align-items: center; }
   #sync-btn svg { width: 17px; height: 15px; }
+  #sync-btn { position: absolute; }
+  #sync-btn[data-sync]:not([data-sync=off])::after { content: ''; position: absolute; right: 3px; top: 3px; width: 7px; height: 7px; border-radius: 50%; background: #3f9b62; }      /* connected: green; syncing: pulsing; waiting / offline: amber; problem: red */
+  #sync-btn[data-sync=syncing]::after { animation: syncpulse 1s ease-in-out infinite; }
+  #sync-btn[data-sync=pending]::after, #sync-btn[data-sync=offline]::after { background: #e9b44c; }
+  #sync-btn[data-sync=error]::after, #sync-btn[data-sync=signin]::after { background: #c4553a; }
+  @keyframes syncpulse { 50% { opacity: .25; } }
   dialog#sy { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 8px; padding: 0; width: min(520px, 96vw); }
   dialog#sy::backdrop { background: rgba(0,0,0,.65); }
   .sy-body { padding: 12px 16px 16px; } .sy-body p { margin: 0 0 10px; } .sy-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; } #sy-msg { color: var(--accent-ink); min-height: 1.4em; } .sy-small { font-size: 11px; color: var(--dim); }
@@ -446,6 +452,7 @@
   <div class="sy-body">
     <p>Your albums, saved signatures, custom palettes and custom parts are kept in this browser. A backup file holds all of them, so you can move to another browser or computer, or keep a safe copy.</p>
     <div class="sy-btns"><button id="sy-backup">Back up everything…</button><button id="sy-restore">Restore from a backup…</button><input type="file" id="sy-file" accept=".json,application/json" hidden></div>
+    <p id="sy-status" class="sy-small"></p>
     <p id="sy-msg"></p>
     <p class="sy-small">Restoring merges: whatever is newer wins, and nothing in this browser is deleted.</p>
   </div>
@@ -1134,7 +1141,7 @@ function decodeSig(seg) {                        // null if damaged
 }
 // ---- sync: merging what several devices (or a backup file) know. Provider-agnostic and pure: nothing here touches the network or the page.
 // A *record* is one syncable thing: key "<kind>:<id>" with kind album | item | sig | pal | part, and its data (a plain JSON object). A device remembers `meta`
-// = { key: { h: hash of the data it last saw, u: when that version was made, d: 1 for a deletion } }. What a provider stores is { key: { u, data } | { u, d: 1 } }.
+// = { key: { h: hash of the data it last saw, u: when that version was made (a clock reading, pushed past any version already seen of the same record), d: 1 for a deletion } }. What a provider stores is { key: { u, data } | { u, d: 1 } }.
 // Changes are found by hashing at sync time (so no code has to report edits), and the newest `u` wins per record; a deletion is a record with d. Ties: a deletion wins,
 // then the larger hash, so every device decides the same way. Tombstones are dropped after SYNC_TOMBSTONE_MS.
 const SYNC_TOMBSTONE_MS = 180 * 86400000;
@@ -1152,9 +1159,9 @@ function syncMerge({ local, meta, remote, now }) {   // local: { key: data }; me
     const h = syncHash(local[key]), cur = m[key], r = R[key];
     if (cur && !cur.d && cur.h === h) continue;
     if (!cur && r && !r.d && syncHash(r.data) === h) { m[key] = { h, u: r.u }; continue; }      // the same as the other side's copy: no claim on being newer
-    m[key] = { h, u: now };
+    m[key] = { h, u: Math.max(now, (cur?.u || 0) + 1, (r?.u || 0) + 1) };      // never earlier than a version already seen (so a device with a fast clock can't make its old edits beat newer ones)
   }
-  for (const key of Object.keys(m)) if (!m[key].d && !(key in local)) m[key] = { d: 1, u: now };   // gone from here: a deletion
+  for (const key of Object.keys(m)) if (!m[key].d && !(key in local)) m[key] = { d: 1, u: Math.max(now, m[key].u + 1, (R[key]?.u || 0) + 1) };   // gone from here: a deletion
   const out = {}, put = {}, del = [];
   for (const key of new Set([...Object.keys(m), ...Object.keys(R)])) {   // 2. newest wins
     const lm = m[key], rr = R[key];
@@ -1200,6 +1207,7 @@ const filters = { mode: new Set(), fixed: new Set(), roller: new Set(), hole: ne
 // custom parts: the library is what the user made or kept (saved in localStorage); the registry also holds
 // "guest" parts that came with an opened PNG, album or link (rendered, but not in the library unless kept)
 const PARTS_KEY = STORAGE_PREFIX + 'parts.v1';
+let syncProvider = null, syncApplying = false;   // the connected cloud (none yet) and "remote changes are being written to the stores" (those writes must not trigger a sync); see the sync section
 // 'trackId|rollerId' -> fits? for pairs involving a library part. Ids are content hashes, so a result never goes stale; the strict check
 // is slow (up to a second per part), so results are kept in browser storage (the .v2 is the version of the check: bump it if it changes).
 const FITS_KEY = STORAGE_PREFIX + 'fits.v2';
@@ -1432,7 +1440,7 @@ function setPalette(id) {                       // choose a palette (and its pap
   else if (paperFromPalette) { paperFromPalette = false; setPaper(paperBeforePalette); }   // leave a hand-picked paper alone
   buildInk(); repaintAll(); updateRowSummaries();
 }
-const persistPalettes = () => store.set(PAL_KEY, JSON.stringify(customPalettes));
+const persistPalettes = () => { const ok = store.set(PAL_KEY, JSON.stringify(customPalettes)); syncKick(); return ok; };
 
 let draft = null;                               // palette being edited: { id (null = not saved yet), name, colors }
 const randomColor = () => '#' + new THREE.Color().setHSL(Math.random(), 0.6, 0.4).getHexString();
@@ -2009,7 +2017,7 @@ migrateLegacyStorage();
 let albums = loadAlbums(), curId = store.get(CUR_KEY);
 const curAlbum = () => albums.find(a => a.id === curId) || albums[0];
 function ensureAlbum() { if (!albums.length) { const a = { id: uid(), name: 'My album', items: [] }; albums.push(a); curId = a.id; } return curAlbum(); }
-function persist() { store.set(CUR_KEY, curId || ''); return store.set(STORE_KEY, JSON.stringify(albums)); }
+function persist() { store.set(CUR_KEY, curId || ''); const ok = store.set(STORE_KEY, JSON.stringify(albums)); syncKick(); return ok; }
 
 const thumbs = new Map();                       // item id -> canvas (in-memory; re-rendered from the setup)
 const thScene = new THREE.Scene(); thScene.background = new THREE.Color('#faf7f0');
@@ -2354,7 +2362,7 @@ function saveFits() {                           // only pairs that still involve
   store.set(FITS_KEY, JSON.stringify(out));
 }
 function rebuildCustom() { CUSTOM = customCombos(CAT, library.map(d => piece(d.id)), fitMemo); byId = null; saveFits(); }
-function saveLibrary() { return store.set(PARTS_KEY, JSON.stringify(library)); }
+function saveLibrary() { const ok = store.set(PARTS_KEY, JSON.stringify(library)); syncKick(); return ok; }
 function libraryChanged(showId) {               // after add / edit / delete: refresh combos, the row, and the grid if it shows custom parts
   rebuildCustom(); saveLibrary();
   for (const id of [...filters.custom]) if (id !== '*' && !library.some(d => d.id === id)) filters.custom.delete(id);
@@ -2808,7 +2816,7 @@ sigC.addEventListener('wheel', ev => {         // scroll (or trackpad pinch) ove
 }, { passive: false });
 
 // -- the saved list, the list of what is on the picture, and the controls in the Compose panel
-const saveSigs = () => store.set(SIG_KEY, JSON.stringify(sigLib));
+const saveSigs = () => { const ok = store.set(SIG_KEY, JSON.stringify(sigLib)); syncKick(); return ok; };
 let sigLibSel = '';                             // the saved item chosen in the dropdown (the one Add / Rename / Delete act on)
 function fillSigSelect() {
   const sel = $('sg-sel'); sel.textContent = '';
@@ -2989,7 +2997,7 @@ window.addEventListener('resize', sgDraw);
 // implement read() -> { records } | null and write({ v, app, records }); syncWith runs one round. Nothing is ever sent anywhere unless a provider is set.
 const SYNC_META_KEY = STORAGE_PREFIX + 'sync.meta.v1', SYNC_VERSION = 1, SYNC_LIMIT = 4000;
 const loadSyncMeta = () => { try { const m = JSON.parse(store.get(SYNC_META_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; } catch { return {}; } };
-let syncMeta = loadSyncMeta(), syncBusy = false, syncProvider = null;
+let syncMeta = loadSyncMeta(), syncBusy = false;
 const saveSyncMeta = () => store.set(SYNC_META_KEY, JSON.stringify(syncMeta));
 function collectLocal() {
   const rec = {};
@@ -3001,6 +3009,9 @@ function collectLocal() {
 }
 const idOf = key => key.slice(key.indexOf(':') + 1);
 function applyRemote(put, del) {                // bring other devices' changes into the stores and the page (never throws on odd data: bad records are skipped)
+  syncApplying = true; try { return applyRemoteNow(put, del); } finally { syncApplying = false; }
+}
+function applyRemoteNow(put, del) {
   let alb = false, sg = false, pl = false, pt = false;
   const album = id => albums.find(a => a.id === id), dropItem = id => { for (const a of albums) { const i = a.items.findIndex(x => x.id === id); if (i >= 0) { a.items.splice(i, 1); alb = true; } } thumbs.delete(id); };
   const keys = Object.keys(put);
@@ -3053,6 +3064,54 @@ async function syncWith(provider) {             // one round: read, merge, apply
     return { pushed: r.remoteChanged, pulled: Object.keys(r.put).length, removed: r.del.length };
   } finally { syncBusy = false; }
 }
+// ---- automatic background sync (runs only while a provider is connected; nothing to remember or press)
+// Any write to a synced store, coming back to the tab, the connection returning and a slow timer all call syncKick(); runs are debounced and never overlap (a change made during a run
+// schedules another). There is no separate queue to lose: edits are found by hashing the next time a run happens, so a change made offline or just before closing the tab is picked
+// up at the next run (the hidden-tab trigger is a best effort). Failures retry with a growing delay; a sign-in problem stops and asks (provider errors with `.auth`).
+const syncTiming = { debounce: 3000, poll: 120000, focusGap: 15000, retry: [5000, 15000, 60000, 300000] };      // (tests shorten these)
+const syncState = { status: 'off', last: 0, error: '', fails: 0 };       // off | pending | syncing | idle | offline | error | signin
+let syncTimer = 0, syncAgain = false, syncStarted = 0;
+function syncSetStatus(status, error = '') { syncState.status = status; syncState.error = error; renderSyncStatus(); }
+function renderSyncStatus() {
+  const st = syncState, b = $('sync-btn'); b.dataset.sync = st.status;
+  const ago = st.last ? (Date.now() - st.last < 60000 ? 'just now' : `${Math.round((Date.now() - st.last) / 60000)} min ago`) : '';
+  const text = { off: 'Cloud sync is not connected.', pending: 'Changes waiting to sync…', syncing: 'Syncing…', idle: `Up to date${ago ? ' (synced ' + ago + ')' : ''}.`, offline: 'Offline: changes will sync when you are back online.',
+    error: `Sync problem: ${st.error || 'unknown'}. Trying again soon; your work is safe here.`, signin: 'Sign in again to keep syncing.' }[st.status];
+  b.title = 'Backup & sync' + (st.status === 'off' ? '' : ` - ${text}`); if ($('sy-status')) $('sy-status').textContent = text;
+}
+function syncKick(why = 'change', delay = syncTiming.debounce) {
+  if (!syncProvider || syncApplying) return;
+  clearTimeout(syncTimer); syncTimer = setTimeout(syncRun, delay);
+  if (syncState.status === 'idle' || syncState.status === 'off') syncSetStatus('pending');
+}
+async function syncRun() {
+  clearTimeout(syncTimer); const provider = syncProvider; if (!provider) return;
+  if (syncBusy) { syncAgain = true; return; }
+  if (navigator.onLine === false) return syncSetStatus('offline');                 // the 'online' event kicks again
+  if (pm.open) return syncKick('editing', 5000);                                   // not while a part is being edited
+  syncSetStatus('syncing'); syncStarted = Date.now();
+  try {
+    const r = await syncWith(provider);
+    if (r.skipped) return syncKick(r.skipped, 2000);
+    syncState.fails = 0; syncState.last = Date.now(); syncSetStatus('idle');
+  } catch (e) {
+    if (provider !== syncProvider) return;                                         // disconnected meanwhile
+    if (e && e.auth) return syncSetStatus('signin');
+    const wait = syncTiming.retry[Math.min(syncState.fails++, syncTiming.retry.length - 1)];
+    syncSetStatus('error', String(e?.message || e).slice(0, 120)); clearTimeout(syncTimer); syncTimer = setTimeout(syncRun, wait);
+  } finally { if (syncAgain) { syncAgain = false; syncKick('again', 500); } }
+}
+function syncEnable(provider) { syncProvider = provider; syncState.fails = 0; syncSetStatus('pending'); syncKick('start', 0); }
+function syncDisable() { syncProvider = null; clearTimeout(syncTimer); syncAgain = false; syncSetStatus('off'); }
+document.addEventListener('visibilitychange', () => {
+  if (!syncProvider) return;
+  if (document.visibilityState === 'hidden') syncKick('hidden', 0);                // leaving: push what is waiting
+  else if (Date.now() - syncStarted > syncTiming.focusGap) syncKick('visible', 300);   // back: pull what other devices did
+});
+window.addEventListener('online', () => syncKick('online', 1000));
+window.addEventListener('offline', () => { if (syncProvider) syncSetStatus('offline'); });
+setInterval(() => { if (syncProvider && document.visibilityState === 'visible' && syncState.status === 'idle' && Date.now() - syncStarted > syncTiming.poll) syncKick('poll', 0); }, 1000);     // a slow poll for other devices' changes while the tab is open
+
 // ---- backup file: every record, newest version of each, as one JSON file
 function makeBackup() {
   const r = syncMerge({ local: collectLocal(), meta: syncMeta, remote: null, now: Date.now() }); syncMeta = r.meta; saveSyncMeta();
@@ -3080,7 +3139,7 @@ function restoreBackup(records) {               // merge into what is here: newe
 }
 const syDlg = $('sy'), syMsg = t => { $('sy-msg').textContent = t; };
 $('sync-btn').innerHTML = '<svg viewBox="0 0 17 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M4.6 12.8h7.6a3 3 0 0 0 .5-5.96A4.3 4.3 0 0 0 4.4 6.3a3.3 3.3 0 0 0 .2 6.5z"/></svg>';
-$('sync-btn').onclick = () => { syMsg(''); syDlg.showModal(); };
+$('sync-btn').onclick = () => { syMsg(''); renderSyncStatus(); syDlg.showModal(); };
 $('sy-x').onclick = () => syDlg.close();
 $('sy-backup').onclick = () => {
   const doc = makeBackup(), n = Object.keys(doc.records).length;
@@ -3097,7 +3156,7 @@ $('sy-file').onchange = async e => {
     syMsg(res.changed ? `Restored ${res.items} overlay${res.items === 1 ? '' : 's'} in ${res.albums} album${res.albums === 1 ? '' : 's'}, ${res.sigs} signature${res.sigs === 1 ? '' : 's'}, ${res.pals} palette${res.pals === 1 ? '' : 's'}, ${res.parts} part${res.parts === 1 ? '' : 's'}.` : 'Everything in that backup is already here (or older than what you have).');
   } catch (err) { syMsg(err.message || 'Could not read that file.'); }
 };
-window.__myrosync = { collectLocal, applyRemote, syncWith, makeBackup, readBackup, restoreBackup, meta: () => syncMeta, resetMeta: () => { syncMeta = {}; saveSyncMeta(); } };      // test hooks
+window.__myrosync = { timing: syncTiming, state: syncState, enable: syncEnable, disable: syncDisable, kick: syncKick, collectLocal, applyRemote, syncWith, makeBackup, readBackup, restoreBackup, meta: () => syncMeta, resetMeta: () => { syncMeta = {}; saveSyncMeta(); } };      // test hooks
 
 // ---------------------------------------------------------------- start
 setTimeout(() => {                              // let "Preparing…" paint before the heavy enumeration

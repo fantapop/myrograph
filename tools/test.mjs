@@ -253,6 +253,13 @@ check('export size from the longest side keeps the shape (landscape, portrait, s
   check('re-creating something after a deletion brings it back everywhere', A.local['item:i1']?.name === 'Back again');
   A.local['item:i1'].name = 'A edits'; B = B; delete B.local['item:i1']; sync(A, X, 14000); sync(B, X, 15000); sync(A, X, 16000);
   check('delete (later) beats an edit (earlier)', !('item:i1' in A.local) && !('item:i1' in B.local));
+  // a device whose clock is far ahead cannot make its old edits beat a newer edit made after seeing them
+  A = dev(); B = dev(); X = cloud(); const DAY = 86400000; A.local['item:i1'] = { name: 'v1' }; sync(A, X, 1000);
+  A.local['item:i1'].name = 'A (fast clock)'; sync(A, X, 1000 + DAY); sync(B, X, 2000);
+  B.local['item:i1'].name = 'B (later, after seeing A)'; sync(B, X, 3000); sync(A, X, 1000 + DAY + 5);
+  check('an edit made after seeing a version beats it even when the other clock is a day ahead', A.local['item:i1'].name === 'B (later, after seeing A)' && X.doc['item:i1'].data.name === 'B (later, after seeing A)');
+  delete B.local['item:i1']; sync(B, X, 4000); sync(A, X, 1000 + DAY + 10);
+  check('...and so does a deletion', !('item:i1' in A.local) && X.doc['item:i1'].d === 1);
   // content-addressed records on two devices before they have ever met: no fake "newer" claims
   const P = { name: 'Star', N: 40 }; A = dev(); B = dev(); X = cloud(); A.local['part:c1'] = clone(P); B.local['part:c1'] = clone(P);
   sync(A, X, 1000); sync(B, X, 2000); check('the same record on two new devices is not re-sent', B.meta['part:c1'].u === 1000 && !sync(A, X, 3000).remoteChanged);
