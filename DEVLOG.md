@@ -79,6 +79,17 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Google Drive sync (first version)
+
+- OAuth Client ID supplied by the owner (project created in Google Cloud; Drive API enabled; scope `drive.appdata` + optional `userinfo.email`; Web client; origins https://fantapop.github.io and http://localhost:8000; Testing mode with test users until published).
+- **Dialog**: Cloud sync section first (Connect Google Drive / Sync now / Disconnect / Sign in again, "Connected to Google Drive as ...", status line, Delete my cloud copy), then the backup file section.
+- **Provider** (`googleDrive`): GIS token client, token in memory; one JSON file in `appDataFolder`; sign-in remembered across visits (`sync.provider` etc.), `initSync()` resumes at start. Disconnect revokes access, forgets the account and resets `syncMeta`
+  so a later connect is a clean union (never infers deletions). If Google refuses the email scope it retries with the Drive scope alone. `cleanRecords` sanitizes whatever the cloud file contains; a damaged file is reported and left alone.
+- **Known limit (by design of Google's browser-only sign-in)**: access tokens last an hour and there is no refresh token without a server. Sync renews silently (`prompt: 'none'`) when the browser allows it; when it doesn't (no user gesture, strict pop-up blocking, iOS Safari) sync PAUSES with an amber dot and a
+  "Sign in again" button, nothing is lost, and one tap resumes. How often that happens on real devices is unknown until tried. If it is too annoying: (a) a tiny serverless function to hold a refresh token, (b) Dropbox (PKCE gives a refresh token to a pure web page), (c) a visible "reconnect" nudge on the next tap.
+- Tested with a stubbed Google sign-in and a mock Drive API in Chrome: connect, file creation in the hidden folder, edits as PATCH (no duplicates), reads when nothing changed, another device's change arriving, silent renewal (no UI, hinted account), blocked renewal -> paused -> one tap resumes, rejected token (401), Drive 500s retry,
+  damaged file left alone, delete cloud copy, garbage records dropped, disconnect (revoke, forget), reconnect merges, email-scope fallback. NOT yet exercised against the real Google service or on a real phone.
+
 ### 2026-11-09 — Automatic background sync (scheduler), still without a cloud
 
 - Feedback: nobody should have to remember to sync. The scheduler is built now and only needs a provider: `syncEnable(provider)` -> an immediate first run; then **every store write kicks a debounced run** (3 s, so a burst of edits is one sync), **returning to the tab**

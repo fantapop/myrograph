@@ -6,7 +6,7 @@ pen-hole layouts of a Deluxe-style set. No build step, no server: open `index.ht
 
 - Browse and filter thousands of ring/wheel/shape/pen-hole combinations (rendered with three.js,
   only the tiles on screen are drawn).
-- **Backup & restore** one file with all your albums, signatures, palettes and custom parts (the groundwork for syncing between devices).
+- **Sync between devices** (optional): connect your own Google Drive and your albums, signatures, palettes and custom parts stay in step in the background, stored in a hidden app folder only Myrograph can open. Or **back up / restore** one file by hand.
 - **Works on phones**: the overlay is a full-screen editor, and while you browse patterns a small live preview bar keeps it in view (tap a pattern to add it).
 - **Compose** several patterns into one overlay on a canvas of your choice (square, wide, tall, Letter / A4 or a custom pixel size) (per-layer color, rotation, size, X/Y shift, spin, pen-draw) and export an animated GIF or SVG (saved albums animate too); light and dark UI themes.
 - **Save** an overlay as a PNG with its setup embedded, and re-import it later to keep editing.
