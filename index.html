@@ -18,7 +18,7 @@
 
   Phones (width <= 760 px, `phoneMQ`): the Compose panel is a full-screen editor with a "‹ Patterns" back button; while browsing patterns a small live preview bar (the PIP, `pipSync`)
   shows the overlay at the bottom, a tap on a pattern adds a layer without leaving the gallery, Undo takes off the last one and Edit opens the editor. Two columns of patterns,
-  filters folded away at first, only the selected layer shows its sliders, 16 px inputs and finger-sized controls (also on any coarse pointer), part maker / signature dialogs full-screen.
+  filters as one line each (name + what is chosen; tapping one opens a full-screen picker with all its pictures and a Done button), only the selected layer shows its sliders, 16 px inputs and finger-sized controls (also on any coarse pointer), part maker / signature dialogs full-screen.
 
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
@@ -159,8 +159,10 @@
   .pm-sec h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
   .pm-sec .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; color: var(--dim); }
   .pm-sec .ctl label { display: inline-flex; align-items: center; gap: 5px; }
-  #pm-hint, #pm-msg, #pm-sum { font-size: 11px; color: var(--dim); margin-top: 6px; min-height: 1.4em; }
-  #pm-msg { color: var(--accent-ink); }
+  #pm-hint, #pm-sum { font-size: 11px; color: var(--dim); margin-top: 6px; min-height: 1.4em; }
+  .pm-head #pm-msg { flex-basis: 100%; order: 9; font-size: 12px; line-height: 1.35; color: var(--accent-ink); }      /* the reason a part can't be saved / what just went wrong, right under the buttons (not hidden in a tooltip or below the fold) */
+  #pm-msg:empty { display: none; }
+  #pm-x .bk { display: none; }
   #pm-compat { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 8px; }
   #pm-compat .grp { width: 100%; font-size: 11px; color: var(--dim); margin-top: 2px; }
   #pm-compat button { padding: 1px; border-radius: 6px; border: 2px solid var(--line); background: var(--raised); line-height: 0; }
@@ -284,12 +286,30 @@
   /* ---- phones (and narrow windows): the overlay is a full-screen editor; while browsing patterns a small preview bar (PIP) shows it and a tap adds a layer */
   #pip { display: none; }
   #ov-close .bk { display: none; }
+  .sheet-head, .row-sum, .cnt-copy { display: none; }
+  #pal-edit { flex-basis: 100%; }
   @media (max-width: 760px) {
     :root { --panel-w: 100vw; }
     body.compose-open { overflow: hidden; }
     body.compose-open header, body.compose-open #grid, body.compose-open #albumview { margin-right: 0; }
     header { padding: 6px 10px; }
     #grid, #albumview { margin: 10px; }
+    /* filters: each is one line (name + what is chosen); tapping it opens a full-screen picker with all the pictures, so none take space until you want to change one */
+    summary { display: flex; align-items: center; gap: 6px; min-height: 40px; } .cnt-copy { display: inline; margin-left: auto; font-size: 12px; text-align: right; }
+    .rowtoggle { display: none !important; }
+    details > .row { flex-wrap: nowrap; margin: 0; min-height: 46px; border-bottom: 1px solid var(--sep); cursor: pointer; gap: 8px; }
+    details > .row:not(.sheet-open) > :not(.label):not(.row-sum) { display: none !important; }
+    details > .row > .label { width: 104px; align-self: center; flex: none; }
+    details > .row .row-sum { display: block; flex: 1; min-width: 0; text-align: right; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    details > .row .row-sum::after { content: ' ›'; color: var(--dim); }
+    .row-sum .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); vertical-align: -2px; margin-right: 6px; }
+    details > .row.sheet-open { position: fixed; inset: 0; z-index: 7; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; gap: 8px; padding: 0 12px calc(24px + env(safe-area-inset-bottom)); background: var(--panel); overflow: auto; cursor: default; border: 0; }
+    details > .row.sheet-open > .label, details > .row.sheet-open > .row-sum { display: none; }
+    .row.sheet-open .sheet-head { display: flex; position: sticky; top: 0; z-index: 1; flex-basis: calc(100% + 24px); align-items: center; gap: 10px; margin: 0 -12px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--edge); }
+    .sheet-head b { flex: 1; min-width: 0; } .sheet-head .cnt-copy { margin: 0; color: var(--dim); }
+    .row.sheet-open > .chips { flex: 1 1 100%; } .row.sheet-open #pal-edit { flex-basis: 100%; }
+    .row.sheet-open #count { display: none; }
+    body.sheet { overflow: hidden; } body.sheet #pip { display: none; }
     #compose { width: 100vw; height: 100dvh; border-left: 0; padding-bottom: env(safe-area-inset-bottom); }
     #ovwrap { width: min(100%, calc(36dvh * var(--ar))); }
     #ov-close { order: -1; } #ov-close .x { display: none; } #ov-close .bk { display: inline; } #compose .ch .sp { display: none; }
@@ -303,13 +323,14 @@
     .layer .xy { grid-column: 1 / -1; grid-row: 2; } .layer .xy input { width: 64px; } .layer .tune { grid-row: 3; grid-template-columns: repeat(3, 1fr); gap: 2px 14px; }
     .layer:not(.active) .xy, .layer:not(.active) .tune { display: none; }        /* only the selected layer shows its position and sliders: tap a row to open it */
     .layer { cursor: pointer; }
+    #pm-x { order: -3; } #pm-x .x { display: none; } #pm-x .bk { display: inline; } .pm-head > b { order: -2; } .pm-head .sp { order: -1; } #pm-save { order: -1; }
     dialog#pm, dialog#sg { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
     .pm-body { padding: 10px; } .pm-left, .pm-right { min-width: 0; }
   }
   @media (max-width: 760px), (pointer: coarse) {                                       /* finger-sized controls; 16 px text so iPhone Safari doesn't zoom into a focused box */
     button, select, input[type=text], input[type=number] { min-height: 40px; touch-action: manipulation; }
     input, select, textarea { font-size: 16px !important; }
-    .chip { min-height: 40px; } .swatch { width: 32px; height: 32px; } .pick { width: 30px; height: 30px; }
+    .chip { min-height: 40px; } .swatch, .pick { min-height: 0; min-width: 0; flex: none; } .swatch { width: 32px; height: 32px; } .pick { width: 30px; height: 30px; }      /* (round: the 40 px button minimum must not stretch them) */
     input[type=range] { height: 28px; }
     .layer button[title=Remove] { padding: 2px 12px; }
   }
@@ -321,14 +342,13 @@
   <button id="theme-btn" title="Switch between light and dark"></button>
   <button id="compose-btn">Compose</button>
   <details open>
-    <summary>Filters<span id="f-count"></span></summary>
+    <summary>Filters<span id="f-count"></span><span class="cnt-copy" id="f-sum"></span></summary>
     <div class="row"><span class="label">Rolling</span><span class="chips" id="f-mode"></span></div>
     <div class="row big"><span class="label">Fixed part</span><span class="chips" id="f-fixed"></span></div>
     <div class="row big"><span class="label">Moving piece</span><span class="chips" id="f-roller"></span></div>
     <div class="row"><span class="label">Pen hole</span><span class="chips" id="f-hole"></span></div>
     <div class="row"><span class="label">Custom parts</span><span class="chips" id="f-custom"></span></div>
-    <div class="row"><span class="label">Ink</span><span class="chips" id="f-ink"></span></div>
-    <div id="pal-edit" hidden></div>
+    <div class="row"><span class="label">Ink</span><span class="chips" id="f-ink"></span><div id="pal-edit" hidden></div></div>
     <div class="row"><span class="label">Paper</span>
       <button class="swatch paper-sw" data-c="#ffffff" title="White paper" style="background:#fff"></button>
       <button class="swatch paper-sw" data-c="#000000" title="Black paper" style="background:#000"></button>
@@ -440,7 +460,8 @@
       <input type="range" id="pm-N"><output id="pm-Nv"></output> teeth</label>
     <span class="sp"></span>
     <button id="pm-save" class="primary">Save part</button><button id="pm-copy" title="Keep the original and save this as a new part">Save as copy</button>
-    <button id="pm-del">Delete</button><button id="pm-x" title="Close">✕</button>
+    <button id="pm-del">Delete</button><button id="pm-x" title="Close without saving"><span class="x">✕</span><span class="bk">‹ Cancel</span></button>
+    <div id="pm-msg"></div>
   </div>
   <div class="pm-body">
     <div class="pm-left">
@@ -468,7 +489,6 @@
         <div class="ctl tl"><button id="pm-play" title="Pause / play">⏸</button>
           <input type="range" id="pm-scrub" min="0" max="1000" step="5" value="0" title="Drag to pause and move to any point of the roll"></div>
         <canvas id="pm-v"></canvas></div>
-      <div id="pm-msg"></div>
     </div>
   </div>
 </dialog>
@@ -1205,6 +1225,39 @@ function rollerIcon(r, hole, ref = 0, box = 1.15, tight = false) {         // ho
 }
 
 // ---------------------------------------------------------------- filter UI
+// Phone layout: every filter row shows one line (its name and what is chosen); tapping it opens the row full-screen (CSS .sheet-open) with all its pictures. The same DOM as on
+// desktop: only a summary line and a sheet header are added, and CSS hides them on wide screens.
+const ROW_KEY = { 'f-mode': 'mode', 'f-fixed': 'fixed', 'f-roller': 'roller', 'f-hole': 'hole', 'f-custom': 'custom' };
+function rowSummary(row) {
+  const chips = row.querySelector('.chips'), id = chips?.id;
+  if (id === 'f-ink') return `${palette().name} · ${inkMode === 'auto' ? 'Auto' : 'one color'}`;
+  if (!chips) return `<i class="dot" style="background:${$('paper').value}"></i>${shuffled ? 'shuffled, ' : ''}${$('paper').value}`;     // the paper row
+  const on = [...chips.querySelectorAll('.chip.on')].map(b => b.innerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+  return on.length ? (on.length > 2 ? `${on.slice(0, 2).join(', ')} +${on.length - 2}` : on.join(', ')) : 'Any';
+}
+function updateRowSummaries() { for (const row of document.querySelectorAll('header details > .row')) { const e = row.querySelector('.row-sum'); if (e) e.innerHTML = rowSummary(row); } }
+function closeSheet() { document.querySelector('header details > .row.sheet-open')?.classList.remove('sheet-open'); document.body.classList.remove('sheet'); updateRowSummaries(); fitHeader(); }
+function initFilterSheets() {
+  for (const row of document.querySelectorAll('header details > .row')) {
+    const label = row.querySelector('.label').textContent, key = ROW_KEY[row.querySelector('.chips')?.id];
+    const sum = document.createElement('span'); sum.className = 'row-sum';
+    const head = document.createElement('div'); head.className = 'sheet-head';
+    head.innerHTML = '<b></b><span class="cnt-copy"></span>' + (key ? '<button class="sh-clear">Clear</button>' : '') + '<button class="sh-done chip on" style="font-weight:600">Done</button>';
+    head.querySelector('b').textContent = label;
+    row.prepend(head); row.querySelector('.label').after(sum);
+    head.querySelector('.sh-done').onclick = e => { e.stopPropagation(); closeSheet(); };
+    head.querySelector('.sh-clear')?.addEventListener('click', e => {
+      e.stopPropagation(); filters[key].clear(); row.querySelectorAll('.chips .chip.on').forEach(c => c.classList.remove('on')); if (key === 'custom') buildCustomRow(); refilter(); updateRowSummaries();
+    });
+    row.addEventListener('click', () => {
+      if (!isPhone() || row.classList.contains('sheet-open')) return;
+      for (const id of Object.keys(collapsed)) { collapsed[id] = false; if ($(id).querySelector('.rowtoggle')) applyCollapse(id); }      // the picker shows everything, no "+N more"
+      row.classList.add('sheet-open'); document.body.classList.add('sheet'); row.scrollTop = 0;
+      requestAnimationFrame(() => { for (const id of Object.keys(collapsed)) if ($(id).querySelector('.rowtoggle')) applyCollapse(id); });
+    });
+  }
+  updateRowSummaries();
+}
 function applyCollapse(id) {                    // collapsed: only what fits on one line, plus a "+N more" pill; selected chips always stay
   const box = $(id), t = box.querySelector('.rowtoggle'), all = [...box.children].filter(el => el !== t && !el.classList.contains('nofold'));
   const chips = all.filter(b => !b.hidden);                    // `hidden` = not applicable to the current filters (pen holes); `fold` = collapsed away
@@ -1286,7 +1339,7 @@ function buildInk() {
   const picker = document.createElement('input'); picker.type = 'color'; picker.value = inkPick;
   const wrap = document.createElement('span'); wrap.className = 'pick'; wrap.title = 'Any ink color'; wrap.append(picker);
   const dot = () => wrap.style.setProperty('--pc', picker.value); dot();
-  const setInk = (mode, el) => { inkMode = mode; ink.querySelectorAll('.swatch').forEach(s => s.classList.toggle('on', s === el)); repaintAll(); };
+  const setInk = (mode, el) => { inkMode = mode; ink.querySelectorAll('.swatch').forEach(s => s.classList.toggle('on', s === el)); repaintAll(); updateRowSummaries(); };
   auto.onclick = () => setInk('auto', auto);
   auto.classList.toggle('on', inkMode === 'auto');
   ink.append(auto);
@@ -1308,6 +1361,7 @@ function setPaper(c) {
   $('paper').value = c; markPaperSwatches();
   document.documentElement.style.setProperty('--paper', c); scene.background.set(c);
   if (sigs.length) fillSigSelect();              // an auto-colored text / signature changes with the paper
+  updateRowSummaries();
   repaintAll(); renderOverlay();
 }
 function setPalette(id) {                       // choose a palette (and its paper, if it has one); back to Auto ink
@@ -1315,7 +1369,7 @@ function setPalette(id) {                       // choose a palette (and its pap
   const paper = palette().paper;
   if (paper) { if (!paperFromPalette) paperBeforePalette = $('paper').value; paperFromPalette = true; setPaper(paper); }
   else if (paperFromPalette) { paperFromPalette = false; setPaper(paperBeforePalette); }   // leave a hand-picked paper alone
-  buildInk(); repaintAll();
+  buildInk(); repaintAll(); updateRowSummaries();
 }
 const persistPalettes = () => store.set(PAL_KEY, JSON.stringify(customPalettes));
 
@@ -1406,6 +1460,7 @@ function refilter() {
   const total = custom ? src.filter(p => p.ok).length : okCount;
   $('count').textContent = `${list.length.toLocaleString()} of ${total.toLocaleString()} ${custom ? 'custom ' : ''}patterns` +
     (custom && !total ? ' - make a custom part to see patterns here' : '');
+  document.querySelectorAll('.cnt-copy').forEach(e => { e.textContent = $('count').textContent; }); $('f-sum').textContent = `${list.length.toLocaleString()} patterns`; updateRowSummaries();
   $('f-count').textContent = (n => n ? ` (${n} on)` : '')(Object.values(filters).reduce((a, st) => a + st.size, 0));
   fitHeader(); layout(); window.scrollTo(0, 0); sync();
 }
@@ -2284,7 +2339,12 @@ let ed = null;                                  // { orig, name, d: {N,k,n,mir,r
 let edPiece = null, edGen = 0, edTimer = 0, pvTimer = 0, pv = null;
 const edFit = new Map();                        // compat key -> bool, for the shape being edited
 const edDef = () => ({ id: 'editing', name: ed.name || 'Custom part', ...ed.d });
-const edMsg = (m, ms = 5000) => { $('pm-msg').textContent = m; if (m && ms) setTimeout(() => { if ($('pm-msg').textContent === m) $('pm-msg').textContent = ''; }, ms); };
+let edNote = '', edBlocked = false;            // a message about something you just did (it fades), and whether the part can't be saved (that stays up while it is true)
+const edStatus = () => {
+  const bad = ed && edPiece ? ed.d.h.filter(holeBad).length : 0;
+  $('pm-msg').textContent = edNote || (edBlocked ? NOTHING_FITS : bad ? `${bad} pen hole${bad === 1 ? ' is' : 's are'} too close to the edge (shown in red): move or delete ${bad === 1 ? 'it' : 'them'} before saving.` : '');
+};
+const edMsg = (m, ms = 5000) => { edNote = m; edStatus(); if (m && ms) setTimeout(() => { if (edNote === m) { edNote = ''; edStatus(); } }, ms); };
 const canonIdx = m => { const j = m % ed.d.n; return ed.d.mir ? Math.min(j, (ed.d.n - j) % ed.d.n) : j; };
 const holeBad = q => !holeFits(edPiece.roller.o, q[0] / 4, q[1] / 4);
 
@@ -2295,7 +2355,7 @@ function openMaker(def) {
   if (!def) { edPiece = makePart(edDef()); ed.d.h = fillHoles(edPiece.roller.o, 'spiral', DEFAULT_SPACING); }
   Object.assign(pvState, { playing: true, pos: 0, hold: 0 });
   $('pm-name').value = ed.name; $('pm-N').value = ed.d.N;
-  $('pm-del').hidden = !def; $('pm-copy').hidden = !def; $('pm-msg').textContent = '';
+  $('pm-del').hidden = !def; $('pm-copy').hidden = !def; edNote = ''; edBlocked = false; edStatus();
   edTab(ed.tab); edSync(true); pm.showModal(); edResize(); edDraw(); ed.dirty = false;
 }
 function edSync(shapeChanged) {                 // recompute the piece, refresh controls, redraw, schedule the fit checks
@@ -2311,7 +2371,7 @@ function edSync(shapeChanged) {                 // recompute the piece, refresh 
       (bad ? `; ${bad} too close to the edge (red, needs ${HOLE_MARGIN} tooth of margin)` : '') + '.';
   if (shapeChanged) { ed.checked = false; edSaveButtons(); clearTimeout(edTimer); edTimer = setTimeout(edCheck, 160); }
   fillPartnerHoles(); clearTimeout(pvTimer); pvTimer = setTimeout(pvStart, shapeChanged ? 220 : 60);
-  edDraw();
+  edStatus(); edDraw();                          // (the status line also reports pen holes that are too close to the edge)
 }
 function edTab(t) {
   ed.tab = t; $('pm-t-shape').classList.toggle('on', t === 'shape'); $('pm-t-holes').classList.toggle('on', t === 'holes');
@@ -2552,7 +2612,7 @@ function fitsSomething() {                       // from the fit panel once it h
 }
 function edSaveButtons() {                       // a part that fits nothing cannot be saved: say so on the buttons themselves
   const blocked = !!ed.checked && !ed.fitsAny;
-  $('pm-save').disabled = $('pm-copy').disabled = blocked;
+  $('pm-save').disabled = $('pm-copy').disabled = blocked; edBlocked = blocked; edStatus();
   $('pm-save').title = blocked ? NOTHING_FITS : ''; $('pm-copy').title = blocked ? NOTHING_FITS : 'Keep the original and save this as a new part';
 }
 function edSave(asCopy) {
@@ -2871,7 +2931,7 @@ setTimeout(() => {                              // let "Preparing…" paint befo
   library = parseParts(store.get(PARTS_KEY)); library.forEach(d => registry.set(d.id, d)); loadFits(); rebuildCustom();
   if (library.length) console.log(`custom parts: ${library.length} in library, ${CUSTOM.length} combos, ${Math.round(performance.now() - t1)} ms`);
   if (isPhone()) document.querySelector('header details').open = false;      // phones start with the filters folded away
-  buildFilters(); buildCustomRow(); refilter(); applyHash();
+  buildFilters(); buildCustomRow(); initFilterSheets(); refilter(); applyHash();
 }, 30);
 </script>
 </body>

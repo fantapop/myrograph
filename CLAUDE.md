@@ -87,4 +87,6 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
 - Phone layout (`@media (max-width: 760px)` + `phoneMQ` / `isPhone()`): Compose is a 100vw x 100dvh editor (Back = `#ov-close`'s `.bk`); with it closed and layers present on the Patterns view the preview bar `#pip` shows
   (`pipSync`, `pipDraw` copies the live `#ovc` + `#sigc` canvases; `overlayLive()` = editor open OR bar showing, so rendering / animation run for both); a tile tap adds a layer (desktop: also opens the overlay). `minTile()` gives
   two columns; the filters start folded and show a count; only the active layer row shows X/Y and sliders; `(pointer: coarse)` also gets 40 px controls and `!important` 16 px inputs (iOS focus zoom).
+- Phone filters: each `header details > .row` gets a `.row-sum` (what is chosen, `rowSummary` / `updateRowSummaries`) and a `.sheet-head` (`initFilterSheets`); tapping a row adds `.sheet-open` (CSS: fixed, full screen, all chips, no "+N more").
+  The same DOM as desktop (the Ink row now contains `#pal-edit`); CSS hides the extras on wide screens. Part maker: `#pm-msg` lives in the sticky header and shows `edStatus()` = the fading note, else why saving is blocked, else bad pen holes.
 

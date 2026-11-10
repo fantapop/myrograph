@@ -79,6 +79,19 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Phone feedback round 1 (from the real iPhone screenshots)
+
+1. + 2. **Filters took the screen** (one fixed part visible, "+23 more", expanding scrolled forever). Now on phones each filter is ONE line (name on the left, what is chosen on the right, e.g. "Fixed part  Ring 96/144 (Inside) ›"; "Any" when
+   nothing is chosen); no pictures show until you tap a row, which opens it full-screen with every option (no "+N more"), a live "N of 7,836 patterns" count, Clear (that filter only) and Done. Ink and Paper are rows too
+   (Ink: palette name; Paper: a dot and the color; the sheet holds Shuffle / Reset order). The closed "Filters" line shows the pattern count; all seven rows come to ~420 px.
+3. **Oval swatches**: my 40 px touch minimum on buttons stretched the 32 px paper / ink swatches into ovals; swatches and the color picker are exempt now (checked: all square).
+4. **No way out of the part maker**: the only exit was a small X that wrapped onto a second line. On phones the header is now "‹ Cancel" | "Custom part" | "Save part" first, then the name and size (Cancel still asks before discarding changes).
+5. **Why a part can't be saved was a tooltip**: the reason is now visible text in the sticky header, right under the buttons (`#pm-msg`, moved out of the body where it was below the fold on phones): the "doesn't fit with any piece of the set"
+   explanation while saving is blocked, and "N pen holes are too close to the edge (shown in red)..." (new; before it only appeared after pressing Save). Transient notes still fade.
+- Tested at 390x844 (emulation): compact rows, nothing pictured until opened, full-screen sheet, live count, Done, summary text, Clear, 35 pen-hole chips with no fold, circle swatches, Cancel first and working, both messages;
+  desktop re-checked (maker, custom row, overlay, print, text, albums drivers).
+- Not done: iPhone landscape; the picker could remember scroll; a "reset all filters" shortcut.
+
 ### 2026-11-09 — Phone layout (phase 1)
 
 - Feedback: full-screen overlay mode with an easy way back, plus a PIP-style preview while browsing patterns; the part maker should be its own full window (and is wanted on phones). Chrome's --window-size floors at
