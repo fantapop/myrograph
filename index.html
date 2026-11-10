@@ -20,6 +20,9 @@
   shows the overlay at the bottom, a tap on a pattern adds a layer without leaving the gallery, Undo takes off the last one and Edit opens the editor. Two columns of patterns,
   filters as one line each (name + what is chosen; tapping one opens a full-screen picker with all its pictures and a Done button), only the selected layer shows its sliders, 16 px inputs and finger-sized controls (also on any coarse pointer), part maker / signature dialogs full-screen.
 
+  Backup & sync (cloud button in the header): "Back up everything" writes one .myrobackup.json with every album overlay, saved signature, custom palette and custom part;
+  "Restore" merges one back (newer wins, nothing deleted). The same record / merge machinery (syncMerge in CORE, syncWith in the UI) is what a cloud provider will use; none is connected yet.
+
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
 
@@ -177,6 +180,11 @@
   #ov-anim { display: inline-flex; align-items: center; gap: 8px; }
   #ov-play { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; }
   #ov-play[hidden] { display: none; }
+  #sync-btn { position: absolute; right: 152px; top: 6px; padding: 3px 8px; display: inline-flex; align-items: center; }
+  #sync-btn svg { width: 17px; height: 15px; }
+  dialog#sy { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 8px; padding: 0; width: min(520px, 96vw); }
+  dialog#sy::backdrop { background: rgba(0,0,0,.65); }
+  .sy-body { padding: 12px 16px 16px; } .sy-body p { margin: 0 0 10px; } .sy-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; } #sy-msg { color: var(--accent-ink); min-height: 1.4em; } .sy-small { font-size: 11px; color: var(--dim); }
   #theme-btn { position: absolute; right: 108px; top: 6px; padding: 3px 8px; display: inline-flex; align-items: center; }
   #theme-btn svg { width: 15px; height: 15px; }
   #ov-tabs { gap: 2px; padding: 0 12px; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); flex: none; }
@@ -339,6 +347,7 @@
 <body>
 <header>
   <nav id="views"><button id="v-p" class="on">Patterns</button><button id="v-a">Albums</button></nav>
+  <button id="sync-btn" title="Backup &amp; sync"></button>
   <button id="theme-btn" title="Switch between light and dark"></button>
   <button id="compose-btn">Compose</button>
   <details open>
@@ -432,6 +441,15 @@
   <div class="pip-t"><b id="pip-n">1 layer</b><span>Keep tapping patterns to add more</span></div>
   <button id="pip-undo" title="Take off the last pattern you added">Undo</button><button id="pip-edit" class="chip on" style="font-weight:600">Edit ›</button></div>
 <div id="print-sheet"><canvas id="print-c"></canvas></div>
+<dialog id="sy">
+  <div class="pm-head"><b>Backup &amp; sync</b><span class="sp"></span><button id="sy-x" title="Close">✕</button></div>
+  <div class="sy-body">
+    <p>Your albums, saved signatures, custom palettes and custom parts are kept in this browser. A backup file holds all of them, so you can move to another browser or computer, or keep a safe copy.</p>
+    <div class="sy-btns"><button id="sy-backup">Back up everything…</button><button id="sy-restore">Restore from a backup…</button><input type="file" id="sy-file" accept=".json,application/json" hidden></div>
+    <p id="sy-msg"></p>
+    <p class="sy-small">Restoring merges: whatever is newer wins, and nothing in this browser is deleted.</p>
+  </div>
+</dialog>
 <dialog id="pr">
   <p><b>We recommend you print in white to save ink.</b></p>
   <p>Would you like to open the print dialog with a white background? Your paper is <span class="sw" id="pr-sw"></span> <span id="pr-hex"></span>, so otherwise the whole page prints in that color. Your paper color itself is not changed.</p>
@@ -1114,6 +1132,49 @@ function decodeSig(seg) {                        // null if damaged
   if (f[1] === 'i' && /^[0-9a-z_.-]+$/.test(f[3])) return canonSigInstance({ ...at, sig: { kind: 'i', ar: parseInt(f[2], 36), s: f[3].split('.').map(q => q.split('-').flatMap(p => p.split('_').map(v => parseInt(v, 36)))) } });
   return null;
 }
+// ---- sync: merging what several devices (or a backup file) know. Provider-agnostic and pure: nothing here touches the network or the page.
+// A *record* is one syncable thing: key "<kind>:<id>" with kind album | item | sig | pal | part, and its data (a plain JSON object). A device remembers `meta`
+// = { key: { h: hash of the data it last saw, u: when that version was made, d: 1 for a deletion } }. What a provider stores is { key: { u, data } | { u, d: 1 } }.
+// Changes are found by hashing at sync time (so no code has to report edits), and the newest `u` wins per record; a deletion is a record with d. Ties: a deletion wins,
+// then the larger hash, so every device decides the same way. Tombstones are dropped after SYNC_TOMBSTONE_MS.
+const SYNC_TOMBSTONE_MS = 180 * 86400000;
+const SYNC_KEY = /^(album|item|sig|pal|part):[\w-]{1,80}$/;
+function stableStringify(v) {                    // JSON with sorted keys, so equal content always hashes the same
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+}
+const syncHash = data => fnv(stableStringify(data));
+function syncMerge({ local, meta, remote, now }) {   // local: { key: data }; meta: as above; remote: { key: record } or null
+  const R = remote || {}, m = {};
+  for (const k of Object.keys(meta || {})) m[k] = { ...meta[k] };
+  for (const key of Object.keys(local)) {              // 1. what changed here since last time
+    const h = syncHash(local[key]), cur = m[key], r = R[key];
+    if (cur && !cur.d && cur.h === h) continue;
+    if (!cur && r && !r.d && syncHash(r.data) === h) { m[key] = { h, u: r.u }; continue; }      // the same as the other side's copy: no claim on being newer
+    m[key] = { h, u: now };
+  }
+  for (const key of Object.keys(m)) if (!m[key].d && !(key in local)) m[key] = { d: 1, u: now };   // gone from here: a deletion
+  const out = {}, put = {}, del = [];
+  for (const key of new Set([...Object.keys(m), ...Object.keys(R)])) {   // 2. newest wins
+    const lm = m[key], rr = R[key];
+    let remoteWins;
+    if (!rr) remoteWins = false;
+    else if (!lm) remoteWins = true;
+    else if (rr.u !== lm.u) remoteWins = rr.u > lm.u;
+    else if (!!rr.d !== !!lm.d) remoteWins = !!rr.d;
+    else if (lm.d) remoteWins = false;
+    else remoteWins = syncHash(rr.data) > lm.h;
+    if (!remoteWins) { out[key] = lm.d ? { u: lm.u, d: 1 } : { u: lm.u, data: local[key] }; continue; }
+    out[key] = rr.d ? { u: rr.u, d: 1 } : { u: rr.u, data: rr.data };
+    if (rr.d) { if (key in local) del.push(key); m[key] = { d: 1, u: rr.u }; }
+    else { const h = syncHash(rr.data); if (!(key in local) || syncHash(local[key]) !== h) put[key] = rr.data; m[key] = { h, u: rr.u }; }
+  }
+  for (const key of Object.keys(out)) if (out[key].d && now - out[key].u > SYNC_TOMBSTONE_MS) { delete out[key]; delete m[key]; }
+  let remoteChanged = Object.keys(R).some(k => !(k in out));
+  for (const key of Object.keys(out)) { const r = R[key]; if (!r || r.u !== out[key].u || !!r.d !== !!out[key].d) remoteChanged = true; }
+  return { meta: m, remote: out, put, del, remoteChanged };
+}
 // ======================================================= END CORE
 
 // ---------------------------------------------------------------- UI constants and state
@@ -1614,7 +1675,8 @@ function setLineFrame(line, l, phase) {        // move one built line to loop ph
 }
 function buildOverlay(lineWidth, resPx, phase = animPhase, bake = false) {      // (re)fill ovScene from the layers; lineWidth in px of a resPx-wide image; the layers at loop phase `phase` (bake: whole-degree angles, as saved)
   for (const o of [...ovScene.children]) { ovScene.remove(o); o.material.dispose(); }
-  ovScene.add(...makeLines([...layers.values()].map(l => ({ ...l, rot: bake ? bakeRot(l, phase) : layerAngle(l, phase), prog: drawFraction(l, phase) })), lineWidth, resPx, ovCurve, canvasAR()));
+  const built = makeLines([...layers.values()].map(l => ({ ...l, rot: bake ? bakeRot(l, phase) : layerAngle(l, phase), prog: drawFraction(l, phase) })), lineWidth, resPx, ovCurve, canvasAR());
+  if (built.length) ovScene.add(...built);      // (Scene.add() with nothing logs an error)
 }
 // ---- UI theme: dark / light (the CSS variables switch on <html data-theme>; the head script picked the first one). A click saves the choice
 // (myrograph.theme); until then the page follows the system setting live. The paper color is separate and never changes.
@@ -1772,7 +1834,7 @@ async function makeGif(long, fps, onProgress = () => {}) {
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }), sc = new THREE.Scene(), enc = GIFEncoder();
   r.setPixelRatio(1); r.setSize(W, H, false); sc.background = new THREE.Color($('paper').value); const cam = camFor(asp);
   const vis = [...layers.values()].filter(l => l.visible).map(l => ({ ...l })), sigList = sigs.map(g => ({ ...g })), paper = $('paper').value;
-  const lines = makeLines(vis, 1.6 * W / (ovCanvas.clientWidth || 440), W, ovCurve, asp); sc.add(...lines);
+  const lines = makeLines(vis, 1.6 * W / (ovCanvas.clientWidth || 440), W, ovCurve, asp); if (lines.length) sc.add(...lines);
   const flat = document.createElement('canvas'); flat.width = W; flat.height = H;
   const g2 = flat.getContext('2d', { willReadFrequently: true });
   try {
@@ -1968,7 +2030,8 @@ function thumbDispose(rig) { for (const l of rig.lines) l.material.dispose(); ri
 function thumbDraw(rig, canvas, phase) {        // the caller has sized gl to rig.W x rig.H (and puts it back to the tile size afterwards)
   thScene.background.set(rig.paper);
   rig.vis.forEach((l, i) => setLineFrame(rig.lines[i], l, phase));
-  thScene.add(...rig.lines); gl.render(thScene, rig.cam);
+  if (rig.lines.length) thScene.add(...rig.lines);
+  gl.render(thScene, rig.cam);
   if (canvas.width !== rig.W || canvas.height !== rig.H) { canvas.width = rig.W; canvas.height = rig.H; }
   const g = canvas.getContext('2d'); g.drawImage(gl.domElement, 0, 0, rig.W, rig.H);
   drawAllSignatures(g, rig.sigs, rig.W, rig.H, rig.paper);
@@ -2920,6 +2983,121 @@ $('sg-save').onclick = () => {
 };
 sgd.addEventListener('close', () => { sgCur = null; });
 window.addEventListener('resize', sgDraw);
+
+// ---------------------------------------------------------------- sync and backup
+// Local state <-> records (see syncMerge in CORE). The stores themselves are unchanged; changes are found by hashing at sync time. A provider (a cloud file, later) only has to
+// implement read() -> { records } | null and write({ v, app, records }); syncWith runs one round. Nothing is ever sent anywhere unless a provider is set.
+const SYNC_META_KEY = STORAGE_PREFIX + 'sync.meta.v1', SYNC_VERSION = 1, SYNC_LIMIT = 4000;
+const loadSyncMeta = () => { try { const m = JSON.parse(store.get(SYNC_META_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; } catch { return {}; } };
+let syncMeta = loadSyncMeta(), syncBusy = false, syncProvider = null;
+const saveSyncMeta = () => store.set(SYNC_META_KEY, JSON.stringify(syncMeta));
+function collectLocal() {
+  const rec = {};
+  for (const a of albums) { rec['album:' + a.id] = { name: a.name }; for (const it of a.items) rec['item:' + it.id] = { album: a.id, name: it.name, created: it.created, state: it.state }; }
+  for (const d of sigLib) rec['sig:' + d.id] = d;
+  for (const p of customPalettes) rec['pal:' + p.id] = p;
+  for (const d of library) rec['part:' + d.id] = d;
+  return rec;
+}
+const idOf = key => key.slice(key.indexOf(':') + 1);
+function applyRemote(put, del) {                // bring other devices' changes into the stores and the page (never throws on odd data: bad records are skipped)
+  let alb = false, sg = false, pl = false, pt = false;
+  const album = id => albums.find(a => a.id === id), dropItem = id => { for (const a of albums) { const i = a.items.findIndex(x => x.id === id); if (i >= 0) { a.items.splice(i, 1); alb = true; } } thumbs.delete(id); };
+  const keys = Object.keys(put);
+  for (const key of keys.filter(k => k.startsWith('album:'))) {
+    const d = put[key], id = idOf(key), name = String(d?.name ?? 'Album').slice(0, 80);
+    const a = album(id); if (a) a.name = name; else albums.push({ id, name, items: [] }); alb = true;
+  }
+  for (const key of keys.filter(k => k.startsWith('item:'))) {
+    const d = put[key], id = idOf(key); if (!d || !validState(d.state) || !/^[\w-]{1,80}$/.test(String(d.album))) continue;
+    dropItem(id); let a = album(d.album); if (!a) { a = { id: d.album, name: 'My album', items: [] }; albums.push(a); }
+    a.items.push({ id, name: String(d.name ?? 'Overlay').slice(0, 80), created: Number(d.created) || Date.now(), state: modern(d.state) }); a.items.sort((x, y) => x.created - y.created); alb = true;
+  }
+  for (const key of keys.filter(k => k.startsWith('sig:'))) { const d = canonSignature(put[key]); if (!d) continue; const i = sigLib.findIndex(x => x.id === d.id); if (i >= 0) sigLib[i] = d; else if (sigLib.length < SIG_LIMITS.library) sigLib.push(d); else continue; sg = true; }
+  for (const key of keys.filter(k => k.startsWith('pal:'))) { const d = cleanPalette(put[key]); if (!d) continue; const i = customPalettes.findIndex(x => x.id === d.id); if (i >= 0) customPalettes[i] = d; else customPalettes.push(d); pl = true; }
+  for (const key of keys.filter(k => k.startsWith('part:'))) {
+    const d = canonPart(put[key]); if (!d) continue; const i = library.findIndex(x => x.id === d.id);
+    if (i >= 0) library[i] = d; else if (library.length < PART_LIMITS.maxLibrary) library.push(d); else continue; registry.set(d.id, d); pieceMemo.delete(d.id); pt = true;
+  }
+  for (const key of del) {
+    const id = idOf(key);
+    if (key.startsWith('item:')) dropItem(id);
+    else if (key.startsWith('album:')) { const i = albums.findIndex(a => a.id === id); if (i >= 0) { for (const it of albums[i].items) thumbs.delete(it.id); albums.splice(i, 1); alb = true; } }
+    else if (key.startsWith('sig:')) { const n = sigLib.length; sigLib = sigLib.filter(x => x.id !== id); sg ||= sigLib.length !== n; }
+    else if (key.startsWith('pal:')) { const n = customPalettes.length; customPalettes = customPalettes.filter(x => x.id !== id); pl ||= customPalettes.length !== n; }
+    else if (key.startsWith('part:')) { const n = library.length; library = library.filter(x => x.id !== id); if (library.length !== n) { registry.delete(id); pieceMemo.delete(id); pt = true; } }
+  }
+  if (alb) { if (!albums.some(a => a.id === curId)) curId = albums[0]?.id; persist(); fillAlbumSelects(); if (view === 'albums') buildAlbums(); }
+  if (sg) { saveSigs(); fillSigSelect(); }
+  if (pl) { persistPalettes(); if (!allPalettes().some(p => p.id === palId)) { palId = 'classic'; store.set(PAL_CUR, palId); } buildInk(); updateRowSummaries(); }
+  if (pt) {                                     // like libraryChanged, but quiet: no view switch
+    guestCombos.clear(); rebuildCustom(); saveLibrary();
+    for (const id of [...filters.custom]) if (id !== '*' && !library.some(d => d.id === id)) filters.custom.delete(id);
+    buildCustomRow(); buildLayerList(); if (filters.custom.size) refilter();
+  }
+  return alb || sg || pl || pt;
+}
+async function syncWith(provider) {             // one round: read, merge, apply, write what changed
+  if (syncBusy) return { skipped: 'busy' };
+  if (pm.open) return { skipped: 'editing' };   // not while a part is being edited
+  syncBusy = true;
+  try {
+    const doc = await provider.read(), remote = doc && doc.records && typeof doc.records === 'object' ? doc.records : null;
+    if (pm.open) return { skipped: 'editing' };
+    const r = syncMerge({ local: collectLocal(), meta: syncMeta, remote, now: Date.now() });
+    applyRemote(r.put, r.del);
+    const after = collectLocal();                // the stores normalize what they load: remember the hash of what is really there now
+    for (const key of Object.keys(r.put)) if (after[key] && r.meta[key] && !r.meta[key].d) r.meta[key].h = syncHash(after[key]);
+    syncMeta = r.meta; saveSyncMeta();
+    if (r.remoteChanged) await provider.write({ v: SYNC_VERSION, app: APP_ID, records: r.remote });
+    return { pushed: r.remoteChanged, pulled: Object.keys(r.put).length, removed: r.del.length };
+  } finally { syncBusy = false; }
+}
+// ---- backup file: every record, newest version of each, as one JSON file
+function makeBackup() {
+  const r = syncMerge({ local: collectLocal(), meta: syncMeta, remote: null, now: Date.now() }); syncMeta = r.meta; saveSyncMeta();
+  const records = {}; for (const [k, v] of Object.entries(r.remote)) if (!v.d) records[k] = v;
+  return { app: APP_ID, kind: 'backup', v: SYNC_VERSION, made: new Date().toISOString(), records };
+}
+function readBackup(text) {                     // -> clean { key: { u, data } } or throws with a message
+  const doc = JSON.parse(text);
+  if (!doc || !isApp(doc.app) || doc.kind !== 'backup' || !doc.records || typeof doc.records !== 'object') throw new Error('This is not a myrograph backup file');
+  const out = {}; let n = 0;
+  for (const [k, v] of Object.entries(doc.records)) {
+    if (!SYNC_KEY.test(k) || !v || typeof v !== 'object' || v.d || !v.data || typeof v.data !== 'object' || !Number.isFinite(v.u)) continue;
+    if (++n > SYNC_LIMIT) throw new Error('That backup is too large');
+    out[k] = { u: v.u, data: v.data };
+  }
+  return out;
+}
+function restoreBackup(records) {               // merge into what is here: newer wins, nothing is deleted
+  const r = syncMerge({ local: collectLocal(), meta: syncMeta, remote: records, now: Date.now() });
+  const changed = applyRemote(r.put, []);
+  const after = collectLocal(); for (const key of Object.keys(r.put)) if (after[key] && r.meta[key] && !r.meta[key].d) r.meta[key].h = syncHash(after[key]);
+  syncMeta = r.meta; saveSyncMeta();
+  const count = p => Object.keys(r.put).filter(k => k.startsWith(p)).length;
+  return { changed, albums: count('album:'), items: count('item:'), sigs: count('sig:'), pals: count('pal:'), parts: count('part:') };
+}
+const syDlg = $('sy'), syMsg = t => { $('sy-msg').textContent = t; };
+$('sync-btn').innerHTML = '<svg viewBox="0 0 17 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M4.6 12.8h7.6a3 3 0 0 0 .5-5.96A4.3 4.3 0 0 0 4.4 6.3a3.3 3.3 0 0 0 .2 6.5z"/></svg>';
+$('sync-btn').onclick = () => { syMsg(''); syDlg.showModal(); };
+$('sy-x').onclick = () => syDlg.close();
+$('sy-backup').onclick = () => {
+  const doc = makeBackup(), n = Object.keys(doc.records).length;
+  if (!n) return syMsg('Nothing to back up yet: no albums, signatures, palettes or parts.');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(doc)], { type: 'application/json' }));
+  a.download = `myrograph-backup-${doc.made.slice(0, 10)}.myrobackup.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  syMsg(`Saved ${a.download} (${n} item${n === 1 ? '' : 's'}).`);
+};
+$('sy-restore').onclick = () => $('sy-file').click();
+$('sy-file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const res = restoreBackup(readBackup(await f.text()));
+    syMsg(res.changed ? `Restored ${res.items} overlay${res.items === 1 ? '' : 's'} in ${res.albums} album${res.albums === 1 ? '' : 's'}, ${res.sigs} signature${res.sigs === 1 ? '' : 's'}, ${res.pals} palette${res.pals === 1 ? '' : 's'}, ${res.parts} part${res.parts === 1 ? '' : 's'}.` : 'Everything in that backup is already here (or older than what you have).');
+  } catch (err) { syMsg(err.message || 'Could not read that file.'); }
+};
+window.__myrosync = { collectLocal, applyRemote, syncWith, makeBackup, readBackup, restoreBackup, meta: () => syncMeta, resetMeta: () => { syncMeta = {}; saveSyncMeta(); } };      // test hooks
 
 // ---------------------------------------------------------------- start
 setTimeout(() => {                              // let "Preparing…" paint before the heavy enumeration

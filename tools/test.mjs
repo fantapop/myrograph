@@ -14,7 +14,7 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
 const core = html.slice(html.indexOf('BEGIN CORE'), html.indexOf('END CORE'));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'myrograph-')), 'core.mjs');
-fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_DRAW, cleanCanvas, isDefaultCanvas, exportDims, isNearWhite, cleanSpeed, loopMultiple, drawFraction, isMoving, cumLengths, drawCount, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, canonSigInstances, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
+fs.writeFileSync(tmp, '//' + core.slice(core.indexOf('\n') - 0) + '\nexport { PARTS, makeOutline, circleDense, trace, buildCatalog, TAU, addTextChunk, readTextChunk, crc32, encodeShare, decodeShare, PRESET_PALETTES, cleanPalette, parsePalettes, PART_LIMITS, PART_PRESETS, presetShape, resampleShape, canonPart, parseParts, partId, makePart, partDense, polyInfo, holeFits, fillHoles, customCombos, CROSS_ARM, pose, lcm, traceRaw, SPIRAL_TURNS, LAYER_SIZE, LAYER_WIDTH, LAYER_SPIN, LOOP_SEC, layerAngle, bakeRot, LAYER_DRAW, stableStringify, syncHash, syncMerge, SYNC_KEY, SYNC_TOMBSTONE_MS, cleanCanvas, isDefaultCanvas, exportDims, isNearWhite, cleanSpeed, loopMultiple, drawFraction, isMoving, cumLengths, drawCount, LAYER_SHIFT, SIG_FONTS, SIG_LIMITS, canonSignature, canonSigInstance, canonSigInstances, parseSignatures, encodeSig, decodeSig, encodePart, decodePart, pairFits, makeSDF, fits };\n');
 const C = await import(pathToFileURL(tmp).href);
 
 let failed = 0;
@@ -229,6 +229,45 @@ check('export size from the longest side keeps the shape (landscape, portrait, s
 { const wide = { ...st, canvas: { w: 16, h: 9 } }, link = C.encodeShare(wide);
   check('the canvas round-trips through a link and is absent for the square (and old links decode without one)', JSON.stringify(C.decodeShare('#' + link)) === JSON.stringify(wide) && !C.encodeShare(st).includes('cv,') && !C.encodeShare({ ...st, canvas: { w: 1, h: 1 } }).includes('cv,') && !('canvas' in C.decodeShare('#' + C.encodeShare(st))) && link.split('/').includes('cv,16,9'));
   check('a canvas segment is not mistaken for a layer, and a damaged one is ignored', C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100/cv,3,2').layers.length === 1 && C.decodeShare('v1/faf7f0/t/ring96-in,w24,1,1f4fd8,1,0,100/cv,3,2').canvas.w === 3); }
+
+// sync: several devices through a shared (pretend) cloud
+{ const clone = o => JSON.parse(JSON.stringify(o)), dev = () => ({ local: {}, meta: {} }), cloud = () => ({ doc: null });
+  const sync = (d, c, now) => { const r = C.syncMerge({ local: d.local, meta: d.meta, remote: c.doc, now }); for (const [k, v] of Object.entries(r.put)) d.local[k] = clone(v); for (const k of r.del) delete d.local[k];
+    d.meta = r.meta; if (r.remoteChanged) c.doc = clone(r.remote); return r; };
+  check('stable hashing ignores key order and undefined', C.syncHash({ a: 1, b: { c: [1, 2], d: 'x' } }) === C.syncHash({ b: { d: 'x', c: [1, 2] }, a: 1, z: undefined }) && C.syncHash({ a: 1 }) !== C.syncHash({ a: 2 }));
+  check('record keys are checked', ['album:abc-123', 'item:0f3a_9', 'sig:s1a2b3c4d', 'pal:u-1', 'part:c12345678'].every(k => C.SYNC_KEY.test(k)) && ['x:1', 'album:', 'album:a/b', 'item:' + 'a'.repeat(81), '__proto__:x', 'album:a b'].every(k => !C.SYNC_KEY.test(k)));
+  let A = dev(), B = dev(), X = cloud();
+  A.local['album:a1'] = { name: 'Mine' }; A.local['item:i1'] = { album: 'a1', name: 'One', state: { n: 1 } };
+  let r = sync(A, X, 1000); check('first sync pushes everything and pulls nothing', r.remoteChanged && Object.keys(X.doc).length === 2 && !Object.keys(r.put).length && !r.del.length);
+  r = sync(B, X, 2000); check('a second device receives it', JSON.stringify(B.local) === JSON.stringify(A.local) && Object.keys(r.put).length === 2 && !r.remoteChanged);
+  r = sync(A, X, 3000); check('syncing again changes nothing (idempotent)', !r.remoteChanged && !Object.keys(r.put).length && !r.del.length);
+  r = sync(B, X, 4000); check('...on either side', !r.remoteChanged && !Object.keys(r.put).length);
+  B.local['item:i1'].name = 'Renamed on B'; sync(B, X, 5000); r = sync(A, X, 6000);
+  check('an edit travels', A.local['item:i1'].name === 'Renamed on B' && r.put['item:i1'] && !r.remoteChanged);
+  A.local['item:i1'].name = 'A late edit'; B.local['item:i1'].name = 'B earlier edit';
+  sync(B, X, 7000); sync(A, X, 8000); sync(B, X, 9000);
+  check('concurrent edits: the newer one wins on both', A.local['item:i1'].name === 'A late edit' && B.local['item:i1'].name === 'A late edit');
+  delete A.local['item:i1']; sync(A, X, 10000); r = sync(B, X, 11000);
+  check('a deletion travels and is remembered as a record', !('item:i1' in B.local) && r.del.includes('item:i1') && X.doc['item:i1'].d === 1 && A.meta['item:i1'].d === 1);
+  B.local['item:i1'] = { album: 'a1', name: 'Back again', state: {} }; sync(B, X, 12000); sync(A, X, 13000);
+  check('re-creating something after a deletion brings it back everywhere', A.local['item:i1']?.name === 'Back again');
+  A.local['item:i1'].name = 'A edits'; B = B; delete B.local['item:i1']; sync(A, X, 14000); sync(B, X, 15000); sync(A, X, 16000);
+  check('delete (later) beats an edit (earlier)', !('item:i1' in A.local) && !('item:i1' in B.local));
+  // content-addressed records on two devices before they have ever met: no fake "newer" claims
+  const P = { name: 'Star', N: 40 }; A = dev(); B = dev(); X = cloud(); A.local['part:c1'] = clone(P); B.local['part:c1'] = clone(P);
+  sync(A, X, 1000); sync(B, X, 2000); check('the same record on two new devices is not re-sent', B.meta['part:c1'].u === 1000 && !sync(A, X, 3000).remoteChanged);
+  // three devices converge
+  A = dev(); B = dev(); const D = dev(); X = cloud(); A.local['sig:s1'] = { text: 'A' }; B.local['sig:s2'] = { text: 'B' }; D.local['pal:u-1'] = { name: 'D' };
+  for (let i = 0; i < 3; i++) { sync(A, X, 100 + i * 10); sync(B, X, 101 + i * 10); sync(D, X, 102 + i * 10); }
+  check('three devices end up with the same records', JSON.stringify(Object.keys(A.local).sort()) === JSON.stringify(Object.keys(B.local).sort()) && C.stableStringify(A.local) === C.stableStringify(D.local) && C.stableStringify(A.local) === C.stableStringify(B.local) && Object.keys(A.local).length === 3);
+  // a device with a stale cloud copy re-pushes what a lost upload dropped
+  A = dev(); X = cloud(); A.local['album:a1'] = { name: 'x' }; sync(A, X, 1000); const keep = clone(X.doc); A.local['album:a2'] = { name: 'new' }; sync(A, X, 2000); X.doc = keep;   // the second upload was overwritten
+  r = sync(A, X, 3000); check('a lost upload heals on the next sync', r.remoteChanged && X.doc['album:a2']?.data.name === 'new');
+  // tombstones expire; backups never delete
+  A = dev(); X = cloud(); A.local['sig:s1'] = { text: 'q' }; sync(A, X, 1000); delete A.local['sig:s1']; sync(A, X, 2000);
+  check('old tombstones are dropped from the cloud and from the device', (() => { const late = 2000 + C.SYNC_TOMBSTONE_MS + 1; const q = sync(A, X, late); return !('sig:s1' in X.doc) && !('sig:s1' in A.meta) && q.remoteChanged; })());
+  A = dev(); A.local['album:keep'] = { name: 'local' }; r = C.syncMerge({ local: A.local, meta: A.meta, remote: { 'album:other': { u: 5, data: { name: 'from a backup' } } }, now: 9 });
+  check('merging a backup (a cloud with only live records) adds and never removes', r.put['album:other'] && !r.del.length && 'album:keep' in r.remote); }
 
 // ink palettes
 check('preset palettes are valid and uniquely named', C.PRESET_PALETTES.every(p => C.cleanPalette(p)) && new Set(C.PRESET_PALETTES.map(p => p.id)).size === C.PRESET_PALETTES.length);

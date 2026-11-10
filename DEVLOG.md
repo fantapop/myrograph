@@ -79,6 +79,20 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Sync groundwork: records, merge engine, backup / restore (no cloud yet)
+
+- Plan agreed: background sync through the user's own Google Drive hidden app folder (`appDataFolder`), optional sign-in, local storage stays the source of truth; first the provider-independent groundwork. Done here:
+- **Model**: five kinds of record - `album:<id>` {name}, `item:<id>` {album, name, created, state}, `sig:<id>`, `pal:<id>`, `part:<id>`. The stores keep their formats; `collectLocal()` derives records and `applyRemote()` writes them back.
+  No instrumentation of edit sites: changes are detected by hashing at sync time (`syncHash(stableStringify(data))`) against `meta` per key `{h, u, d}`; so renames / edits / deletions anywhere are picked up automatically.
+- **Merge** (CORE `syncMerge`, pure): per record the newest `u` wins; deleted = tombstone `{u, d}`; ties: deletion wins, then the larger hash (every device decides the same); a record identical to the other side's copy on first sight adopts its time instead of
+  claiming "newer"; tombstones expire after 180 days. Lost uploads self-heal (a device re-pushes what the cloud lacks). Concurrent writers can still overwrite each other for one round; the next round repairs it (Drive has no cheap conditional write for this).
+- **Apply**: never throws on odd data (bad keys / invalid states / bad signatures / parts are skipped), limits respected (12 signatures, 12 parts), names stay plain text, quiet part refresh (no view switch), skipped while the part maker is open.
+- **Backup & restore** (cloud button in the header -> dialog): one `.myrobackup.json` with all live records and their times; restore merges (older never overwrites newer, nothing is deleted, same file twice = no change). Works on phones. This also covers moving to a new browser today.
+- **Provider interface** exists (`syncWith(provider)`: read -> merge -> apply -> write if changed) and is exercised with a pretend cloud; nothing is sent anywhere. Not wired yet: triggers (on change, on focus, interval), status UI, Google sign-in / Drive calls.
+- Side fix found by the new phone runner: `Scene.add()` with nothing logged a console error whenever the overlay opened with no layers (guarded now).
+- Tested: node (hash, keys, 15 merge scenarios incl. 3 devices, concurrent edit, delete vs edit, resurrection, lost upload, tombstone expiry, backup merge) and Chrome (A -> cloud -> empty B round trip of all five kinds, edit + deletion propagation, conflict, hostile records, backup / restore, dialog).
+- Next (needs the user): create a Google Cloud project + OAuth client (Drive `drive.appdata` scope), then the Drive provider (Google Identity Services token flow, hourly silent re-auth), triggers, a small "Signed in as ... / Synced 2 min ago" status, sign out / "stop syncing". Open questions: where the sign-in lives (this dialog), what to do when the token expires while offline, and merging the auto-created "My album" duplicates.
+
 ### 2026-11-09 — Phone feedback round 1 (from the real iPhone screenshots)
 
 1. + 2. **Filters took the screen** (one fixed part visible, "+23 more", expanding scrolled forever). Now on phones each filter is ONE line (name on the left, what is chosen on the right, e.g. "Fixed part  Ring 96/144 (Inside) ›"; "Any" when

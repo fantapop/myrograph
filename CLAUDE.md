@@ -89,4 +89,8 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   two columns; the filters start folded and show a count; only the active layer row shows X/Y and sliders; `(pointer: coarse)` also gets 40 px controls and `!important` 16 px inputs (iOS focus zoom).
 - Phone filters: each `header details > .row` gets a `.row-sum` (what is chosen, `rowSummary` / `updateRowSummaries`) and a `.sheet-head` (`initFilterSheets`); tapping a row adds `.sheet-open` (CSS: fixed, full screen, all chips, no "+N more").
   The same DOM as desktop (the Ink row now contains `#pal-edit`); CSS hides the extras on wide screens. Part maker: `#pm-msg` lives in the sticky header and shows `edStatus()` = the fading note, else why saving is blocked, else bad pen holes.
+- Sync / backup: everything syncable is a *record* `kind:id` (album, item, sig, pal, part; `collectLocal()` builds them from the unchanged stores, `applyRemote()` writes them back quietly and refreshes the UI). CORE `syncMerge({local, meta, remote, now})` is the whole
+  algorithm and is pure: edits are found by hashing (`syncHash` of `stableStringify`), `meta` (localStorage `myrograph.sync.meta.v1`) remembers { h, u, d } per key, the newest `u` wins, a deletion is a tombstone record (kept 180 days), ties: deletion, then larger hash.
+  A provider = `{ read() -> { records } | null, write({ v, app, records }) }`; `syncWith(provider)` runs one round (skips while the part maker is open). Backup = `makeBackup` / `readBackup` / `restoreBackup` (merge, never deletes). Records are
+  validated on the way in (`SYNC_KEY`, canon functions, `validState`, names as text). Don't add a store without adding it to `collectLocal` and `applyRemote`.
 
