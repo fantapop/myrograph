@@ -79,6 +79,20 @@ forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes he
 
 ## Log
 
+### 2026-11-09 — Automatic background sync (scheduler), still without a cloud
+
+- Feedback: nobody should have to remember to sync. The scheduler is built now and only needs a provider: `syncEnable(provider)` -> an immediate first run; then **every store write kicks a debounced run** (3 s, so a burst of edits is one sync), **returning to the tab**
+  (pulls other devices' work; at least 15 s since the last run), **the tab being hidden** (pushes what is waiting right away: best effort), **the connection coming back**, and a **slow poll** (2 min) while the tab is visible. Runs never overlap (a change made mid-run
+  schedules another), are skipped while offline or while the part maker is open and resume by themselves, and **retry with a growing delay** (5 s, 15 s, 1 min, 5 min) on failures. A provider error marked `.auth` stops the retries and shows "Sign in again".
+- There is no queue to lose: edits are found by hashing at the next run, so something changed offline, or just before closing the tab, is simply picked up at the next run (a closed tab can't sync; the next open does, first thing).
+- Status: a small dot on the cloud button (green connected, pulsing while syncing, amber waiting / offline, red problem) and a line in the Backup & sync dialog ("Up to date (synced 2 min ago)", "Offline: changes will sync when you are back online", "Sync problem: ... your work is safe here").
+- Found by a test and fixed: with "newest wins", a device whose clock ran ahead could make old edits beat newer ones. A changed record's time is now max(now, any version already seen + 1) (a hybrid-logical-clock idea), so an edit made after seeing a version always beats it
+  whatever the clocks say; also for deletions (node test with a clock a day ahead).
+- Tested in Chrome with a pretend cloud and short timings: first sync on connect; three quick edits = 1 read + 1 write; an edit during a run syncs right after; 2 failures retry and recover; offline then online; return-to-tab pull; no upload loop after applying remote changes;
+  slow poll; hidden tab flush; part maker defers; expired sign-in stops without hammering; disconnect.
+- Still needed (user + me): Google Cloud OAuth client (user created the project; steps given: enable Drive API, consent screen External, scope `drive.appdata`, Web client with origins https://fantapop.github.io and http://localhost:8000, add test users), the Drive `appDataFolder`
+  provider (read / write one JSON file; GIS token flow with silent re-auth), a Connect / Disconnect control in the dialog, remembering "sync is on" across visits, a first-sync confirmation when this browser already has data.
+
 ### 2026-11-09 — Sync groundwork: records, merge engine, backup / restore (no cloud yet)
 
 - Plan agreed: background sync through the user's own Google Drive hidden app folder (`appDataFolder`), optional sign-in, local storage stays the source of truth; first the provider-independent groundwork. Done here:

@@ -93,4 +93,7 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   algorithm and is pure: edits are found by hashing (`syncHash` of `stableStringify`), `meta` (localStorage `myrograph.sync.meta.v1`) remembers { h, u, d } per key, the newest `u` wins, a deletion is a tombstone record (kept 180 days), ties: deletion, then larger hash.
   A provider = `{ read() -> { records } | null, write({ v, app, records }) }`; `syncWith(provider)` runs one round (skips while the part maker is open). Backup = `makeBackup` / `readBackup` / `restoreBackup` (merge, never deletes). Records are
   validated on the way in (`SYNC_KEY`, canon functions, `validState`, names as text). Don't add a store without adding it to `collectLocal` and `applyRemote`.
+- Background sync scheduler (runs only while `syncProvider` is set via `syncEnable(provider)`): every store writer (`persist`, `saveSigs`, `persistPalettes`, `saveLibrary`) calls `syncKick()`; `applyRemote` sets `syncApplying` so its own writes don't. `syncRun` never overlaps
+  (`syncAgain`), waits while offline or while the part maker is open, retries with `syncTiming.retry`, and stops on provider errors with `.auth` (status `signin`). Status (`syncState`, `renderSyncStatus`) drives the dot on the cloud button and the text in the Backup & sync dialog.
+  No separate queue: pending edits are found by hashing at the next run. Timestamps: a changed record's `u` is max(now, previous seen + 1), so clock skew can't make old edits win.
 

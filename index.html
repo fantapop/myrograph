@@ -21,7 +21,8 @@
   filters as one line each (name + what is chosen; tapping one opens a full-screen picker with all its pictures and a Done button), only the selected layer shows its sliders, 16 px inputs and finger-sized controls (also on any coarse pointer), part maker / signature dialogs full-screen.
 
   Backup & sync (cloud button in the header): "Back up everything" writes one .myrobackup.json with every album overlay, saved signature, custom palette and custom part;
-  "Restore" merges one back (newer wins, nothing deleted). The same record / merge machinery (syncMerge in CORE, syncWith in the UI) is what a cloud provider will use; none is connected yet.
+  "Restore" merges one back (newer wins, nothing deleted). The same record / merge machinery (syncMerge in CORE, syncWith in the UI) is what a cloud provider will use; none is connected yet. Once one is, syncing is automatic and in the background
+  (syncKick: after any change, on returning to the tab, when back online, a slow poll; debounced, retried with backoff; the cloud button shows a status dot).
 
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
