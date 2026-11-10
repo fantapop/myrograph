@@ -2,80 +2,27 @@
 
 ## Current state
 
-Single-file static page (`index.html`) renders every ring/wheel/shape/pen-hole combination of the
-Deluxe set (from the user's photo `IMG_7377`): rings 144/96 and 150/105, rack 150, 15 round wheels
-(24-84, 5-35 holes), and the shaped wheels Eye (13 holes), Bar (9), Triangle (12), Cross (10).
-7,866 combos enumerated, 7,836 physically valid. Filter chips show piece pictures; ink and paper
-colors are adjustable. Verified by headless Chrome screenshots; the math core is tested under node.
+**What it is.** A single-file static page (`index.html`; three.js from a CDN; no build; no server of ours) hosted on GitHub Pages (https://fantapop.github.io/myrograph/, redeploys on every push to `main`). It draws every ring / wheel / shape /
+pen-hole combination of a Deluxe-style gear set (7,866 combinations, 7,836 that physically fit) and lets you compose, animate, save and share them. `CLAUDE.md` is the architecture orientation; this log has the why behind each decision.
 
-Compose feature: header "Compose" button (static label, no layer count) slides a panel in from the right. While open, grid
-tiles are click-to-select (outline + check badge in the layer's color). The panel has a live
-three.js overlay canvas (all layers share the center), and a layer list with show/hide, color,
-rotation, size (10-500%, a logarithmic slider) and line width (0.5-20x, a logarithmic slider) sliders and remove; layers keep their real sizes relative to each other (the largest visible layer fills the picture); each layer's Size scales it. Selection is in-memory only (lost on reload).
+**What it does today** (each has a dated entry below):
+- *Gallery*: virtualized grid of live patterns; filters with piece pictures (rolling, fixed part, moving piece, pen hole, custom parts), ink palettes (presets + your own), paper color, shuffle; light / dark UI theme.
+- *Compose overlay*: any number of layers (the same pattern can repeat; drag to reorder) each with color, rotation, size (10-500%), line width, X / Y shift, **spin** and **pen draw** (tenths of a turn / draw per loop); text and signatures (typed text needs no saving; drawn / saved
+  signatures are reusable); canvas shape (square, screen, Letter / A4, custom pixels); share links; PNG (setup embedded), animated GIF, animated SVG, print (offers white background for tinted paper).
+- *Albums*: saved overlays in the browser (spinning ones animate), export / import, backup file of everything.
+- *Custom parts*: design your own shaped wheel, see which pieces it fits, keep a library; parts travel inside PNGs / albums / links.
+- *Phones*: full-screen overlay editor with a live preview bar while browsing, one-line filters that open full-screen pickers, two-column gallery, finger-sized controls.
+- *Sync* (optional): sign in with Google and albums, signatures, palettes and parts sync in the background through the app's hidden Google Drive folder; per-record newest-wins merge with deletion records; works offline and catches up; also a manual backup / restore file.
 
-Save/open: "Save PNG" renders the overlay offscreen at 1024/2048/4096 px and embeds the layer setup
-(JSON, part ids + color/visible/rotation/size, paper color, base scale) in an iTXt chunk
-"Myrograph" right after IHDR. "Open..." or dropping a PNG on the page restores it.
-Round trip verified in headless Chrome (state identical) and the PNG still decodes in sips/Chrome.
+**Open items / ideas** (none started):
+- Sync: how often Google asks to "Sign in again" on real phones is unmeasured (a hosted token function or Dropbox are the fallbacks); merging the auto-created "My album" duplicates across devices; a first-run explanation for new users.
+- Phone phase 2: pinch to resize / two-finger rotate, tap a slider value to type it, Web Share sheet for PNG / GIF / links, iOS canvas size limits, landscape.
+- Text: rotation, alignment, reordering. Maker: undo, custom rings / racks. Palettes: the chosen paper is not remembered across reloads.
+- Gallery / accounts / comments (Shadertoy-like): brainstormed (user-owned storage vs managed backend vs GitHub-as-database), not decided. Usage analytics: GitHub gives none for the app; GoatCounter was suggested, not added.
+- Modeling caveats: shaped-wheel sizes and hole positions are estimates from a photo (+/-0.5 tooth); the Rack is modeled with outside teeth only (aspect 7.8:1); Bar-in-ring collisions are probably more permissive on the real toy.
 
-Albums: the top-level Albums view (header tabs Patterns | Albums; thumbnails 220 px, count and date per item; the panel just has a "+ Album" button) keeps named collections of overlay setups in localStorage
-(`myrograph.albums.v1`; ~0.5 KB per overlay, thumbnails re-rendered from the setup on demand, not
-stored). Save-to-album, open, rename, replace-with-current, delete; export one/all albums as
-`.myroalbum.json` and import them (names de-duplicated, fresh ids); importing/dropping a saved
-PNG adds its embedded setup to the current album. Verified in headless Chrome.
-
-Share links: "Copy link" in the panel (and a link button on each album item) copies
-`<page url>#v1/<paper>/<t|f>/<track,roller,hole,color,visible,rot,size>/...` (~35 chars/layer, in
-the fragment so no server sees it). Opening such a URL (or pasting one and triggering
-`hashchange`, which confirms before replacing) restores the overlay in the Compose panel; bad or
-unknown parts are rejected/skipped with a message. `encodeShare`/`decodeShare` are in CORE and
-node-tested; the URL is not updated live while editing (button only).
-
-Ink palettes: the Ink row has a palette dropdown (9 presets - Classic is the original colors - plus "My palettes"),
-Edit... (a preset is copied first; own palettes edited in place, with delete) and + New. The active palette
-drives the grid's Auto ink (one color per moving piece, cycling) and the color of each newly added Compose
-layer (first palette color not already used). Custom palettes live in localStorage
-(`myrograph.palettes.v1`, active one in `myrograph.palette.current`); presets/validation (`PRESET_PALETTES`,
-`cleanPalette`, `parsePalettes`) are in CORE and node-tested. Choosing a palette does not recolor layers
-already in the overlay. A palette can carry an optional `paper` (Neon, Midnight, Chalkboard, or a custom one via
-the editor's "Paper" checkbox): choosing it sets the paper; choosing a palette without one restores the default
-light paper only if the previous palette set it (`paperFromPalette`), so a hand-picked paper is never overridden.
-
-Custom parts: the Custom parts filter row ("＋ Make a part…", chips with a ✎ edit button per part) opens a maker
-dialog. Shape = star-shaped outline from radial handles (k-fold symmetry x n handles per section, optional mirror,
-periodic cubic spline) or a preset (circle, oval, lens, egg, rounded square/triangle, pentagon, flower, clover,
-star); Size = tooth count N (perimeter scaled to exactly N). Pen holes: click/drag/right-click, row/grid fill,
-margin 1 tooth from the edge enforced. Live "fits with the set" grid (green/red from the same `fits` simulation,
-computed incrementally so the UI stays responsive) and an animated roll preview. Library: localStorage
-`myrograph.parts.v1` (max 12). Custom combos are in `CUSTOM`, shown only through their own filter row (not the
-main grid). Parts are immutable and content-addressed (`c` + hash), and PNG/album/share-link state carries the
-definitions (`parts`; `p,...` URL segments, ~150 chars for 2 layers + 1 part), so others can open them; a
-"keep part" button in the layer list adds a guest part to the library. Tested in node (CORE) and in headless
-Chrome (editor interaction, save/edit/copy/delete, reload persistence, link/PNG/album round trips).
-
-Next steps / not done:
-- Custom parts: no custom rings/racks (inside tracks must be circles); no undo in the maker; no library-only
-  export (albums/PNGs carry parts); hole numbers are in placement order unless "Number rim -> center"; only
-  non-overlap is modeled, not whether real teeth would mesh (same as the shaped wheels).
-- Palettes: no export/import (browser-local only, like albums), no reordering colors. Paper isn't persisted
-  across reloads; it is re-applied from the saved palette on load, so a hand-picked paper is lost on reload.
-- Share links only work for others when copied from the hosted page (GitHub Pages, below); a file:// or
-  localhost link works only on the same computer (the copy message says so).
-- Albums live per browser profile and per origin (file:// vs http://localhost are separate
-  stores) - export is the backup path. No drag-reorder of items, no multi-select.
-- Compose: no SVG export, no layer reordering; animation is GIF only (see the 2026-11-08 animation entry).
-- Only Bar inside rings 96/105 and Triangle inside ring 96 collide (hidden behind "Include
-  overlapping combos"). In the photo the Bar has teeth only on its short ends; modeled with teeth
-  all round, so Bar-in-ring is probably more permissive on the real toy.
-- Shaped-wheel sizes and hole positions were measured by eye from the photo (+/-0.5 tooth); a
-  closer photo of each would tighten them. Round-wheel hole distances are an even spread from
-  0.8 to 0.14 of the tip radius (only distance matters for a round wheel).
-- Rack is modeled with outside teeth only and aspect 7.8:1 (from the photo).
-- Possible: click-to-detail, animated drawing, shareable URLs, SVG/PNG export.
-
-Testing: `node tools/test.mjs` extracts the CORE block and checks the rolling math against closed
-forms, catalog hole counts, PNG chunks and share links. `tools/shot.sh` takes headless screenshots.
-`CLAUDE.md` is the short orientation file for a fresh session.
+**Testing.** `node tools/test.mjs` checks the CORE math, codecs and the sync merge engine (no browser). `tools/shot.sh` takes desktop screenshots; `node tools/mobile.mjs <driver.js> <out.png>` runs a driver in a phone-sized Chrome with touch.
+The browser drivers used during development live in the git-ignored `.context/` and are not part of the repo.
 
 ## Log
 
