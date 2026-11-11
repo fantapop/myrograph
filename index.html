@@ -24,6 +24,9 @@
   "Restore" merges one back (newer wins, nothing deleted). The same record / merge machinery (syncMerge in CORE, syncWith in the UI) is what a cloud provider uses. "Connect Google Drive" signs in with Google Identity Services (token flow, drive.appdata scope only) and syncs one JSON file in the app's hidden Drive folder; no server of ours. Syncing is automatic and in the background
   (syncKick: after any change, on returning to the tab, when back online, a slow poll; debounced, retried with backoff; the cloud button shows a status dot).
 
+  Anonymous counts: a GoatCounter script (https://myrograph.goatcounter.com; no cookies, no personal data, the #fragment is never sent, localhost ignored) counts visits, and track() sends a few named
+  events (overlay/started, overlay/created[-png|-gif|-svg|-album|-link|-print], visit/new, visit/returning). Events are plain names only, never content. Backup & sync has a "don't count my visits" box.
+
   Naming: everything saved is written under the myrograph names (PNG chunk Myrograph, app id myrograph, localStorage keys
   myrograph.*, .myroalbum.json); the old names are only read (see LEGACY) so earlier files and browser data keep working.
 
@@ -79,6 +82,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>myrograph</title>
+<script data-goatcounter="https://myrograph.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>      <!-- anonymous visit counts: no cookies, no personal data; the #fragment (share links) is never sent; localhost and "skipgc" are ignored. See track() -->
 <script>   /* UI theme before first paint: the saved choice (myrograph.theme), else the system setting */
   (() => { let t = null; try { t = localStorage.getItem('myrograph.theme'); } catch { /* private mode */ }
     document.documentElement.dataset.theme = t === 'light' || t === 'dark' ? t : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; })();
@@ -462,6 +466,9 @@
     <div class="sy-btns"><button id="sy-backup">Back up everything…</button><button id="sy-restore">Restore from a backup…</button><input type="file" id="sy-file" accept=".json,application/json" hidden></div>
     <p class="sy-small">Restoring merges: whatever is newer wins, and nothing in this browser is deleted.</p>
     <p class="sy-small" id="sy-del" hidden><button id="sy-delcloud">Delete my cloud copy…</button></p>
+    <h4>Privacy</h4>
+    <p class="sy-small">Myrograph counts visits and a few actions (such as saving a picture) anonymously with <a href="https://www.goatcounter.com" target="_blank" rel="noopener">GoatCounter</a>: no cookies, no personal data, and never what you make. Your albums and everything else stay in your browser (and your own Google Drive if you connect it).</p>
+    <label class="sy-small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="sy-skipgc"> Don't count my visits in this browser</label>
   </div>
 </dialog>
 <dialog id="pr">
@@ -1203,6 +1210,23 @@ let customPalettes = [], palId = 'classic';     // loaded in buildInk's caller (
 const allPalettes = () => [...PRESET_PALETTES, ...customPalettes];
 const palette = () => allPalettes().find(p => p.id === palId) || PRESET_PALETTES[0];
 const MIN_TILE = 210, GAP = 10, FOOT = 44, BUDGET_MS = 10;
+// ---- anonymous usage counts (GoatCounter, https://myrograph.goatcounter.com): page views give visitors; track() adds a few named events. An event is just a name and a count: never what
+// someone made, never text, colors or links. The counter itself ignores localhost and any browser with localStorage skipgc = 't' (the checkbox in Backup & sync sets it).
+const gcQueue = [], gcSeen = new Set();
+function track(name, { once = false } = {}) {
+  if (once) { if (gcSeen.has(name)) return; gcSeen.add(name); }
+  const send = () => { try { window.goatcounter.count({ path: name, title: name, event: true }); } catch { /* counting must never break the app */ } };
+  if (typeof window.goatcounter?.count === 'function') return send();
+  gcQueue.push(send); const el = document.querySelector('script[data-goatcounter]');       // the counter script loads async: send once it is there
+  if (el && !el._gcWait) { el._gcWait = true; el.addEventListener('load', () => { while (gcQueue.length) gcQueue.shift()(); }); }
+}
+function trackVisit() {                          // new vs returning, from a date kept only in this browser (the counter alone can't tell a returning visitor from a new one on another day)
+  try {
+    const today = new Date().toISOString().slice(0, 10), first = localStorage.getItem(STORAGE_PREFIX + 'first-visit'), last = localStorage.getItem(STORAGE_PREFIX + 'last-visit');
+    if (!first) { localStorage.setItem(STORAGE_PREFIX + 'first-visit', today); track('visit/new'); } else if (last !== today) track('visit/returning');
+    localStorage.setItem(STORAGE_PREFIX + 'last-visit', today);
+  } catch { /* private mode: no counting */ }
+}
 const phoneMQ = matchMedia('(max-width: 760px)'), isPhone = () => phoneMQ.matches;      // phone layout: full-screen overlay editor + a preview bar (PIP) while browsing
 const minTile = () => isPhone() ? 150 : MIN_TILE;      // two columns of patterns on a phone
 const $ = id => document.getElementById(id);
@@ -1873,6 +1897,7 @@ async function saveGif() {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' })); a.download = `myrograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.gif`;
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    track('overlay/created'); track('overlay/created-gif');
     say(`Saved ${a.download} (${frames} frames, ${(bytes.length / 1048576).toFixed(1)} MB)` + (!seamless ? ' - decimal speeds need a longer loop to repeat exactly than a GIF can hold here, so it jumps a little where it repeats: use whole numbers, or shorter fps / loop' : loops > 1 ? ` - ${loops} loops long (${loops * loopSec} s) so every layer repeats exactly` : ''), seamless ? 8000 : 14000);
   } catch (err) { say('Could not make the GIF: ' + err.message, 8000); }
   finally { btn.disabled = false; exporting = false; renderOverlay(); animSync(); }
@@ -1912,6 +1937,7 @@ function saveSvg() {
   const text = makeSvg({ px: 800 }), a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' })); a.download = `myrograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.svg`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  track('overlay/created'); track('overlay/created-svg');
   say(`Saved ${a.download} (${(text.length / 1024).toFixed(0)} KB)${anyMotion() ? '' : ' - no layer spins or draws yet, so it is a still picture'}`, 8000);
 }
 $('an-svg').onclick = saveSvg;
@@ -1923,6 +1949,7 @@ const prd = $('pr');
 function startPrint() {
   if (!printable()) return say('Add at least one visible layer first.');
   const paper = $('paper').value;
+  track('overlay/created'); track('overlay/created-print');
   if (isNearWhite(paper)) { printWhite = false; return window.print(); }
   $('pr-sw').style.background = paper; $('pr-hex').textContent = paper; prd.showModal(); $('pr-white').focus();
 }
@@ -1938,7 +1965,7 @@ async function savePng() {
   a.href = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
   a.download = `myrograph-${layers.size}-layer${layers.size > 1 ? 's' : ''}.png`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-  say(`Saved ${a.download}`);
+  say(`Saved ${a.download}`); track('overlay/created'); track('overlay/created-png');
 }
 let byId = null;
 function lookup(l) {
@@ -2143,7 +2170,7 @@ function saveToAlbum() {
   if (!layers.size) return say('Add at least one layer first.');
   const a = ensureAlbum(), item = { id: uid(), name: `Overlay ${a.items.length + 1}`, created: Date.now(), state: overlayState() };
   a.items.push(item);
-  if (persist()) say(`Added “${item.name}” to the album “${a.name}”`);
+  if (persist()) { say(`Added “${item.name}” to the album “${a.name}”`); track('overlay/created'); track('overlay/created-album'); }
   buildAlbums();
 }
 const scrollMem = { patterns: 0, albums: 0 };
@@ -2211,6 +2238,7 @@ fillAlbumSelects();
 async function copyLink(state) {
   if (!state.layers.length) return say('Add at least one layer first.');
   const url = location.href.split('#')[0] + '#' + encodeShare(state);
+  track('overlay/created'); track('overlay/created-link');
   try { await navigator.clipboard.writeText(url); say(`Link copied (${url.length} characters)` + (/^(localhost|127\.0\.0\.1|)$/.test(location.hostname) ? ' - note: this link only works on this computer; open the page at the GitHub Pages address to share' : '') + (url.length > 2000 ? ' - long; some apps truncate links' : ''), 7000); }
   catch { prompt('Copy this link:', url); }
 }
@@ -2235,7 +2263,7 @@ function clearCurves() { for (const c of ovCache.values()) c.geo.dispose(); ovCa
 function addLayer(p) {
   const key = newLayerKey();
   layers.set(key, { key, p, color: inkFor(p), visible: true, rot: 0, size: 100, width: 1, dx: 0, dy: 0, spin: 0, draw: 0 });   // same color the tile is drawn in
-  activeKey = key;                                                                                                  // the new layer is the one that moves
+  activeKey = key; track('overlay/started', { once: true });                                                       // the new layer is the one that moves
   setOvTab('layers');                                                                                               // show the list the new layer went into
   buildLayerList(); renderOverlay(); animSync();
   $('layers').lastElementChild?.scrollIntoView({ block: 'nearest' });
@@ -3156,7 +3184,8 @@ function restoreBackup(records) {               // merge into what is here: newe
 }
 const syDlg = $('sy'), syMsg = t => { $('sy-msg').textContent = t; };
 $('sync-btn').innerHTML = '<svg viewBox="0 0 17 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M4.6 12.8h7.6a3 3 0 0 0 .5-5.96A4.3 4.3 0 0 0 4.4 6.3a3.3 3.3 0 0 0 .2 6.5z"/></svg>';
-$('sync-btn').onclick = () => { syMsg(''); renderSyncStatus(); syDlg.showModal(); };
+$('sync-btn').onclick = () => { syMsg(''); renderSyncStatus(); try { $('sy-skipgc').checked = localStorage.getItem('skipgc') === 't'; } catch { /* ignore */ } syDlg.showModal(); };
+$('sy-skipgc').onchange = e => { try { e.target.checked ? localStorage.setItem('skipgc', 't') : localStorage.removeItem('skipgc'); } catch { /* ignore */ } };
 $('sy-x').onclick = () => syDlg.close();
 $('sy-backup').onclick = () => {
   const doc = makeBackup(), n = Object.keys(doc.records).length;
@@ -3279,7 +3308,7 @@ setTimeout(() => {                              // let "Preparing…" paint befo
   library = parseParts(store.get(PARTS_KEY)); library.forEach(d => registry.set(d.id, d)); loadFits(); rebuildCustom();
   if (library.length) console.log(`custom parts: ${library.length} in library, ${CUSTOM.length} combos, ${Math.round(performance.now() - t1)} ms`);
   if (isPhone()) document.querySelector('header details').open = false;      // phones start with the filters folded away
-  buildFilters(); buildCustomRow(); initFilterSheets(); refilter(); applyHash(); initSync();
+  buildFilters(); buildCustomRow(); initFilterSheets(); refilter(); applyHash(); initSync(); trackVisit();
 }, 30);
 </script>
 </body>

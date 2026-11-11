@@ -100,4 +100,7 @@ https://fantapop.github.io/myrograph/ (redeploys on every push; share links only
   (find oldest by name, PATCH to update, multipart POST to create, 404 recreates). Before each call `ensure(false)` tries a silent renewal (`prompt: 'none'` + `hint` = the email); if the browser blocks it (no user gesture) the run throws `.auth` -> status `signin` ("Sign in again" button, interactive `prompt: ''`).
   Remembered in localStorage: `sync.provider`, `sync.email`, `sync.file`; `initSync()` re-enables at start. Disconnect revokes, forgets, resets `syncMeta`. A damaged cloud file is never overwritten (status error). Everything coming from the cloud goes through `cleanRecords`.
   Tests stub `window.google` and `fetch` (see `.context/y6.js` in the dev notes: not in the repo); the real service has not been exercised by tests.
+- Usage counts: the GoatCounter `<script data-goatcounter=...>` in <head> counts page views (visitors, referrers, screens, countries; the #fragment is not sent, localhost and localStorage `skipgc='t'` are ignored). `track(name, {once})` sends events
+  (queued until the script loads); names so far: `overlay/started` (once per visit), `overlay/created` + `overlay/created-<png|gif|svg|album|link|print>`, `visit/new` / `visit/returning` (`trackVisit`, a date kept in localStorage). RULE: an event is only a fixed name,
+  never user content, text, colors or links. Anything new gets listed in the README privacy section if it changes what is counted.
 

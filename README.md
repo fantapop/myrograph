@@ -37,3 +37,8 @@ Not affiliated with or endorsed by the owner of the Spirograph® trademark. Spir
 registered trademark of its owner; it is mentioned here only to describe what the curves resemble.
 
 Licensed under the MIT License (see `LICENSE`).
+
+## Privacy
+Your albums, signatures, palettes and parts stay in your browser (and your own Google Drive if you choose to connect it); there is no Myrograph server. The page counts visits and a few actions (such as "saved a picture")
+anonymously with [GoatCounter](https://www.goatcounter.com): no cookies, no personal data, and never what you make. A "Don't count my visits" box in the Backup & sync dialog turns that off for your browser.
+

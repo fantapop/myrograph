@@ -26,6 +26,14 @@ The browser drivers used during development live in the git-ignored `.context/` 
 
 ## Log
 
+### 2026-11-10 — Anonymous usage counts (GoatCounter)
+
+- Owner signed up (https://myrograph.goatcounter.com). Script added to <head>. Checked its source first: the path it sends is `pathname + search` (the `#v1/...` share-link fragment is never sent), it ignores localhost / private IPs and any browser with `skipgc = 't'`, events are `goatcounter.count({path, title, event: true})`.
+- Counted: page views (= visitors, referrers, screen sizes, countries, browsers); `overlay/started` (first layer of a visit); `overlay/created` plus `overlay/created-png|gif|svg|album|link|print` (each save / export / share / print); `visit/new` and `visit/returning`
+  (GoatCounter can't tell a returning visitor on another day, so a first-visit date is kept in localStorage; no identifier). Events are plain names only (a node-free browser test asserts every payload is exactly {path, title, event}).
+- Privacy: README "Privacy" section; Backup & sync dialog has a short note and a "Don't count my visits in this browser" box (sets `skipgc`). The owner's own visits to the live site DO count unless that box is ticked.
+- Ideas not added yet (waiting for the owner): feature usage (spin / draw / text / signature / custom part / canvas shape / theme), sync health (connected, "sign in again" how often, errors), opening a shared link, phone-vs-desktop layout, a small error counter for crashes seen in the wild, a funnel (viewed -> added a layer -> saved).
+
 ### 2026-11-09 — Google Drive sync (first version)
 
 - OAuth Client ID supplied by the owner (project created in Google Cloud; Drive API enabled; scope `drive.appdata` + optional `userinfo.email`; Web client; origins https://fantapop.github.io and http://localhost:8000; Testing mode with test users until published).
