@@ -20,6 +20,7 @@ pen-hole combination of a Deluxe-style gear set (7,866 combinations, 7,836 that 
 - Text: rotation, alignment, reordering. Maker: undo, custom rings / racks. Palettes: the chosen paper is not remembered across reloads.
 - Gallery / accounts / comments (Shadertoy-like): brainstormed (user-owned storage vs managed backend vs GitHub-as-database), not decided. Usage analytics: GitHub gives none for the app; GoatCounter was suggested, not added.
 - Modeling caveats: shaped-wheel sizes and hole positions are estimates from a photo (+/-0.5 tooth); the Rack is modeled with outside teeth only (aspect 7.8:1); Bar-in-ring collisions are probably more permissive on the real toy.
+- It would be cool to add a leaderboard gallery where you could vote and comment on other peoples designs.  Similar to https://shadertoy.com/.
 
 **Testing.** `node tools/test.mjs` checks the CORE math, codecs and the sync merge engine (no browser). `tools/shot.sh` takes desktop screenshots; `node tools/mobile.mjs <driver.js> <out.png>` runs a driver in a phone-sized Chrome with touch.
 The browser drivers used during development live in the git-ignored `.context/` and are not part of the repo.
