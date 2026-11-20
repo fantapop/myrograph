@@ -1,44 +1,48 @@
 # myrograph
 
-A browser-only gallery and composer for gear-curve patterns (hypotrochoids and epitrochoids) drawn
-by toothed rings, wheels and shaped pieces rolling around each other, using the tooth counts and
-pen-hole layouts of a Deluxe-style set. No build step, no server: open `index.html`.
+A web page for browsing and combining gear-curve patterns, the kind a Spirograph draws. It uses the
+tooth counts and pen-hole layouts of a Deluxe-style set. Nothing to install: open
+<https://fantapop.github.io/myrograph/>.
 
-- Browse and filter thousands of ring/wheel/shape/pen-hole combinations (rendered with three.js,
-  only the tiles on screen are drawn).
-- **Sync between devices** (optional): connect your own Google Drive and your albums, signatures, palettes and custom parts stay in step in the background, stored in a hidden app folder only Myrograph can open. Or **back up / restore** one file by hand.
-- **Works on phones**: the overlay is a full-screen editor, and while you browse patterns a small live preview bar keeps it in view (tap a pattern to add it).
-- **Compose** several patterns into one overlay on a canvas of your choice (square, wide, tall, Letter / A4 or a custom pixel size) (per-layer color, rotation, size, X/Y shift, spin, pen-draw) and export an animated GIF or SVG (saved albums animate too); light and dark UI themes.
-- **Save** an overlay as a PNG with its setup embedded, and re-import it later to keep editing.
-- Keep named **albums** in the browser (localStorage), export/import them as files.
-- **Text & signatures**: type text straight onto the overlay (choose a font, edit it in place, no saving needed), or draw a signature by hand and keep it in a list to reuse; put several on the overlay
-  (drag, resize, recolor each). They are saved with the PNG, album item and share link, and appear in prints and exports.
-- **Print** the overlay with the Print button or Ctrl/Cmd+P (with the Compose panel open): just the picture, scaled to the page.
-- **Share** an overlay as a link: the data lives in the URL fragment.
-- **Make your own wheel**: the *Custom parts* filter row opens a shape maker. Drag handles (with
-  symmetry and mirror) or start from a preset, set the size in teeth, place pen holes, and watch which
-  pieces of the set it fits with while you edit (green fits, red would overlap) next to an animated roll
-  preview. Custom parts live in their own filter, are saved in your browser, and travel inside saved
-  PNGs, albums and share links, so others can open your overlays without having made the part.
+## Features
 
-## Run
+- Browse thousands of patterns made from the rings, wheels and pen holes of the set, and filter by piece.
+- Stack patterns into one picture. Each layer has its own color, rotation, size, line width and position.
+  You can add the same pattern more than once and reorder the layers.
+- Animate a layer by spinning it, or by having a pen draw it out.
+- Choose the canvas shape: square, wide, tall, Letter, A4 or a custom size.
+- Add text and signatures, typed or drawn by hand.
+- Design your own wheels and see which pieces of the set they fit with.
+- Save a picture as a PNG (the setup is stored inside, so you can open it again and keep editing), an
+  animated GIF or an animated SVG, or print it.
+- Share a picture as a link.
+- Keep albums of your pictures.
+- Back everything up to a file, or sync between your devices through your own Google Drive.
+- Light and dark themes, and a layout for phones.
 
-Open `index.html` in a browser (needs network for the three.js CDN), or run
-`python3 -m http.server` here and visit <http://localhost:8000>. The page is also hosted at
-<https://fantapop.github.io/myrograph/> (GitHub Pages, from `main`); share links only work for others
-when copied from that address, not from a `file://` or `localhost` copy.
+## Running it
 
-## Notes
+Open `index.html` in a browser (it loads three.js from a CDN, so it needs a network connection), or
+run `python3 -m http.server` in this folder and go to <http://localhost:8000>. Share links only work
+for other people when they come from the hosted address above, not from a local copy.
 
-`DEVLOG.md` has the design notes, decisions and next steps. Part sizes for the shaped wheels are
-estimates measured from a photo, not official specifications.
+## About the code
+
+All of the code in this project was written by Claude, an AI model made by Anthropic, working from
+my directions. It's one HTML file with no build step. `DEVLOG.md` has the design notes and decisions.
+
+The sizes of the shaped wheels are estimates measured from a photo, not official specifications.
+
+## Privacy
+
+Your albums and other saved things stay in your browser, and in your own Google Drive if you turn on
+sync. There is no Myrograph server. Visits and a few actions, like saving a picture, are counted
+anonymously with [GoatCounter](https://www.goatcounter.com). It uses no cookies, collects no personal
+data and never sees what you make. The sync dialog has a box to turn the counting off for your browser.
+
+## Legal
 
 Not affiliated with or endorsed by the owner of the Spirograph® trademark. Spirograph is a
 registered trademark of its owner; it is mentioned here only to describe what the curves resemble.
 
 Licensed under the MIT License (see `LICENSE`).
-
-## Privacy
-Your albums, signatures, palettes and parts stay in your browser (and your own Google Drive if you choose to connect it); there is no Myrograph server. The page counts visits and a few actions (such as "saved a picture")
-anonymously with [GoatCounter](https://www.goatcounter.com): no cookies, no personal data, and never what you make. A "Don't count my visits" box in the Backup & sync dialog turns that off for your browser.
-
